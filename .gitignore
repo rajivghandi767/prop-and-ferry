@@ -1,0 +1,104 @@
+# Distribution / Packaging
+__pypackages__/
+.Python
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+share/python-wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+MANIFEST
+*.manifest 
+*.spec 
+
+# Installer logs
+pip-log.txt
+pip-delete-this-directory.txt
+
+# Environments
+.env
+*.env.production
+.env.dev
+.env.development
+.venv
+env/
+venv/
+ENV/
+env.bak/
+venv.bak/
+
+# VSCode
+
+.vscode
+.DS_Store
+.env
+.vscode/* 
+!.vscode/settings.json 
+!.vscode/tasks.json 
+!.vscode/launch.json 
+!.vscode/extensions.json 
+.history
+
+# Django #
+*.log
+*.pot
+*.pyc
+__pycache__
+media
+local_settings.py
+db.sqlite3-journal
+db.sqlite3
+
+# Backup files # 
+*.bak 
+datadump.json
+
+# Generated files
+.idea/**/contentModel.xml
+
+# Sensitive or high-churn files
+.idea/**/dataSources/
+.idea/**/dataSources.ids
+.idea/**/dataSources.local.xml
+.idea/**/sqlDataSources.xml
+.idea/**/dynamic.xml
+.idea/**/uiDesigner.xml
+.idea/**/dbnavigator.xml
+
+# Python # 
+*.py[cod] 
+*$py.class 
+
+# React #
+
+*/node_modules
+
+/.pnp
+.pnp.js
+
+npm-debug.log*
+
+*docker-compose.dev.yaml
+*docker-compose.dev.yml
+*Dockerfile.dev
+
+/backend/staticfiles
+/backend/mediafiles
+/backend/config/settings/local.py
+
+/frontend/README.md
+
+/backend/requirements.in
+/backend/dev-requirements.in
+/backend/common.in
+/backend/dev-requirements.txt

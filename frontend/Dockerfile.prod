@@ -1,0 +1,42 @@
+# Use official Node.js image to build the frontend
+FROM node:25-alpine AS build
+
+RUN addgroup -S frontend_group && adduser -S frontend -G frontend_group && \
+    mkdir -p /home/frontend/react && chown -R frontend:frontend_group /home/frontend/react
+
+WORKDIR /home/frontend/react
+USER frontend
+
+# Copy package files and install dependencies
+COPY --chown=frontend:frontend_group package*.json ./
+RUN npm ci && npm ci npm@latest
+
+# Copy source code
+COPY --chown=frontend:frontend_group . .
+
+# Build arguments for environment variables
+ARG NODE_ENV=production
+ARG VITE_API_URL
+
+# Set environment variables for build process
+ENV NODE_ENV=$NODE_ENV
+ENV VITE_API_URL=$VITE_API_URL
+
+# Build the application with environment variables
+RUN npm run build && \
+    find /home/frontend/react -mindepth 1 -maxdepth 1 ! -name 'dist' -exec rm -rf {} +
+
+# Production stage
+FROM nginx:alpine AS production
+
+# Install wget for health checks
+RUN apk add --no-cache wget
+
+# Copy built files from build stage
+COPY --from=build /home/frontend/react/dist /usr/share/nginx/html
+
+# Health check
+HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \
+    CMD wget -q --spider http://localhost/ || exit 1
+
+CMD ["nginx", "-g", "daemon off;"]

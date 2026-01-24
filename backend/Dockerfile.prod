@@ -1,0 +1,75 @@
+FROM python:3.14-slim
+
+# Environment variables
+ENV PYTHONDONTWRITEBYTECODE=1 \
+    PYTHONUNBUFFERED=1 \
+    PIP_ROOT_USER_ACTION=ignore \
+    PATH="/home/backend/.local/bin:$PATH" \
+    DJANGO_SETTINGS_MODULE=config.settings.production \
+    DJANGO_ENV=production
+
+# Create user and group with explicit IDs for consistency
+RUN groupadd --gid 1000 backend_group && \
+    useradd --uid 1000 --gid backend_group --create-home --shell /bin/bash backend
+
+WORKDIR /home/backend/django
+
+ARG DEBIAN_FRONTEND=noninteractive
+
+# Install system dependencies
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    libpq-dev \
+    curl \
+    && rm -rf /var/lib/apt/lists/* \
+    && apt-get purge -y --auto-remove
+
+# Create all directories upfront with proper permissions
+RUN mkdir -p /home/backend/django/staticfiles \
+             /home/backend/django/mediafiles \
+             /home/backend/django/logs && \
+    chown -R backend:backend_group /home/backend && \
+    chmod -R 755 /home/backend/django
+
+# Copy and install Python dependencies as root
+COPY --chown=backend:backend_group requirements.txt ./
+
+RUN pip install --no-cache-dir --upgrade pip && \
+    pip install --no-cache-dir --no-warn-script-location -r requirements.txt && \
+    rm requirements.txt
+
+# Copy application code
+COPY --chown=backend:backend_group . .
+    
+# Create log files with proper permissions
+RUN touch /home/backend/django/logs/portfolio.log \
+          /home/backend/django/logs/errors.log \
+          /home/backend/django/logs/gunicorn-access.log \
+          /home/backend/django/logs/gunicorn-error.log && \
+    chown backend:backend_group /home/backend/django/logs/*.log && \
+    chmod 664 /home/backend/django/logs/*.log
+
+# Switch to backend user
+USER backend
+
+# Health check
+HEALTHCHECK --interval=30s --timeout=10s --start-period=30s --retries=3 \
+    CMD curl -f http://localhost:8000/health/ || exit 1
+
+# Document the port (no expose to host needed)
+EXPOSE 8000
+
+# Pi 4B optimized gunicorn with logging
+CMD ["gunicorn", \
+     "--workers", "2", \
+     "--threads", "2", \
+     "--worker-class", "gthread", \
+     "--worker-connections", "1000", \
+     "--max-requests", "1000", \
+     "--max-requests-jitter", "100", \
+     "--bind", "0.0.0.0:8000", \
+     "--preload", \
+     "--access-logfile", "/home/backend/django/logs/gunicorn-access.log", \
+     "--error-logfile", "/home/backend/django/logs/gunicorn-error.log", \
+     "--log-level", "info", \
+     "--timeout", "30", \
+     "config.wsgi:application"]
