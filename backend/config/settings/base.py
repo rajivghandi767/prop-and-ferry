@@ -21,6 +21,7 @@ INSTALLED_APPS = [
     'django.contrib.staticfiles',
 
     # Local apps
+    'core',
 ]
 
 MIDDLEWARE = [
@@ -109,9 +110,9 @@ USE_TZ = True
 # ============================================================================
 DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
 
-# ============================================================================
-# STATICFILES FINDERS & DIRS
-# ============================================================================
-STATICFILES_DIRS = [
-    BASE_DIR / "static",  # To find custom static files
-]
+# # ============================================================================
+# # STATICFILES FINDERS & DIRS
+# # ============================================================================
+# STATICFILES_DIRS = [
+#     BASE_DIR / "static",  # To find custom static files
+# ]
