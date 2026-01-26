@@ -9,7 +9,7 @@ from django.utils.decorators import method_decorator
 from rest_framework.routers import DefaultRouter
 
 # Import viewsets
-
+from core.views import LocationViewSet, RouteViewSet, CarrierViewSet
 
 # Import health check views
 from health_check.views import health_detailed, health_simple
@@ -24,7 +24,7 @@ def api_root(request):
     base_url = request.build_absolute_uri('/')
 
     return JsonResponse({
-        "message": "Portfolio API",
+        "message": "Port & Ferry Web App API",
         "status": "running",
         "version": "1.0",
         "api_url": f"{base_url}api/",
@@ -40,7 +40,9 @@ def api_root(request):
 router = DefaultRouter()
 
 # Register viewsets with explicit basename for better URL naming
-
+router.register(r'locations', LocationViewSet, basename='location')
+router.register(r'carriers', CarrierViewSet, basename='carrier')
+router.register(r'routes', RouteViewSet, basename='route')
 
 # URL patterns
 urlpatterns = [
