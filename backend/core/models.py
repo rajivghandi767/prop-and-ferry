@@ -35,11 +35,19 @@ class Route(models.Model):
         Location, on_delete=models.CASCADE, related_name='arrivals')
     carrier = models.ForeignKey(
         Carrier, on_delete=models.CASCADE, related_name='routes')
+    days_of_operation = models.CharField(
+        max_length=7,
+        default="1234567",
+        help_text="Days this route runs (1=Monday, 7=Sunday). E.g., '135' is Mon/Wed/Fri"
+    )
     is_active = models.BooleanField(default=True)
     duration_minutes = models.IntegerField(null=True, blank=True)
+    departure_time = models.TimeField(null=True, blank=True)
+    arrival_time = models.TimeField(null=True, blank=True)
+    updated_at = models.DateTimeField(auto_now=True)
 
     class Meta:
         unique_together = ('origin', 'destination', 'carrier')
 
     def __str__(self):
-        return f"{self.carrier.code}: {self.origin.code} ➝ {self.destination.code}"
+        return f"{self.carrier.code}: {self.origin.code} ➝ {self.destination.code} ({self.days_of_operation})"
