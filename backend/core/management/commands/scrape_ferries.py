@@ -1,83 +1,91 @@
-import requests
+import time
+import os
+import urllib.parse
+from datetime import datetime, timedelta
 from bs4 import BeautifulSoup
 from django.core.management.base import BaseCommand
+from playwright.sync_api import sync_playwright
 from core.models import Location, Route, Carrier
+from core.constants import (
+    PORT_ROSEAU, PORT_PTP, PORT_FDF, PORT_CASTRIES,
+    DB_TO_SITE_OPTS
+)
+
+# 🛑 CRITICAL FIX: Allow DB access from Playwright's internal threads
+# Without this, Django blocks the ORM save inside the scraping loop.
+os.environ["DJANGO_ALLOW_ASYNC_UNSAFE"] = "true"
 
 
 class Command(BaseCommand):
-    help = "Scrapes L'Express des Iles Ferry schedules"
+    help = 'Scrapes L\'Express des Iles (FRS) using Direct URL Injection & HTML Parsing'
 
     def handle(self, *args, **kwargs):
-        self.stdout.write("🚢 Starting Ferry Scraper...")
+        # --- CONFIGURATION ---
+        env = os.getenv('DJANGO_ENV', 'development')
+        is_headless = (env == 'production')
 
-        # 1. Setup the Carrier
-        carrier, _ = Carrier.objects.get_or_create(
-            code='LDI',
-            defaults={'name': "L'Express des Iles", 'carrier_type': 'SEA'}
-        )
+        self.stdout.write(
+            f"🚢 Initializing Ferry Scraper (Env: {env} | Headless: {is_headless})...")
 
-        # 2. Define known Ferry Ports
-        ports = {
-            'DOM': 'Roseau',
-            'PTP': 'Pointe-a-Pitre',
-            'FDF': 'Fort-de-France',
-            'SLU': 'Castries'
-        }
+        # 1. DEFINE BASE ROUTES
+        # We define one-way pairs here; the loop below automatically generates the return legs.
+        base_routes = [
+            (PORT_PTP, PORT_ROSEAU),      # Guadeloupe -> Dominica
+            (PORT_FDF, PORT_ROSEAU),      # Martinique -> Dominica
+            (PORT_CASTRIES, PORT_ROSEAU),  # St. Lucia -> Dominica
+        ]
 
-        # Ensure ports exist in DB
-        for code, name in ports.items():
-            Location.objects.get_or_create(
-                code=code,
-                defaults={'name': name, 'location_type': 'PRT', 'city': name}
-            )
+        # 2. GENERATE BIDIRECTIONAL ROUTES
+        # Ensure we check A->B and B->A explicitly
+        final_routes = []
+        for start, end in base_routes:
+            final_routes.append((start, end))
+            final_routes.append((end, start))
 
-        # 3. The Scraping Logic
+        self.stdout.write(
+            f"   ℹ️  Generated {len(final_routes)} route pairs to check.")
 
-        url = "https://www.express-des-iles.fr/en/schedules"  # Example URL
+        # Base URL for the booking engine (found in <form action="...">)
+        BASE_URL = "https://goexpress-b2c.frs-express.com/B2C_2018/"
 
-        try:
-            headers = {'User-Agent': 'Mozilla/5.0'}
-            response = requests.get(url, headers=headers)
+        with sync_playwright() as p:
+            # 1. LAUNCH BROWSER
+            browser = p.chromium.launch(headless=is_headless)
 
-            if response.status_code == 200:
-                soup = BeautifulSoup(response.text, 'html.parser')
-                self.stdout.write(f"   Fetched {url} - Parsing...")
+            # Optimized Viewport: 800x600 fits nicely on Mac split-screen while keeping elements visible
+            context = browser.new_context(
+                viewport={'width': 800, 'height': 600})
+            page = context.new_page()
 
-                # --- PSEUDO CODE ---
-                # You would inspect their site, find the schedule table
-                # rows = soup.find_all('div', class_='schedule-row')
-                # for row in rows:
-                #    extract origin, dest, time
-                #    save to DB
-                # -------------------
+            try:
+                # 🗓️ DATE STRATEGY: Start from TOMORROW (days=1)
+                # This ensures your frontend '7-day lookahead' actually finds data immediately.
+                start_date = datetime.now() + timedelta(days=1)
 
-                # For now, let's HARDCODE the known regular routes
-                # just to prove the concept in your app.
-                known_routes = [
-                    ('PTP', 'DOM'), ('DOM', 'PTP'),
-                    ('FDF', 'DOM'), ('DOM', 'FDF'),
-                    ('SLU', 'DOM'), ('DOM', 'SLU')
-                ]
+                for origin_code, dest_code in final_routes:
+                    self.stdout.write(self.style.WARNING(
+                        f"\n--- Checking {origin_code} -> {dest_code} ---"))
 
-                for org, dst in known_routes:
-                    org_loc = Location.objects.get(code=org)
-                    dst_loc = Location.objects.get(code=dst)
+                    for i in range(7):
+                        check_date = start_date + timedelta(days=i)
+                        date_str = check_date.strftime('%d/%m/%Y')
 
-                    Route.objects.get_or_create(
-                        origin=org_loc,
-                        destination=dst_loc,
-                        carrier=carrier,
-                        defaults={
-                            'is_active': True,
-                            'days_of_operation': '1234567'  # Default to daily for now
+                        # Map internal codes (GPPTP) to site codes (PTP)
+                        site_origin = DB_TO_SITE_OPTS[origin_code][0]
+                        site_dest = DB_TO_SITE_OPTS[dest_code][0]
+
+                        # URL Parameters (Bypasses the "One Way" click and Date Picker)
+                        params = {
+                            'aller': 'AS',          # One Way
+                            'depart': site_origin,
+                            'arrivee': site_dest,
+                            'date_aller': date_str,
+                            'adultes': '1',
+                            'enfants': '0', 'bebes': '0', 'vehicules': '0'
                         }
-                    )
-                    self.stdout.write(self.style.SUCCESS(
-                        f"   ✅ Verified Ferry: {org} <-> {dst}"))
+                        full_url = f"{BASE_URL}?{urllib.parse.urlencode(params)}"
 
-            else:
-                self.stdout.write(self.style.ERROR(
-                    f"   ❌ Failed to fetch page: {response.status_code}"))
-
-        except Exception as e:
-            self.stdout.write(self.style.ERROR(f"   ❌ Error: {e}"))
+                        try:
+                            # 2. NAVIGATE (The Nuclear Option ☢️)
+                            # We go straight to results. 'domcontentloaded' prevents waiting for slow ads/trackers.
+                            try:
