@@ -22,7 +22,7 @@ export interface Route {
   duration_minutes: number | null;
   departure_time?: string;
   arrival_time?: string;
-  days_of_operation?: string;
+  days_of_operation?: string; // Now optional
   is_ferry: boolean;
   is_active: boolean;
 }
@@ -34,7 +34,7 @@ export interface Itinerary {
   connection_duration: number | null;
 }
 
-// --- API TYPES (From Backend) ---
+// --- API TYPES (Matches 'format_route_response' in backend/core/views.py) ---
 export interface ApiRoute {
   id: number;
   carrier: string;       
@@ -43,7 +43,7 @@ export interface ApiRoute {
   origin: string;        
   destination: string;
   
-  // NEW: Names for better UI display
+  // Names for UI
   origin_name: string;
   destination_name: string;
   origin_city: string;
@@ -53,6 +53,9 @@ export interface ApiRoute {
   arrival_time: string;
   duration: number;
   is_ferry: boolean;
+  
+  // Optional because specific Sailings don't have generic schedules
+  days_of_operation?: string; 
 }
 
 export interface ApiResponse {

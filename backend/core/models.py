@@ -15,48 +15,27 @@ class Carrier(models.Model):
 
 class Location(models.Model):
     TYPE_CHOICES = (('APT', 'Airport'), ('PRT', 'Ferry Port'))
-
-    # Core Fields
-    code = models.CharField(max_length=5, unique=True)  # UN/LOCODE
+    code = models.CharField(max_length=5, unique=True)
     name = models.CharField(max_length=100)
     city = models.CharField(max_length=100, blank=True)
     country = models.CharField(max_length=100, blank=True)
     location_type = models.CharField(
         max_length=3, choices=TYPE_CHOICES, default='APT')
-
-    # Coordinates
     latitude = models.FloatField(null=True, blank=True)
     longitude = models.FloatField(null=True, blank=True)
 
-    # NEW: Smart Linking
-    # Example: 'DMROS' (Roseau Ferry) has parent 'DOM' (Dominica Generic)
-    parent = models.ForeignKey(
-        'self',
-        null=True,
-        blank=True,
-        on_delete=models.SET_NULL,
-        related_name='sub_locations'
-    )
+    # Smart Linking (Parent/Child)
+    parent = models.ForeignKey('self', null=True, blank=True,
+                               on_delete=models.SET_NULL, related_name='sub_locations')
 
     def resolve_aliases(self):
-        """
-        Returns a list of location codes that should be included when searching 
-        for this location. (e.g., Searching 'DOM' returns ['DOM', 'DMROS'])
-        """
-        # Start with self
         codes = {self.code}
-
-        # 1. If I am a parent (e.g., DOM), include my children (DMROS)
         for child in self.sub_locations.all():
             codes.add(child.code)
-
-        # 2. If I am a child (e.g., DMROS), include my parent (DOM)
         if self.parent:
             codes.add(self.parent.code)
-            # And include my siblings (e.g., if there was a 2nd ferry port)
             for sibling in self.parent.sub_locations.all():
                 codes.add(sibling.code)
-
         return list(codes)
 
     def __str__(self):
@@ -71,22 +50,36 @@ class Route(models.Model):
     carrier = models.ForeignKey(
         Carrier, on_delete=models.CASCADE, related_name='routes')
 
-    # "135" means Mon/Wed/Fri
+    # Recurring Schedule (Used mostly for Flights)
     days_of_operation = models.CharField(
-        max_length=7,
-        default="1234567",
-        help_text="Days this route runs (1=Monday, 7=Sunday)"
-    )
+        max_length=7, default="1234567", help_text="1=Mon, 7=Sun")
     is_active = models.BooleanField(default=True)
 
+    # Default/Avg times (Actual times come from Sailing)
     duration_minutes = models.IntegerField(null=True, blank=True)
     departure_time = models.TimeField(null=True, blank=True)
     arrival_time = models.TimeField(null=True, blank=True)
-
-    updated_at = models.DateTimeField(auto_now=True, db_index=True)
+    updated_at = models.DateTimeField(auto_now=True)
 
     class Meta:
         unique_together = ('origin', 'destination', 'carrier')
 
     def __str__(self):
         return f"{self.carrier.code}: {self.origin.code} -> {self.destination.code}"
+
+
+class Sailing(models.Model):
+    route = models.ForeignKey(
+        Route, on_delete=models.CASCADE, related_name='sailings')
+    date = models.DateField(db_index=True)
+    departure_time = models.TimeField()
+    arrival_time = models.TimeField()
+    duration_minutes = models.IntegerField(default=120)
+    price_text = models.CharField(max_length=50, blank=True)  # e.g. "79,00 €"
+
+    class Meta:
+        unique_together = ('route', 'date', 'departure_time')
+        ordering = ['date', 'departure_time']
+
+    def __str__(self):
+        return f"{self.route} on {self.date}"
