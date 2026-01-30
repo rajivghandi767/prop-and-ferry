@@ -1,19 +1,36 @@
 import { useState } from "react";
-import type { Itinerary, ApiResponse } from "./types";
+import type { Itinerary, ApiRoute } from "./types";
 import { useTheme } from "./hooks/useTheme";
 import { AirportSelect } from "./components/AirportSelect";
 import { API_URL } from "./config";
 
 // --- HELPERS ---
 
-const getTodayString = () => new Date().toISOString().split("T")[0];
+// FIX 1: Prevent "Yesterday" bug by getting local YYYY-MM-DD
+const getTodayString = () => {
+  const d = new Date();
+  const offset = d.getTimezoneOffset();
+  const localDate = new Date(d.getTime() - offset * 60 * 1000);
+  return localDate.toISOString().split("T")[0];
+};
+
+// FIX 2: Parse date string strictly as local date (ignoring UTC conversion)
+// Input: "2026-01-31" -> Output: Date object for Jan 31 Local Time
+const parseDateLocal = (dateStr: string) => {
+  if (!dateStr) return new Date();
+  const [y, m, d] = dateStr.split("-").map(Number);
+  return new Date(y, m - 1, d); // Month is 0-indexed in JS
+};
 
 const formatTime = (timeStr?: string) => {
   if (!timeStr) return "";
-  const [hours, minutes] = timeStr.split(":");
+  const parts = timeStr.split(":");
+  if (parts.length < 2) return timeStr;
+  const hours = parseInt(parts[0]);
+  const minutes = parseInt(parts[1]);
   const date = new Date();
-  date.setHours(parseInt(hours));
-  date.setMinutes(parseInt(minutes));
+  date.setHours(hours);
+  date.setMinutes(minutes);
   return date.toLocaleTimeString([], { hour: "numeric", minute: "2-digit" });
 };
 
@@ -26,10 +43,8 @@ const formatDuration = (minutes: number | null) => {
 
 const formatSchedule = (days?: string) => {
   if (!days) return "";
-  if (days === "1234567") return "Runs Daily";
+  if (days.includes("1234567")) return "Runs Daily";
   if (days === "12345") return "Runs Mon-Fri";
-  if (days === "67") return "Runs Weekends";
-
   const map: Record<string, string> = {
     "1": "Mon",
     "2": "Tue",
@@ -53,16 +68,13 @@ const formatSchedule = (days?: string) => {
 function App() {
   const { theme, toggleTheme } = useTheme();
 
-  // Search State
   const [origin, setOrigin] = useState("");
   const [destination, setDestination] = useState("");
   const [date, setDate] = useState(getTodayString());
 
-  // Results State
   const [itineraries, setItineraries] = useState<Itinerary[]>([]);
   const [displayDate, setDisplayDate] = useState("");
   const [dateChanged, setDateChanged] = useState(false);
-
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
 
@@ -74,44 +86,82 @@ function App() {
   const handleSearch = async (e: React.FormEvent) => {
     e.preventDefault();
     setLoading(true);
-    setError(null);
-    setItineraries([]); // Reset to empty array, NEVER null
+    setError("");
+    setItineraries([]);
+    setDateChanged(false);
+    setDisplayDate(date);
 
     try {
-      // 1. Build Query String
-      const params = new URLSearchParams({
-        origin: origin,
-        destination: destination,
-        date: date,
-      });
+      const params = new URLSearchParams({ origin, destination, date });
+      const response = await fetch(`${API_URL}/api/search/?${params}`);
 
-      // 2. Fetch
-      const response = await fetch(
-        `http://localhost:8000/api/search/?${params}`,
-      );
-      const data = await response.json();
-
-      console.log("Search response:", data); // Debug log
-
-      if (!response.ok) {
-        throw new Error(data.error || "Failed to fetch routes");
+      const contentType = response.headers.get("content-type");
+      if (!contentType || !contentType.includes("application/json")) {
+        const text = await response.text();
+        console.error("Backend Error:", text);
+        throw new Error("Server Error: Check backend logs.");
       }
 
-      // 3. Handle Data
-      // The backend now returns a direct Array, not { results: [...] }
-      if (Array.isArray(data)) {
-        setItineraries(data);
-        if (data.length === 0) {
-          setError("No routes found for this date.");
-        }
+      const data = await response.json();
+      if (!response.ok) throw new Error(data.error || "Failed to fetch routes");
+
+      // --- LOGIC: HANDLE LOOKAHEAD ---
+      const rawRoutes = data.results || [];
+
+      if (data.date_was_changed) {
+        setDateChanged(true);
+        setDisplayDate(data.found_date);
       } else {
-        // Fallback in case backend reverts to pagination
-        setItineraries(data.results || []);
+        setDisplayDate(data.found_date || date);
+      }
+
+      // --- ADAPTER: MAP DATA TO UI ---
+      const adaptedItineraries: Itinerary[] = rawRoutes.map((r: ApiRoute) => ({
+        type: "direct",
+        total_duration: r.duration,
+        connection_duration: null,
+        legs: [
+          {
+            id: r.id,
+            duration_minutes: r.duration,
+            departure_time: r.departure_time,
+            arrival_time: r.arrival_time,
+            days_of_operation: "",
+            is_ferry: r.is_ferry,
+            is_active: true,
+            origin: {
+              code: r.origin,
+              name: r.origin_name,
+              city: r.origin_city,
+              location_type: r.is_ferry ? "PRT" : "APT",
+            },
+            destination: {
+              code: r.destination,
+              name: r.destination_name,
+              city: r.destination_city,
+              location_type: r.is_ferry ? "PRT" : "APT",
+            },
+            carrier: {
+              code: r.carrier_code,
+              name: r.carrier,
+              website: r.is_ferry
+                ? "https://www.express-des-iles.fr/"
+                : undefined,
+            },
+          },
+        ],
+      }));
+
+      setItineraries(adaptedItineraries);
+
+      if (rawRoutes.length === 0) {
+        setError(
+          `No routes found from ${origin} to ${destination} within the next 7 days.`,
+        );
       }
     } catch (err: any) {
-      console.error("Error fetching routes:", err);
-      setError(err.message || "An error occurred while searching");
-      setItineraries([]); // Safety reset
+      console.error(err);
+      setError(err.message || "An error occurred");
     } finally {
       setLoading(false);
     }
@@ -119,7 +169,7 @@ function App() {
 
   return (
     <div className="min-h-screen bg-slate-50 dark:bg-slate-900 flex flex-col font-sans text-slate-900 dark:text-slate-100 transition-colors duration-200">
-      {/* --- HEADER --- */}
+      {/* HEADER */}
       <header className="bg-white/90 dark:bg-slate-800/90 backdrop-blur-sm border-b border-slate-200 dark:border-slate-700 py-4 sticky top-0 z-50">
         <div className="container mx-auto px-4 flex justify-between items-center">
           <div className="flex items-center gap-2">
@@ -131,16 +181,14 @@ function App() {
           <button
             onClick={toggleTheme}
             className="text-lg p-2 rounded-full hover:bg-slate-100 dark:hover:bg-slate-700 transition-colors"
-            title="Toggle Theme"
           >
             {theme === "dark" ? "🌙" : "☀️"}
           </button>
         </div>
       </header>
 
-      {/* --- MAIN CONTENT --- */}
+      {/* MAIN */}
       <main className="flex-grow container mx-auto px-4 py-8 flex flex-col items-center">
-        {/* HERO TEXT (Optional, adds visual weight) */}
         {!itineraries.length && !loading && (
           <div className="text-center mb-10 mt-10">
             <h2 className="text-4xl font-extrabold mb-4">
@@ -166,7 +214,6 @@ function App() {
                 onChange={setOrigin}
               />
             </div>
-
             <button
               onClick={handleSwap}
               className="p-3 rounded-full bg-slate-100 dark:bg-slate-700 hover:bg-slate-200 text-blue-600 transform md:rotate-90 shadow-sm border border-slate-200 dark:border-slate-600"
@@ -186,7 +233,6 @@ function App() {
                 <path d="M17 8v12M17 20l4-4M17 20l-4-4" />
               </svg>
             </button>
-
             <div className="w-full md:flex-1">
               <AirportSelect
                 label="To"
@@ -195,7 +241,6 @@ function App() {
                 onChange={setDestination}
               />
             </div>
-
             <div className="w-full md:flex-1">
               <label className="text-xs font-semibold text-slate-500 uppercase mb-1">
                 Date
@@ -220,14 +265,14 @@ function App() {
           </div>
         </div>
 
-        {/* RESULTS AREA */}
+        {/* RESULTS */}
         <div className="w-full max-w-3xl space-y-4 mb-20">
-          {/* STICKY DATE HEADER */}
+          {/* STICKY HEADER - NOW USING parseDateLocal */}
           {itineraries.length > 0 && (
             <div className="sticky top-[72px] z-40 bg-slate-50/95 dark:bg-slate-900/95 backdrop-blur py-3 text-center border-b border-slate-200 dark:border-slate-700 mb-4 shadow-sm rounded-b-lg">
               <h3 className="text-lg font-bold text-slate-800 dark:text-slate-100">
                 Results for{" "}
-                {new Date(displayDate).toLocaleDateString(undefined, {
+                {parseDateLocal(displayDate).toLocaleDateString(undefined, {
                   weekday: "long",
                   month: "long",
                   day: "numeric",
@@ -236,11 +281,10 @@ function App() {
             </div>
           )}
 
-          {/* DATE CHANGE ALERT */}
           {dateChanged && (
             <div className="p-4 bg-yellow-50 dark:bg-yellow-900/20 text-yellow-800 dark:text-yellow-200 rounded-lg border border-yellow-200 dark:border-yellow-700 text-center text-sm mb-4">
-              ⚠️ No flights found on {date}. We automatically moved you to the
-              next available date.
+              ⚠️ No trips found on {parseDateLocal(date).toLocaleDateString()}.
+              We automatically moved you to the next available date.
             </div>
           )}
 
@@ -250,13 +294,11 @@ function App() {
             </div>
           )}
 
-          {/* CARDS */}
           {itineraries.map((itinerary, index) => (
             <div
               key={index}
               className="bg-white dark:bg-slate-800 p-6 rounded-lg shadow border border-slate-100 dark:border-slate-700 hover:shadow-md transition-all"
             >
-              {/* Loop through legs */}
               {itinerary.legs.map((leg, i) => (
                 <div
                   key={leg.id}
@@ -264,37 +306,42 @@ function App() {
                 >
                   <div className="flex justify-between items-start">
                     <div>
-                      {/* Route Info */}
-                      <div className="text-lg font-bold text-slate-900 dark:text-white flex items-center gap-2">
-                        <span>{leg.origin.code}</span>
-                        <span className="text-slate-400 text-sm">➜</span>
-                        <span>{leg.destination.code}</span>
+                      {/* DISPLAY NAMES */}
+                      <div className="flex flex-col">
+                        <div className="text-lg font-bold text-slate-900 dark:text-white flex items-center gap-2">
+                          <span>{leg.origin.city || leg.origin.code}</span>
+                          <span className="text-slate-400 text-sm">➜</span>
+                          <span>
+                            {leg.destination.city || leg.destination.code}
+                          </span>
+                        </div>
+                        <div className="text-xs text-slate-500 dark:text-slate-400 mb-2">
+                          {leg.origin.name} to {leg.destination.name}
+                        </div>
                       </div>
 
-                      {/* Times */}
                       <div className="text-slate-700 dark:text-slate-300 font-medium text-sm mt-1">
                         {formatTime(leg.departure_time)} –{" "}
                         {formatTime(leg.arrival_time)}
                       </div>
 
-                      {/* Carrier + Schedule */}
-                      <div className="text-slate-500 dark:text-slate-400 text-xs mt-1">
-                        {leg.carrier.name} ({leg.carrier.code}) •{" "}
-                        {formatDuration(leg.duration_minutes)}
-                        <br />
-                        <span className="text-blue-500/80 dark:text-blue-400/80 italic">
-                          {formatSchedule(leg.days_of_operation)}
+                      <div className="flex items-center gap-2 mt-2">
+                        <span
+                          className={`text-[10px] px-2 py-0.5 rounded font-bold uppercase ${leg.is_ferry ? "bg-indigo-100 text-indigo-700 dark:bg-indigo-900 dark:text-indigo-300" : "bg-blue-100 text-blue-700 dark:bg-blue-900 dark:text-blue-300"}`}
+                        >
+                          {leg.is_ferry ? "Ferry" : "Flight"}
                         </span>
+                        <span className="text-slate-500 dark:text-slate-400 text-xs">
+                          {leg.carrier.name} ({leg.carrier.code}) •{" "}
+                          {formatDuration(leg.duration_minutes)}
+                        </span>
+                      </div>
+                      <div className="text-blue-500/80 dark:text-blue-400/80 text-xs italic mt-1">
+                        {formatSchedule(leg.days_of_operation)}
                       </div>
                     </div>
 
-                    {/* Right Side Actions */}
                     <div className="text-right flex flex-col items-end gap-2">
-                      {i === 0 && (
-                        <span className="inline-block bg-blue-100 dark:bg-blue-900/30 text-blue-800 dark:text-blue-300 text-xs px-2 py-1 rounded-full font-semibold">
-                          {itinerary.type === "direct" ? "Nonstop" : "1 Stop"}
-                        </span>
-                      )}
                       {leg.carrier.website ? (
                         <a
                           href={leg.carrier.website}
@@ -313,27 +360,11 @@ function App() {
                   </div>
                 </div>
               ))}
-
-              {/* CONNECTION SUMMARY */}
-              {itinerary.type === "connection" && (
-                <div className="mt-4 pt-3 border-t border-slate-100 dark:border-slate-700 flex justify-between items-center text-xs text-slate-500 dark:text-slate-400">
-                  <span className="flex items-center gap-1">
-                    ⏳ Layover in {itinerary.legs[0].destination.city}:{" "}
-                    <span className="font-bold text-slate-700 dark:text-slate-300">
-                      {formatDuration(itinerary.connection_duration)}
-                    </span>
-                  </span>
-                  <span>
-                    Total Trip: {formatDuration(itinerary.total_duration)}
-                  </span>
-                </div>
-              )}
             </div>
           ))}
         </div>
       </main>
 
-      {/* --- FOOTER --- */}
       <footer className="bg-white dark:bg-slate-800 border-t border-slate-200 dark:border-slate-700 py-8">
         <div className="container mx-auto px-4 text-center">
           <div className="flex justify-center items-center gap-2 mb-4">

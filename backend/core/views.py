@@ -1,7 +1,7 @@
 from rest_framework import viewsets
 from rest_framework.decorators import api_view
 from rest_framework.response import Response
-from datetime import datetime
+from datetime import datetime, timedelta
 
 from .models import Location, Route, Carrier
 from .serializers import LocationSerializer, RouteSerializer, CarrierSerializer
@@ -24,32 +24,22 @@ class CarrierViewSet(viewsets.ReadOnlyModelViewSet):
     serializer_class = CarrierSerializer
 
 
-# --- SMART SEARCH LOGIC (New) ---
+# --- SMART SEARCH LOGIC ---
 
-# Maps generic codes to ALL valid sub-locations (Airports + Ferry Ports)
+# Temporary Hardcoded Aliases (Until migration is applied)
 LOCATION_ALIASES = {
-    # DOMINICA
-    'DOM': ['DOM', 'DMROS'],       # Airport + Roseau Ferry
+    'DOM': ['DOM', 'DMROS'],
     'DMROS': ['DOM', 'DMROS'],
-
-    # GUADELOUPE
-    'PTP': ['PTP', 'GPPTP'],       # Airport + Pointe-à-Pitre Ferry
+    'PTP': ['PTP', 'GPPTP'],
     'GPPTP': ['PTP', 'GPPTP'],
-
-    # MARTINIQUE
-    'FDF': ['FDF', 'MQFDF'],       # Airport + Fort-de-France Ferry
+    'FDF': ['FDF', 'MQFDF'],
     'MQFDF': ['FDF', 'MQFDF'],
-
-    # ST LUCIA
     'SLU': ['SLU', 'UVF', 'LCCAS'],
     'LCCAS': ['SLU', 'UVF', 'LCCAS'],
 }
 
 
 def resolve_location(code):
-    """
-    Input: 'DOM' -> Output: ['DOM', 'DMROS']
-    """
     if not code:
         return []
     code = code.upper().strip()
@@ -65,40 +55,66 @@ def search_routes(request):
     if not (origin_code and dest_code and date_str):
         return Response({'error': 'Missing parameters'}, status=400)
 
-    # 1. SMART EXPANSION
+    # 1. RESOLVE LOCATIONS
     origins = resolve_location(origin_code)
     destinations = resolve_location(dest_code)
 
-    # 2. PARSE DATE
+    # 2. PARSE START DATE
     try:
-        search_date = datetime.strptime(date_str, '%Y-%m-%d')
-        # ISO Weekday: 1=Mon, 7=Sun
-        day_of_week = str(search_date.isoweekday())
+        start_date = datetime.strptime(date_str, '%Y-%m-%d').date()
     except ValueError:
         return Response({'error': 'Invalid date format (YYYY-MM-DD)'}, status=400)
 
-    # 3. QUERY DATABASE
-    # Find routes that match ANY of the origin/dest aliases AND run on this day of week
-    routes = Route.objects.filter(
-        origin__code__in=origins,
-        destination__code__in=destinations,
-        is_active=True,
-        days_of_operation__contains=day_of_week
-    )
+    # 3. LOOKAHEAD LOOP (Max 7 days)
+    found_routes = []
+    found_date = start_date
+    date_was_changed = False
 
-    # 4. FORMAT RESULTS
+    for i in range(7):
+        current_date = start_date + timedelta(days=i)
+        day_of_week = str(current_date.isoweekday())  # 1=Mon, 7=Sun
+
+        routes = Route.objects.filter(
+            origin__code__in=origins,
+            destination__code__in=destinations,
+            is_active=True,
+            days_of_operation__contains=day_of_week
+        ).select_related('origin', 'destination', 'carrier')  # Optimization
+
+        if routes.exists():
+            found_routes = routes
+            found_date = current_date
+            if i > 0:
+                date_was_changed = True
+            break
+
+    # 4. FORMAT RESULTS (With Full Names)
     results = []
-    for r in routes:
+    for r in found_routes:
         results.append({
             'id': r.id,
             'carrier': r.carrier.name,
             'carrier_code': r.carrier.code,
-            'type': r.carrier.carrier_type,  # 'AIR' or 'SEA'
+            'type': r.carrier.carrier_type,
             'origin': r.origin.code,
             'destination': r.destination.code,
-            'departure_time': r.departure_time.strftime('%H:%M'),
-            'arrival_time': r.arrival_time.strftime('%H:%M'),
-            'duration': r.duration_minutes
+
+            # EXTENDED FIELDS for UI
+            'origin_name': r.origin.name,
+            'destination_name': r.destination.name,
+            'origin_city': r.origin.city,
+            'destination_city': r.destination.city,
+
+            'departure_time': r.departure_time.strftime('%H:%M') if r.departure_time else None,
+            'arrival_time': r.arrival_time.strftime('%H:%M') if r.arrival_time else None,
+            'duration': r.duration_minutes,
+            'is_ferry': r.carrier.carrier_type == 'SEA'
         })
 
-    return Response(results)
+    # 5. RETURN RICH RESPONSE
+    return Response({
+        'results': results,
+        'search_date': date_str,
+        'found_date': found_date.strftime('%Y-%m-%d'),
+        'date_was_changed': date_was_changed
+    })
