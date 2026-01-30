@@ -1,14 +1,22 @@
 from rest_framework import viewsets
+from rest_framework.decorators import api_view
 from rest_framework.response import Response
+from datetime import datetime
+
 from .models import Location, Route, Carrier
-from .serializers import RouteSerializer, LocationSerializer, CarrierSerializer
-from datetime import datetime, timedelta, date
+from .serializers import LocationSerializer, RouteSerializer, CarrierSerializer
+
+# --- STANDARD VIEWSETS ---
 
 
 class LocationViewSet(viewsets.ReadOnlyModelViewSet):
     queryset = Location.objects.all()
     serializer_class = LocationSerializer
-    lookup_field = 'code'
+
+
+class RouteViewSet(viewsets.ReadOnlyModelViewSet):
+    queryset = Route.objects.all()
+    serializer_class = RouteSerializer
 
 
 class CarrierViewSet(viewsets.ReadOnlyModelViewSet):
@@ -16,106 +24,81 @@ class CarrierViewSet(viewsets.ReadOnlyModelViewSet):
     serializer_class = CarrierSerializer
 
 
-class RouteViewSet(viewsets.ReadOnlyModelViewSet):
-    serializer_class = RouteSerializer
-    queryset = Route.objects.all()
+# --- SMART SEARCH LOGIC (New) ---
 
-    def list(self, request, *args, **kwargs):
-        origin_code = request.query_params.get('origin')
-        dest_code = request.query_params.get('destination')
-        date_str = request.query_params.get('date')
+# Maps generic codes to ALL valid sub-locations (Airports + Ferry Ports)
+LOCATION_ALIASES = {
+    # DOMINICA
+    'DOM': ['DOM', 'DMROS'],       # Airport + Roseau Ferry
+    'DMROS': ['DOM', 'DMROS'],
 
-        if not origin_code or not dest_code or not date_str:
-            return Response([])
+    # GUADELOUPE
+    'PTP': ['PTP', 'GPPTP'],       # Airport + Pointe-à-Pitre Ferry
+    'GPPTP': ['PTP', 'GPPTP'],
 
-        try:
-            original_date = datetime.strptime(date_str, '%Y-%m-%d').date()
-        except ValueError:
-            return Response([])
+    # MARTINIQUE
+    'FDF': ['FDF', 'MQFDF'],       # Airport + Fort-de-France Ferry
+    'MQFDF': ['FDF', 'MQFDF'],
 
-        # --- LOGIC: FIND NEXT AVAILABLE DATE ---
-        # We loop up to 7 days to find the first date with valid flights
-        results = []
-        found_date = None
+    # ST LUCIA
+    'SLU': ['SLU', 'UVF', 'LCCAS'],
+    'LCCAS': ['SLU', 'UVF', 'LCCAS'],
+}
 
-        for i in range(8):  # Check today + next 7 days
-            check_date = original_date + timedelta(days=i)
-            day_digit = str(check_date.isoweekday())  # 1=Mon, 7=Sun
 
-            # Helper to filter by day of operation
-            def runs_today(qs):
-                return qs.filter(days_of_operation__contains=day_digit)
+def resolve_location(code):
+    """
+    Input: 'DOM' -> Output: ['DOM', 'DMROS']
+    """
+    if not code:
+        return []
+    code = code.upper().strip()
+    return LOCATION_ALIASES.get(code, [code])
 
-            # 1. Direct Flights
-            direct = Route.objects.filter(
-                origin__code=origin_code,
-                destination__code=dest_code,
-                is_active=True
-            )
-            direct = runs_today(direct)
 
-            daily_results = []
-            for r in direct:
-                daily_results.append({
-                    'type': 'direct',
-                    'legs': [RouteSerializer(r).data],
-                    'total_duration': r.duration_minutes,
-                    'connection_duration': None
-                })
+@api_view(['GET'])
+def search_routes(request):
+    origin_code = request.GET.get('origin')
+    dest_code = request.GET.get('destination')
+    date_str = request.GET.get('date')
 
-            # 2. Connections (The "Stitch")
-            # Leg 1: Origin -> Hub
-            leg1_candidates = Route.objects.filter(
-                origin__code=origin_code, is_active=True).exclude(destination__code=dest_code)
-            leg1_candidates = runs_today(leg1_candidates)
+    if not (origin_code and dest_code and date_str):
+        return Response({'error': 'Missing parameters'}, status=400)
 
-            # Leg 2: Hub -> Dest
-            leg2_candidates = Route.objects.filter(
-                destination__code=dest_code, is_active=True)
-            leg2_candidates = runs_today(leg2_candidates)
+    # 1. SMART EXPANSION
+    origins = resolve_location(origin_code)
+    destinations = resolve_location(dest_code)
 
-            # Create Map for Leg 2
-            hub_map = {}
-            for l2 in leg2_candidates:
-                if l2.origin.code not in hub_map:
-                    hub_map[l2.origin.code] = []
-                hub_map[l2.origin.code].append(l2)
+    # 2. PARSE DATE
+    try:
+        search_date = datetime.strptime(date_str, '%Y-%m-%d')
+        # ISO Weekday: 1=Mon, 7=Sun
+        day_of_week = str(search_date.isoweekday())
+    except ValueError:
+        return Response({'error': 'Invalid date format (YYYY-MM-DD)'}, status=400)
 
-            for l1 in leg1_candidates:
-                hub = l1.destination.code
-                if hub in hub_map:
-                    for l2 in hub_map[hub]:
-                        # --- CRITICAL: SAME DAY CHECK ---
-                        # We only want connections where Leg 2 departs AFTER Leg 1 arrives.
-                        if l1.arrival_time and l2.departure_time:
-                            if l2.departure_time > l1.arrival_time:
-                                # Calculate Connection Time (in minutes)
-                                # Dummy dates needed to subtract time objects
-                                t1 = datetime.combine(
-                                    date.min, l1.arrival_time)
-                                t2 = datetime.combine(
-                                    date.min, l2.departure_time)
-                                conn_mins = int((t2 - t1).total_seconds() / 60)
+    # 3. QUERY DATABASE
+    # Find routes that match ANY of the origin/dest aliases AND run on this day of week
+    routes = Route.objects.filter(
+        origin__code__in=origins,
+        destination__code__in=destinations,
+        is_active=True,
+        days_of_operation__contains=day_of_week
+    )
 
-                                # Optional: Enforce min connection (e.g. 45 mins)
-                                if conn_mins >= 45:
-                                    total_dur = (
-                                        l1.duration_minutes or 0) + (l2.duration_minutes or 0) + conn_mins
-                                    daily_results.append({
-                                        'type': 'connection',
-                                        'legs': [RouteSerializer(l1).data, RouteSerializer(l2).data],
-                                        'total_duration': total_dur,
-                                        'connection_duration': conn_mins
-                                    })
-
-            if daily_results:
-                results = daily_results
-                found_date = check_date
-                break  # Stop searching, we found flights!
-
-        return Response({
-            'results': results,
-            'search_date': str(original_date),
-            'found_date': str(found_date) if found_date else None,
-            'date_was_changed': found_date != original_date if found_date else False
+    # 4. FORMAT RESULTS
+    results = []
+    for r in routes:
+        results.append({
+            'id': r.id,
+            'carrier': r.carrier.name,
+            'carrier_code': r.carrier.code,
+            'type': r.carrier.carrier_type,  # 'AIR' or 'SEA'
+            'origin': r.origin.code,
+            'destination': r.destination.code,
+            'departure_time': r.departure_time.strftime('%H:%M'),
+            'arrival_time': r.arrival_time.strftime('%H:%M'),
+            'duration': r.duration_minutes
         })
+
+    return Response(results)

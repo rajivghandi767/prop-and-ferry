@@ -71,35 +71,47 @@ function App() {
     setDestination(origin);
   };
 
-  const handleSearch = async () => {
-    if (!origin || !destination || !date) {
-      setError("Please fill in all fields");
-      return;
-    }
-
+  const handleSearch = async (e: React.FormEvent) => {
+    e.preventDefault();
     setLoading(true);
-    setError("");
-    setItineraries([]);
-    setDateChanged(false);
+    setError(null);
+    setItineraries([]); // Reset to empty array, NEVER null
 
     try {
+      // 1. Build Query String
+      const params = new URLSearchParams({
+        origin: origin,
+        destination: destination,
+        date: date,
+      });
+
+      // 2. Fetch
       const response = await fetch(
-        `${API_URL}/api/routes/?origin=${origin}&destination=${destination}&date=${date}`,
+        `http://localhost:8000/api/search/?${params}`,
       );
-      if (!response.ok) throw new Error("Server error");
+      const data = await response.json();
 
-      const data: ApiResponse = await response.json();
+      console.log("Search response:", data); // Debug log
 
-      setItineraries(data.results);
-      setDisplayDate(data.found_date || date);
-      setDateChanged(data.date_was_changed);
-
-      if (data.results.length === 0) {
-        setError(`No routes found from ${date} onwards (checked 7 days).`);
+      if (!response.ok) {
+        throw new Error(data.error || "Failed to fetch routes");
       }
-    } catch (err) {
-      setError("Failed to fetch routes. Is the backend running?");
-      console.error(err);
+
+      // 3. Handle Data
+      // The backend now returns a direct Array, not { results: [...] }
+      if (Array.isArray(data)) {
+        setItineraries(data);
+        if (data.length === 0) {
+          setError("No routes found for this date.");
+        }
+      } else {
+        // Fallback in case backend reverts to pagination
+        setItineraries(data.results || []);
+      }
+    } catch (err: any) {
+      console.error("Error fetching routes:", err);
+      setError(err.message || "An error occurred while searching");
+      setItineraries([]); // Safety reset
     } finally {
       setLoading(false);
     }
