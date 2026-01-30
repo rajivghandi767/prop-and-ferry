@@ -1,30 +1,30 @@
+// --- UI TYPES (Used by React Components) ---
 export interface Location {
-    id: number;
-    code: string;
-    name: string;
-    city: string;
-    country: string;
-    location_type: 'APT' | 'PRT'; // Airport or Port
+  id?: number;
+  code: string;
+  name?: string;
+  city?: string;
+  country?: string;
+  location_type?: 'APT' | 'PRT';
 }
 
 export interface Carrier {
-    id: number;
-    code: string;
-    name: string;
-    carrier_type: 'AIR' | 'SEA'; // Airline or Ferry Operator
-    website?: string;
+  code: string;
+  name: string;
+  website?: string;
 }
 
 export interface Route {
-    id: number;
-    origin: Location;     // Nested object (because we used nested serializers)
-    destination: Location;
-    carrier: Carrier;
-    duration_minutes: number | null; // Can be null in DB
-    departure_time?: string; // Format "14:30:00"
-    arrival_time?: string;
-    days_of_operation: string[]; // E.g., ['Mon', 'Wed', 'Fri']
-    is_active: boolean;
+  id: number;
+  origin: Location;
+  destination: Location;
+  carrier: Carrier;
+  duration_minutes: number | null;
+  departure_time?: string;
+  arrival_time?: string;
+  days_of_operation?: string;
+  is_ferry: boolean;
+  is_active: boolean;
 }
 
 export interface Itinerary {
@@ -34,9 +34,30 @@ export interface Itinerary {
   connection_duration: number | null;
 }
 
+// --- API TYPES (From Backend) ---
+export interface ApiRoute {
+  id: number;
+  carrier: string;       
+  carrier_code: string; 
+  type: 'AIR' | 'SEA';
+  origin: string;        
+  destination: string;
+  
+  // NEW: Names for better UI display
+  origin_name: string;
+  destination_name: string;
+  origin_city: string;
+  destination_city: string;
+
+  departure_time: string;
+  arrival_time: string;
+  duration: number;
+  is_ferry: boolean;
+}
+
 export interface ApiResponse {
-  results: Itinerary[];
+  results: ApiRoute[];
   search_date: string;
-  found_date: string | null;
+  found_date: string;
   date_was_changed: boolean;
 }

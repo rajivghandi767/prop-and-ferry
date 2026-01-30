@@ -9,7 +9,7 @@ from django.utils.decorators import method_decorator
 from rest_framework.routers import DefaultRouter
 
 # Import viewsets
-from core.views import LocationViewSet, RouteViewSet, CarrierViewSet
+from core.views import LocationViewSet, RouteViewSet, CarrierViewSet, search_routes
 
 # Import health check views
 from health_check.views import health_detailed, health_simple
@@ -51,6 +51,7 @@ urlpatterns = [
 
     # API Routes
     path('api/', include(router.urls)),
+    path('api/search/', search_routes, name='search-routes'),
 
     # Admin Interface
     path('admin/', admin.site.urls),
