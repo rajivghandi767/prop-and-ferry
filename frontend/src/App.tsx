@@ -6,20 +6,18 @@ import { API_URL } from "./config";
 
 // --- HELPERS ---
 
-// FIX 1: Prevent "Yesterday" bug by getting local YYYY-MM-DD
 const getTodayString = () => {
+  // Prevent "Yesterday" bug by getting local YYYY-MM-DD
   const d = new Date();
   const offset = d.getTimezoneOffset();
   const localDate = new Date(d.getTime() - offset * 60 * 1000);
   return localDate.toISOString().split("T")[0];
 };
 
-// FIX 2: Parse date string strictly as local date (ignoring UTC conversion)
-// Input: "2026-01-31" -> Output: Date object for Jan 31 Local Time
 const parseDateLocal = (dateStr: string) => {
   if (!dateStr) return new Date();
   const [y, m, d] = dateStr.split("-").map(Number);
-  return new Date(y, m - 1, d); // Month is 0-indexed in JS
+  return new Date(y, m - 1, d);
 };
 
 const formatTime = (timeStr?: string) => {
@@ -126,9 +124,13 @@ function App() {
             duration_minutes: r.duration,
             departure_time: r.departure_time,
             arrival_time: r.arrival_time,
-            days_of_operation: "",
+
+            // Only map schedule if provided (Flights). Ferries are specific dates.
+            days_of_operation: r.days_of_operation || "",
+
             is_ferry: r.is_ferry,
             is_active: true,
+
             origin: {
               code: r.origin,
               name: r.origin_name,
@@ -144,6 +146,7 @@ function App() {
             carrier: {
               code: r.carrier_code,
               name: r.carrier,
+              // Link Logic: Ferries get explicit site, Flights check carrier
               website: r.is_ferry
                 ? "https://www.express-des-iles.fr/"
                 : undefined,
@@ -267,7 +270,7 @@ function App() {
 
         {/* RESULTS */}
         <div className="w-full max-w-3xl space-y-4 mb-20">
-          {/* STICKY HEADER - NOW USING parseDateLocal */}
+          {/* STICKY HEADER */}
           {itineraries.length > 0 && (
             <div className="sticky top-[72px] z-40 bg-slate-50/95 dark:bg-slate-900/95 backdrop-blur py-3 text-center border-b border-slate-200 dark:border-slate-700 mb-4 shadow-sm rounded-b-lg">
               <h3 className="text-lg font-bold text-slate-800 dark:text-slate-100">
@@ -336,9 +339,13 @@ function App() {
                           {formatDuration(leg.duration_minutes)}
                         </span>
                       </div>
-                      <div className="text-blue-500/80 dark:text-blue-400/80 text-xs italic mt-1">
-                        {formatSchedule(leg.days_of_operation)}
-                      </div>
+
+                      {/* Only show "Runs Daily" if days_of_operation exists (Flights) */}
+                      {leg.days_of_operation && (
+                        <div className="text-blue-500/80 dark:text-blue-400/80 text-xs italic mt-1">
+                          {formatSchedule(leg.days_of_operation)}
+                        </div>
+                      )}
                     </div>
 
                     <div className="text-right flex flex-col items-end gap-2">
