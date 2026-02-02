@@ -1,66 +1,58 @@
-// --- UI TYPES (Used by React Components) ---
+// 1. Basic Entities
 export interface Location {
-  id?: number;
+  id: number;
   code: string;
-  name?: string;
-  city?: string;
-  country?: string;
-  location_type?: 'APT' | 'PRT';
+  name: string;
+  city: string;
+  country: string;
 }
 
 export interface Carrier {
+  id: number;
   code: string;
   name: string;
+  carrier_type: "AIR" | "SEA";
   website?: string;
 }
 
-export interface Route {
+// 2. The "Leg" (A single flight or ferry ride)
+export interface ApiLeg {
   id: number;
   origin: Location;
   destination: Location;
   carrier: Carrier;
-  duration_minutes: number | null;
-  departure_time?: string;
-  arrival_time?: string;
-  days_of_operation?: string; // Now optional
-  is_ferry: boolean;
+  
+  departure_time: string; // "HH:MM:SS"
+  arrival_time: string;   // "HH:MM:SS"
+  duration_minutes: number;
+  
   is_active: boolean;
-}
-
-export interface Itinerary {
-  type: 'direct' | 'connection';
-  legs: Route[];
-  total_duration: number;
-  connection_duration: number | null;
-}
-
-// --- API TYPES (Matches 'format_route_response' in backend/core/views.py) ---
-export interface ApiRoute {
-  id: number;
-  carrier: string;       
-  carrier_code: string; 
-  type: 'AIR' | 'SEA';
-  origin: string;        
-  destination: string;
-  
-  // Names for UI
-  origin_name: string;
-  destination_name: string;
-  origin_city: string;
-  destination_city: string;
-
-  departure_time: string;
-  arrival_time: string;
-  duration: number;
   is_ferry: boolean;
   
-  // Optional because specific Sailings don't have generic schedules
-  days_of_operation?: string; 
+  // Specific to Flights
+  days_of_operation?: string; // e.g. "135" (Mon, Wed, Fri)
+  
+  // Specific to Ferries (or specific dates)
+  price_text?: string;        // e.g. "€45.00"
+  date?: string;             // YYYY-MM-DD
+  
+  // **NEW**: Injected by the Stitcher for UI display
+  layover_text?: string;      // e.g. "2h 30m Layover in Antigua"
 }
 
+// 3. The "Itinerary" (What the UI actually renders)
+export interface Itinerary {
+  id: number | string;       // Can be composite "101202"
+  total_duration: number;    // In minutes
+  legs: ApiLeg[];            // The array of flight/ferry segments
+  search_date?: string;
+}
+
+// 4. API Response Wrapper
 export interface ApiResponse {
-  results: ApiRoute[];
+  results: Itinerary[]; 
   search_date: string;
   found_date: string;
   date_was_changed: boolean;
+  error?: string;
 }

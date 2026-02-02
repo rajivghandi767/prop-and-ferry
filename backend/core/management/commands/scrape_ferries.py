@@ -1,4 +1,5 @@
 import time
+import logging
 import requests
 import re
 from bs4 import BeautifulSoup
@@ -10,12 +11,15 @@ from core.constants import (
     DB_TO_SITE_OPTS
 )
 
+logger = logging.getLogger(__name__)
+
 
 class Command(BaseCommand):
-    help = "Deep Ferry Scraper: Extracts Exact Times & Durations from Detail View"
+    help = "FRS - Express Ferry Schedule Scraper: Extracts Exact Times, Durations & Prices"
 
     def handle(self, *args, **kwargs):
-        self.stdout.write("🚢 Initializing Deep Ferry Scraper...")
+        self.stdout.write(
+            "🚢 Initializing FRS-Express Ferry Schedule Scraper...")
 
         # 1. SETUP
         base_routes = [
@@ -45,16 +49,20 @@ class Command(BaseCommand):
         start_date_base = datetime.now().date()
 
         for origin_code, dest_code in final_routes:
-            self.stdout.write(self.style.WARNING(
-                f"\n--- Checking {origin_code} -> {dest_code} ---"))
+            logger.info(f"Checking Route: {origin_code} -> {dest_code}")
 
-            # Identify the base Route object
-            loc_origin = Location.objects.get(code=origin_code)
-            loc_dest = Location.objects.get(code=dest_code)
-            route_obj, _ = Route.objects.get_or_create(
-                origin=loc_origin, destination=loc_dest, carrier=carrier,
-                defaults={'is_active': True}
-            )
+            try:
+                # Identify the base Route object
+                loc_origin = Location.objects.get(code=origin_code)
+                loc_dest = Location.objects.get(code=dest_code)
+                route_obj, _ = Route.objects.get_or_create(
+                    origin=loc_origin, destination=loc_dest, carrier=carrier,
+                    defaults={'is_active': True}
+                )
+            except Location.DoesNotExist:
+                logger.error(
+                    f"Skipping {origin_code}->{dest_code}: Location not found in DB")
+                continue
 
             processed_dates = set()
 
@@ -72,11 +80,13 @@ class Command(BaseCommand):
                     resp = session.get(BASE_URL, params=params, timeout=20)
                     resp.encoding = 'utf-8'
                     if resp.status_code != 200:
+                        logger.warning(
+                            f"HTTP {resp.status_code} for {origin_code}->{dest_code}")
                         continue
 
                     soup = BeautifulSoup(resp.content, 'html.parser')
 
-                    # STEP A: READ CALENDAR BUTTONS TO FIND VALID DATES
+                    # STEP A: READ CALENDAR BUTTONS TO FIND VALID DATES & PRICES
                     valid_dates_in_week = []
                     all_buttons = soup.find_all("button")
 
@@ -86,25 +96,25 @@ class Command(BaseCommand):
                             if len(p_tags) >= 3:
                                 date_text = p_tags[0].get_text(
                                     strip=True)  # e.g. "Lun. 02 Fév."
-                                price_text = p_tags[2].get_text(strip=True)
+                                price_text = p_tags[2].get_text(
+                                    strip=True)  # e.g. "39,00 €"
 
                                 if any(c.isdigit() for c in price_text):
                                     parsed_date = self.parse_french_date(
                                         date_text)
                                     if parsed_date:
-                                        valid_dates_in_week.append(parsed_date)
+                                        valid_dates_in_week.append(
+                                            (parsed_date, price_text))
 
                     if not valid_dates_in_week:
                         continue
 
                     # STEP B: FETCH DETAILS FOR EACH VALID DATE
-                    for target_date in valid_dates_in_week:
+                    for target_date, day_price in valid_dates_in_week:
                         if target_date in processed_dates:
                             continue
 
-                        # Optimization: Is the current page ALREADY showing this date?
                         is_current_page = False
-                        # Look for header "DATE DEPART : Sam. 31 Jan."
                         header_div = soup.find(text=re.compile("DATE DEPART"))
                         if header_div:
                             header_date = self.parse_french_date(header_div)
@@ -113,10 +123,8 @@ class Command(BaseCommand):
 
                         if is_current_page:
                             self.parse_daily_schedule(
-                                soup, route_obj, target_date)
+                                soup, route_obj, target_date, day_price)
                         else:
-                            # Fetch specific date page
-                            # self.stdout.write(f"     > Clicking {target_date}...")
                             sub_params = params.copy()
                             sub_params['date_aller'] = target_date.strftime(
                                 '%d/%m/%Y')
@@ -127,42 +135,31 @@ class Command(BaseCommand):
                             sub_soup = BeautifulSoup(
                                 sub_resp.content, 'html.parser')
                             self.parse_daily_schedule(
-                                sub_soup, route_obj, target_date)
+                                sub_soup, route_obj, target_date, day_price)
 
                         processed_dates.add(target_date)
-                        time.sleep(1)  # Polite delay
+                        time.sleep(1)
 
                 except Exception as e:
-                    self.stdout.write(self.style.ERROR(f"   Error: {e}"))
+                    logger.error(
+                        f"Scrape Error {origin_code}->{dest_code}: {e}")
 
         self.stdout.write(self.style.SUCCESS("\n✨ Scrape Complete"))
 
-    def parse_daily_schedule(self, soup, route_obj, date_obj):
-        """
-        Locates the detailed result rows using the 'Durée du voyage' anchor.
-        Structure: Container -> Time 1 (Dep), Time 2 (Arr) ... Duration Text
-        """
+    def parse_daily_schedule(self, soup, route_obj, date_obj, price_text="Available"):
         try:
-            # 1. Find all "Duration" text nodes - these act as anchors for each result row
             duration_nodes = soup.find_all(text=re.compile("Durée du voyage"))
-
             if not duration_nodes:
-                # Fallback: Sometimes just searching for <time> tags works if no duration text exists
-                self.fallback_parse_times(soup, route_obj, date_obj)
+                self.fallback_parse_times(
+                    soup, route_obj, date_obj, price_text)
                 return
 
-            found_count = 0
             for dur_node in duration_nodes:
-                # The node is a NavigableString. We need to find the container that holds BOTH the times and this duration.
-                # Based on your snippet, they are in a complex table/div structure.
-                # We traverse up 5-6 levels to find a common wrapper (like the <div class="lh0"> or similar)
-
-                # Heuristic: Go up until we find a container that has at least 2 <time> tags
                 container = dur_node.parent
                 times = []
                 depth = 0
 
-                while depth < 8:  # Don't go too high
+                while depth < 8:
                     if not container:
                         break
                     times = container.find_all('time')
@@ -174,63 +171,50 @@ class Command(BaseCommand):
                 if len(times) >= 2:
                     dep_time = times[0].get_text(strip=True)
                     arr_time = times[1].get_text(strip=True)
-
-                    # Parse Duration "Durée du voyage : 02h30"
                     dur_text = dur_node.strip()
-                    duration_mins = 120  # Default
+                    duration_mins = 120
                     match = re.search(r'(\d+)h(\d+)', dur_text)
                     if match:
-                        h = int(match.group(1))
-                        m = int(match.group(2))
-                        duration_mins = (h * 60) + m
+                        duration_mins = (int(match.group(1))
+                                         * 60) + int(match.group(2))
 
-                    # SAVE SAILING
-                    sailing, created = Sailing.objects.update_or_create(
+                    _, created = Sailing.objects.update_or_create(
                         route=route_obj,
                         date=date_obj,
-                        departure_time=dep_time,  # Unique constraint key
+                        departure_time=dep_time,
                         defaults={
                             'arrival_time': arr_time,
                             'duration_minutes': duration_mins,
-                            'price_text': "Available"
+                            'price_text': price_text
                         }
                     )
-                    found_count += 1
-                    # Log only if created to reduce noise
                     if created:
-                        self.stdout.write(self.style.SUCCESS(
-                            f"     ✅ Saved: {date_obj} @ {dep_time} ({duration_mins}m)"))
-
-            if found_count == 0:
-                self.fallback_parse_times(soup, route_obj, date_obj)
+                        logger.info(
+                            f"Saved Sailing: {date_obj} {dep_time}->{arr_time} ({price_text})")
 
         except Exception as e:
-            self.stdout.write(self.style.ERROR(
-                f"     Parse Error on {date_obj}: {e}"))
+            logger.error(f"Parse Error on {date_obj}: {e}")
 
-    def fallback_parse_times(self, soup, route_obj, date_obj):
-        """
-        If 'Durée du voyage' text is missing, just grab pairs of <time> tags.
-        """
+    def fallback_parse_times(self, soup, route_obj, date_obj, price_text):
         times = soup.find_all('time')
-        # Iterate in pairs
         for i in range(0, len(times), 2):
             if i + 1 < len(times):
                 dep = times[i].get_text(strip=True)
                 arr = times[i+1].get_text(strip=True)
 
-                Sailing.objects.update_or_create(
+                _, created = Sailing.objects.update_or_create(
                     route=route_obj,
                     date=date_obj,
                     departure_time=dep,
                     defaults={
                         'arrival_time': arr,
-                        'duration_minutes': 120,  # Default since we couldn't find text
-                        'price_text': "Available"
+                        'duration_minutes': 120,
+                        'price_text': price_text
                     }
                 )
-                self.stdout.write(self.style.SUCCESS(
-                    f"     ✅ Saved (Fallback): {date_obj} @ {dep}"))
+                if created:
+                    logger.info(
+                        f"Saved Sailing (Fallback): {date_obj} {dep}->{arr}")
 
     def parse_french_date(self, date_str):
         if not date_str:
@@ -250,6 +234,7 @@ class Command(BaseCommand):
                     break
             if not day or month_idx >= len(parts):
                 return None
+
             month_str = parts[month_idx][0:3]
             month = MONTHS.get(month_str, 1)
             today = datetime.now().date()
