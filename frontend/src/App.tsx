@@ -1,13 +1,12 @@
 import { useState } from "react";
-import type { Itinerary, ApiRoute } from "./types";
+import type { Itinerary, ApiLeg, ApiResponse } from "./types";
 import { useTheme } from "./hooks/useTheme";
 import { AirportSelect } from "./components/AirportSelect";
+import { ProjectSwitcher } from "./components/ProjectSwitcher";
 import { API_URL } from "./config";
 
 // --- HELPERS ---
-
 const getTodayString = () => {
-  // Prevent "Yesterday" bug by getting local YYYY-MM-DD
   const d = new Date();
   const offset = d.getTimezoneOffset();
   const localDate = new Date(d.getTime() - offset * 60 * 1000);
@@ -91,20 +90,21 @@ function App() {
 
     try {
       const params = new URLSearchParams({ origin, destination, date });
-      const response = await fetch(`${API_URL}/api/search/?${params}`);
+
+      // Pointing to ViewSet @action
+      const response = await fetch(`${API_URL}/api/routes/search/?${params}`);
 
       const contentType = response.headers.get("content-type");
       if (!contentType || !contentType.includes("application/json")) {
-        const text = await response.text();
-        console.error("Backend Error:", text);
         throw new Error("Server Error: Check backend logs.");
       }
 
-      const data = await response.json();
-      if (!response.ok) throw new Error(data.error || "Failed to fetch routes");
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error || "Failed to fetch routes");
+      }
 
-      // --- LOGIC: HANDLE LOOKAHEAD ---
-      const rawRoutes = data.results || [];
+      const data: ApiResponse = await response.json();
 
       if (data.date_was_changed) {
         setDateChanged(true);
@@ -113,53 +113,12 @@ function App() {
         setDisplayDate(data.found_date || date);
       }
 
-      // --- ADAPTER: MAP DATA TO UI ---
-      const adaptedItineraries: Itinerary[] = rawRoutes.map((r: ApiRoute) => ({
-        type: "direct",
-        total_duration: r.duration,
-        connection_duration: null,
-        legs: [
-          {
-            id: r.id,
-            duration_minutes: r.duration,
-            departure_time: r.departure_time,
-            arrival_time: r.arrival_time,
+      // No need to map structure anymore, types match 1:1
+      setItineraries(data.results);
 
-            // Only map schedule if provided (Flights). Ferries are specific dates.
-            days_of_operation: r.days_of_operation || "",
-
-            is_ferry: r.is_ferry,
-            is_active: true,
-
-            origin: {
-              code: r.origin,
-              name: r.origin_name,
-              city: r.origin_city,
-              location_type: r.is_ferry ? "PRT" : "APT",
-            },
-            destination: {
-              code: r.destination,
-              name: r.destination_name,
-              city: r.destination_city,
-              location_type: r.is_ferry ? "PRT" : "APT",
-            },
-            carrier: {
-              code: r.carrier_code,
-              name: r.carrier,
-              // Link Logic: Ferries get explicit site, Flights check carrier
-              website: r.is_ferry
-                ? "https://www.express-des-iles.fr/"
-                : undefined,
-            },
-          },
-        ],
-      }));
-
-      setItineraries(adaptedItineraries);
-
-      if (rawRoutes.length === 0) {
+      if (data.results.length === 0) {
         setError(
-          `No routes found from ${origin} to ${destination} within the next 7 days.`,
+          `No routes found from ${origin} to ${destination} within the next 3 days.`,
         );
       }
     } catch (err: any) {
@@ -172,25 +131,26 @@ function App() {
 
   return (
     <div className="min-h-screen bg-slate-50 dark:bg-slate-900 flex flex-col font-sans text-slate-900 dark:text-slate-100 transition-colors duration-200">
-      {/* HEADER */}
       <header className="bg-white/90 dark:bg-slate-800/90 backdrop-blur-sm border-b border-slate-200 dark:border-slate-700 py-4 sticky top-0 z-50">
         <div className="container mx-auto px-4 flex justify-between items-center">
           <div className="flex items-center gap-2">
-            <span className="text-2xl">✈️</span>
+            <span className="text-2xl">✈️⛴️</span>
             <h1 className="text-xl font-bold text-blue-600 dark:text-blue-400">
               Prop & Ferry
             </h1>
           </div>
-          <button
-            onClick={toggleTheme}
-            className="text-lg p-2 rounded-full hover:bg-slate-100 dark:hover:bg-slate-700 transition-colors"
-          >
-            {theme === "dark" ? "🌙" : "☀️"}
-          </button>
+          <div className="flex items-center gap-2">
+            <ProjectSwitcher />
+            <button
+              onClick={toggleTheme}
+              className="text-lg p-2 rounded-full hover:bg-slate-100 dark:hover:bg-slate-700 transition-colors"
+            >
+              {theme === "dark" ? "🌙" : "☀️"}
+            </button>
+          </div>
         </div>
       </header>
 
-      {/* MAIN */}
       <main className="flex-grow container mx-auto px-4 py-8 flex flex-col items-center">
         {!itineraries.length && !loading && (
           <div className="text-center mb-10 mt-10">
@@ -206,7 +166,7 @@ function App() {
           </div>
         )}
 
-        {/* SEARCH BOX */}
+        {/* Search Box */}
         <div className="bg-white dark:bg-slate-800 p-6 rounded-xl shadow-lg w-full max-w-4xl border border-slate-100 dark:border-slate-700 mb-8">
           <div className="flex flex-col md:flex-row gap-4 items-center md:items-end">
             <div className="w-full md:flex-1">
@@ -219,7 +179,7 @@ function App() {
             </div>
             <button
               onClick={handleSwap}
-              className="p-3 rounded-full bg-slate-100 dark:bg-slate-700 hover:bg-slate-200 text-blue-600 transform md:rotate-90 shadow-sm border border-slate-200 dark:border-slate-600"
+              className="p-3 rounded-full bg-slate-100 dark:bg-slate-700 hover:bg-slate-200 text-blue-600 transform md:rotate-90 shadow-sm"
             >
               <svg
                 xmlns="http://www.w3.org/2000/svg"
@@ -270,7 +230,6 @@ function App() {
 
         {/* RESULTS */}
         <div className="w-full max-w-3xl space-y-4 mb-20">
-          {/* STICKY HEADER */}
           {itineraries.length > 0 && (
             <div className="sticky top-[72px] z-40 bg-slate-50/95 dark:bg-slate-900/95 backdrop-blur py-3 text-center border-b border-slate-200 dark:border-slate-700 mb-4 shadow-sm rounded-b-lg">
               <h3 className="text-lg font-bold text-slate-800 dark:text-slate-100">
@@ -297,72 +256,91 @@ function App() {
             </div>
           )}
 
-          {itineraries.map((itinerary, index) => (
+          {itineraries.map((itinerary) => (
             <div
-              key={index}
+              key={itinerary.id}
               className="bg-white dark:bg-slate-800 p-6 rounded-lg shadow border border-slate-100 dark:border-slate-700 hover:shadow-md transition-all"
             >
-              {itinerary.legs.map((leg, i) => (
-                <div
-                  key={leg.id}
-                  className={`${i > 0 ? "mt-4 pt-4 border-t border-slate-100 dark:border-slate-700" : ""}`}
-                >
-                  <div className="flex justify-between items-start">
-                    <div>
-                      {/* DISPLAY NAMES */}
-                      <div className="flex flex-col">
-                        <div className="text-lg font-bold text-slate-900 dark:text-white flex items-center gap-2">
-                          <span>{leg.origin.city || leg.origin.code}</span>
-                          <span className="text-slate-400 text-sm">➜</span>
-                          <span>
-                            {leg.destination.city || leg.destination.code}
+              {/* LEG ITERATION - This is where Type safety is key */}
+              {itinerary.legs.map((leg: ApiLeg, i: number) => (
+                <div key={i}>
+                  {/* CONNECTION HEADER */}
+                  {i > 0 && (
+                    <div className="my-4 pl-4 border-l-2 border-dashed border-slate-300 dark:border-slate-600 ml-3">
+                      <div className="text-xs font-bold text-slate-500 uppercase tracking-wide">
+                        {itinerary.legs[i - 1].layover_text || "Connection"}
+                      </div>
+                    </div>
+                  )}
+
+                  <div className={`${i > 0 ? "pt-2" : ""}`}>
+                    <div className="flex justify-between items-start">
+                      <div>
+                        {/* ROUTE INFO */}
+                        <div className="flex flex-col">
+                          <div className="text-lg font-bold text-slate-900 dark:text-white flex items-center gap-2">
+                            <span>{leg.origin.city || leg.origin.code}</span>
+                            <span className="text-slate-400 text-sm">➜</span>
+                            <span>
+                              {leg.destination.city || leg.destination.code}
+                            </span>
+                          </div>
+                          <div className="text-xs text-slate-500 dark:text-slate-400 mb-2">
+                            {leg.origin.name} to {leg.destination.name}
+                          </div>
+                        </div>
+
+                        <div className="text-slate-700 dark:text-slate-300 font-medium text-sm mt-1">
+                          {formatTime(leg.departure_time)} –{" "}
+                          {formatTime(leg.arrival_time)}
+                        </div>
+
+                        <div className="flex items-center gap-2 mt-2">
+                          <span
+                            className={`text-[10px] px-2 py-0.5 rounded font-bold uppercase ${leg.is_ferry ? "bg-indigo-100 text-indigo-700 dark:bg-indigo-900 dark:text-indigo-300" : "bg-blue-100 text-blue-700 dark:bg-blue-900 dark:text-blue-300"}`}
+                          >
+                            {leg.is_ferry ? "Ferry" : "Flight"}
+                          </span>
+                          <span className="text-slate-500 dark:text-slate-400 text-xs">
+                            {leg.carrier.name} ({leg.carrier.code}) •{" "}
+                            {formatDuration(leg.duration_minutes)}
                           </span>
                         </div>
-                        <div className="text-xs text-slate-500 dark:text-slate-400 mb-2">
-                          {leg.origin.name} to {leg.destination.name}
-                        </div>
+
+                        {leg.days_of_operation ? (
+                          <div className="text-blue-500/80 dark:text-blue-400/80 text-xs italic mt-1">
+                            {formatSchedule(leg.days_of_operation)}
+                          </div>
+                        ) : (
+                          <div className="flex gap-2 items-center mt-1">
+                            <span className="text-indigo-500/80 dark:text-indigo-400/80 text-xs italic">
+                              Sailing confirmed
+                            </span>
+                            {leg.price_text && (
+                              <span className="text-xs font-bold text-green-600 dark:text-green-400 bg-green-50 dark:bg-green-900/30 px-2 rounded-full">
+                                {leg.price_text}
+                              </span>
+                            )}
+                          </div>
+                        )}
                       </div>
 
-                      <div className="text-slate-700 dark:text-slate-300 font-medium text-sm mt-1">
-                        {formatTime(leg.departure_time)} –{" "}
-                        {formatTime(leg.arrival_time)}
+                      <div className="text-right flex flex-col items-end gap-2">
+                        {leg.carrier.website ? (
+                          <a
+                            href={leg.carrier.website}
+                            target="_blank"
+                            rel="noreferrer"
+                            className="bg-blue-600 hover:bg-blue-700 text-white text-xs px-4 py-2 rounded-full font-bold shadow-sm"
+                          >
+                            Book Direct
+                          </a>
+                        ) : (
+                          <span className="bg-slate-100 dark:bg-slate-700 text-slate-500 text-xs px-3 py-1 rounded-full">
+                            Info Only
+                          </span>
+                        )}
                       </div>
-
-                      <div className="flex items-center gap-2 mt-2">
-                        <span
-                          className={`text-[10px] px-2 py-0.5 rounded font-bold uppercase ${leg.is_ferry ? "bg-indigo-100 text-indigo-700 dark:bg-indigo-900 dark:text-indigo-300" : "bg-blue-100 text-blue-700 dark:bg-blue-900 dark:text-blue-300"}`}
-                        >
-                          {leg.is_ferry ? "Ferry" : "Flight"}
-                        </span>
-                        <span className="text-slate-500 dark:text-slate-400 text-xs">
-                          {leg.carrier.name} ({leg.carrier.code}) •{" "}
-                          {formatDuration(leg.duration_minutes)}
-                        </span>
-                      </div>
-
-                      {/* Only show "Runs Daily" if days_of_operation exists (Flights) */}
-                      {leg.days_of_operation && (
-                        <div className="text-blue-500/80 dark:text-blue-400/80 text-xs italic mt-1">
-                          {formatSchedule(leg.days_of_operation)}
-                        </div>
-                      )}
-                    </div>
-
-                    <div className="text-right flex flex-col items-end gap-2">
-                      {leg.carrier.website ? (
-                        <a
-                          href={leg.carrier.website}
-                          target="_blank"
-                          rel="noreferrer"
-                          className="bg-blue-600 hover:bg-blue-700 text-white text-xs px-4 py-2 rounded-full font-bold shadow-sm"
-                        >
-                          Book
-                        </a>
-                      ) : (
-                        <span className="bg-slate-100 dark:bg-slate-700 text-slate-500 text-xs px-3 py-1 rounded-full">
-                          Check Airline
-                        </span>
-                      )}
                     </div>
                   </div>
                 </div>
@@ -375,14 +353,19 @@ function App() {
       <footer className="bg-white dark:bg-slate-800 border-t border-slate-200 dark:border-slate-700 py-8">
         <div className="container mx-auto px-4 text-center">
           <div className="flex justify-center items-center gap-2 mb-4">
-            <span className="text-xl">✈️</span>
+            <span className="text-xl">✈️⛴️</span>
             <span className="font-bold text-slate-700 dark:text-slate-300">
               Prop & Ferry
             </span>
           </div>
-          <p className="text-slate-500 dark:text-slate-400 text-sm mb-4">
-            The easiest way to connect to the hidden gems of the Caribbean.
-          </p>
+          <div className="mb-4">
+            <a
+              href="mailto:dev@rajivwallace.com"
+              className="text-blue-600 dark:text-blue-400 hover:underline text-sm font-medium transition-colors"
+            >
+              dev@rajivwallace.com
+            </a>
+          </div>
           <div className="text-xs text-slate-400">
             &copy; {new Date().getFullYear()} Rajiv Wallace. All rights
             reserved.

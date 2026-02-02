@@ -5,7 +5,7 @@ Global Constants for Route Discovery.
 # --- FLIGHT CONFIGURATION (IATA) ---
 TARGETS = ['DOM']
 REGIONAL_HUBS = ['SJU', 'BGI', 'ANU', 'PTP', 'FDF',
-                 'SLU', 'SXM', 'POS', 'SKB', 'SVD', 'EIS', 'STT']
+                 'SLU', 'SXM', 'POS', 'SKB', 'SVD', 'EIS', 'STT', 'MIA', 'EWR']
 GATEWAYS = ['MIA', 'JFK', 'EWR', 'ATL', 'CLT', 'IAH', 'FLL',
             'YYZ', 'YUL', 'LHR', 'LGW', 'CDG', 'ORY', 'AMS', 'FRA']
 

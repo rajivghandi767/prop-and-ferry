@@ -5,18 +5,16 @@ from django.conf import settings
 from django.http import JsonResponse
 from django.views.decorators.http import require_http_methods
 from django.views.decorators.cache import cache_control
-from django.utils.decorators import method_decorator
 from rest_framework.routers import DefaultRouter
 
-# Import viewsets
-from core.views import LocationViewSet, RouteViewSet, CarrierViewSet, search_routes
+from core.views import LocationViewSet, RouteViewSet, CarrierViewSet, SailingViewSet
 
 # Import health check views
 from health_check.views import health_detailed, health_simple
 
 
 @require_http_methods(["GET"])
-@cache_control(max_age=300)  # Cache for 5 minutes
+@cache_control(max_age=300)
 def api_root(request):
     """
     API Endpoint List
@@ -31,27 +29,27 @@ def api_root(request):
         "endpoints": {
             "admin": f"{base_url}admin/",
             "api": f"{base_url}api/",
-            "auth": f"{base_url}api-auth/",
-
+            "health": f"{base_url}health/",
         }
     })
 
 
 router = DefaultRouter()
 
-# Register viewsets with explicit basename for better URL naming
+# Register viewsets
 router.register(r'locations', LocationViewSet, basename='location')
 router.register(r'carriers', CarrierViewSet, basename='carrier')
 router.register(r'routes', RouteViewSet, basename='route')
+# Added this for completeness
+router.register(r'sailings', SailingViewSet, basename='sailing')
 
 # URL patterns
 urlpatterns = [
     # Root API Endpoint
     path('', api_root, name='api-root'),
 
-    # API Routes
+    # API Routes (Router now handles 'api/routes/search/')
     path('api/', include(router.urls)),
-    path('api/search/', search_routes, name='search-routes'),
 
     # Admin Interface
     path('admin/', admin.site.urls),
@@ -67,16 +65,12 @@ urlpatterns = [
     path('', include('django_prometheus.urls')),   # Prometheus Monitoring
 ]
 
-# Static and media file serving fallback
 if settings.DEBUG:
-    # Development: Serve media files through Django
     urlpatterns += static(settings.MEDIA_URL,
                           document_root=settings.MEDIA_ROOT)
     urlpatterns += static(settings.STATIC_URL,
                           document_root=settings.STATIC_ROOT)
 else:
-    # Production: Add media and static URL patterns for URL resolution.
-    # Nginx will serve the files, but Django needs to be aware of the URLs.
     urlpatterns += static(settings.MEDIA_URL,
                           document_root=settings.MEDIA_ROOT)
     urlpatterns += static(settings.STATIC_URL,
