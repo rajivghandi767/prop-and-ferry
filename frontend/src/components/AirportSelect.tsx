@@ -63,7 +63,7 @@ export function AirportSelect({
           (loc.city || "").toLowerCase().includes(lowerQuery) ||
           (loc.name || "").toLowerCase().includes(lowerQuery);
 
-        // B. EXCLUSION: Hide the specific ferry ports (User wants DOM, not DMROS)
+        // B. EXCLUSION: Hide the specific ferry ports
         const isHidden = HIDDEN_CODES.includes(loc.code);
 
         return matchesSearch && !isHidden;
@@ -120,19 +120,20 @@ export function AirportSelect({
     return {
       label: "AIR",
       className:
-        "bg-slate-100 text-slate-600 dark:bg-slate-700 dark:text-slate-300",
+        "bg-slate-100 text-slate-600 dark:bg-zinc-800 dark:text-zinc-300", // Updated to zinc
     };
   };
 
   return (
     <div className="flex flex-col text-left relative w-full" ref={wrapperRef}>
-      <label className="text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase mb-1">
+      <label className="text-xs font-semibold text-slate-500 dark:text-zinc-400 uppercase mb-1">
         {label}
       </label>
       <input
         type="text"
         placeholder={placeholder}
-        className="w-full p-3 bg-slate-50 dark:bg-slate-700 rounded-lg border border-slate-200 dark:border-slate-600 focus:outline-none focus:ring-2 focus:ring-blue-500 dark:text-white uppercase placeholder:normal-case transition-colors"
+        // Updated to pure black bg and zinc borders
+        className="w-full p-3 bg-slate-50 dark:bg-black rounded-lg border border-slate-200 dark:border-zinc-700 focus:outline-none focus:ring-2 focus:ring-blue-500 dark:text-white uppercase placeholder:normal-case transition-colors"
         value={query}
         onChange={handleChange}
         onFocus={() => query && setIsOpen(true)}
@@ -140,7 +141,8 @@ export function AirportSelect({
 
       {/* Dropdown Menu */}
       {isOpen && filtered.length > 0 && (
-        <ul className="absolute top-full left-0 right-0 mt-1 max-h-60 overflow-y-auto bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg shadow-xl z-50">
+        // Updated to dark zinc background and borders
+        <ul className="absolute top-full left-0 right-0 mt-1 max-h-60 overflow-y-auto bg-white dark:bg-zinc-900 border border-slate-200 dark:border-zinc-800 rounded-lg shadow-xl z-50">
           {filtered.map((loc) => {
             const badge = getBadgeInfo(loc.code, loc.location_type || "APT");
 
@@ -148,18 +150,19 @@ export function AirportSelect({
               <li
                 key={loc.id}
                 onClick={() => handleSelect(loc.code)}
-                className="p-3 hover:bg-blue-50 dark:hover:bg-slate-700 cursor-pointer border-b border-slate-100 dark:border-slate-700 last:border-0"
+                // Updated hover and border colors to zinc
+                className="p-3 hover:bg-blue-50 dark:hover:bg-zinc-800 cursor-pointer border-b border-slate-100 dark:border-zinc-800 last:border-0"
               >
                 <div className="flex justify-between items-center">
                   <span className="font-bold text-slate-900 dark:text-white">
                     {loc.code}
                   </span>
-                  <span className="text-xs text-slate-500 dark:text-slate-400">
+                  <span className="text-xs text-slate-500 dark:text-zinc-400">
                     {loc.city || "Unknown City"}
                   </span>
                 </div>
                 <div className="flex justify-between items-center mt-1">
-                  <span className="text-xs text-slate-400 truncate max-w-[60%]">
+                  <span className="text-xs text-slate-400 dark:text-zinc-500 truncate max-w-[60%]">
                     {loc.name || loc.code}
                   </span>
                   <span

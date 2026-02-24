@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { Sun, Moon } from "lucide-react";
 import type { Itinerary, ApiLeg, ApiResponse } from "./types";
 import { useTheme } from "./hooks/useTheme";
 import { AirportSelect } from "./components/AirportSelect";
@@ -90,8 +91,6 @@ function App() {
 
     try {
       const params = new URLSearchParams({ origin, destination, date });
-
-      // Pointing to ViewSet @action
       const response = await fetch(`${API_URL}/api/routes/search/?${params}`);
 
       const contentType = response.headers.get("content-type");
@@ -113,7 +112,6 @@ function App() {
         setDisplayDate(data.found_date || date);
       }
 
-      // No need to map structure anymore, types match 1:1
       setItineraries(data.results);
 
       if (data.results.length === 0) {
@@ -130,8 +128,8 @@ function App() {
   };
 
   return (
-    <div className="min-h-screen bg-slate-50 dark:bg-slate-900 flex flex-col font-sans text-slate-900 dark:text-slate-100 transition-colors duration-200">
-      <header className="bg-white/90 dark:bg-slate-800/90 backdrop-blur-sm border-b border-slate-200 dark:border-slate-700 py-4 sticky top-0 z-50">
+    <div className="min-h-screen bg-slate-50 dark:bg-black flex flex-col text-slate-900 dark:text-slate-100 transition-colors duration-200">
+      <header className="bg-white/90 dark:bg-black/90 backdrop-blur-sm border-b border-slate-200 dark:border-zinc-800 py-4 sticky top-0 z-50">
         <div className="container mx-auto px-4 flex justify-between items-center">
           <div className="flex items-center gap-2">
             <span className="text-2xl">✈️⛴️</span>
@@ -143,9 +141,14 @@ function App() {
             <ProjectSwitcher />
             <button
               onClick={toggleTheme}
-              className="text-lg p-2 rounded-full hover:bg-slate-100 dark:hover:bg-slate-700 transition-colors"
+              className="p-2 rounded-full hover:bg-slate-100 dark:hover:bg-zinc-800 transition-colors"
+              aria-label="Toggle dark mode"
             >
-              {theme === "dark" ? "🌙" : "☀️"}
+              {theme === "dark" ? (
+                <Sun className="w-5 h-5 text-zinc-200" />
+              ) : (
+                <Moon className="w-5 h-5 text-slate-600" />
+              )}
             </button>
           </div>
         </div>
@@ -167,7 +170,7 @@ function App() {
         )}
 
         {/* Search Box */}
-        <div className="bg-white dark:bg-slate-800 p-6 rounded-xl shadow-lg w-full max-w-4xl border border-slate-100 dark:border-slate-700 mb-8">
+        <div className="bg-white dark:bg-zinc-900 p-6 rounded-xl shadow-lg w-full max-w-4xl border border-slate-100 dark:border-zinc-800 mb-8">
           <div className="flex flex-col md:flex-row gap-4 items-center md:items-end">
             <div className="w-full md:flex-1">
               <AirportSelect
@@ -179,7 +182,7 @@ function App() {
             </div>
             <button
               onClick={handleSwap}
-              className="p-3 rounded-full bg-slate-100 dark:bg-slate-700 hover:bg-slate-200 text-blue-600 transform md:rotate-90 shadow-sm"
+              className="p-3 rounded-full bg-slate-100 dark:bg-zinc-800 hover:bg-slate-200 dark:hover:bg-zinc-700 text-blue-600 dark:text-blue-400 transform md:rotate-90 shadow-sm"
             >
               <svg
                 xmlns="http://www.w3.org/2000/svg"
@@ -205,13 +208,13 @@ function App() {
               />
             </div>
             <div className="w-full md:flex-1">
-              <label className="text-xs font-semibold text-slate-500 uppercase mb-1">
+              <label className="text-xs font-semibold text-slate-500 dark:text-zinc-400 uppercase mb-1">
                 Date
               </label>
               <input
                 type="date"
                 min={getTodayString()}
-                className="w-full p-3 bg-slate-50 dark:bg-slate-700 rounded-lg border border-slate-200 dark:border-slate-600 dark:text-white"
+                className="w-full p-3 bg-slate-50 dark:bg-black rounded-lg border border-slate-200 dark:border-zinc-700 dark:text-white"
                 value={date}
                 onChange={(e) => setDate(e.target.value)}
               />
@@ -231,7 +234,7 @@ function App() {
         {/* RESULTS */}
         <div className="w-full max-w-3xl space-y-4 mb-20">
           {itineraries.length > 0 && (
-            <div className="sticky top-[72px] z-40 bg-slate-50/95 dark:bg-slate-900/95 backdrop-blur py-3 text-center border-b border-slate-200 dark:border-slate-700 mb-4 shadow-sm rounded-b-lg">
+            <div className="sticky top-[72px] z-40 bg-slate-50/95 dark:bg-black/95 backdrop-blur py-3 text-center border-b border-slate-200 dark:border-zinc-800 mb-4 shadow-sm rounded-b-lg">
               <h3 className="text-lg font-bold text-slate-800 dark:text-slate-100">
                 Results for{" "}
                 {parseDateLocal(displayDate).toLocaleDateString(undefined, {
@@ -259,15 +262,13 @@ function App() {
           {itineraries.map((itinerary) => (
             <div
               key={itinerary.id}
-              className="bg-white dark:bg-slate-800 p-6 rounded-lg shadow border border-slate-100 dark:border-slate-700 hover:shadow-md transition-all"
+              className="bg-white dark:bg-zinc-900 p-6 rounded-lg shadow border border-slate-100 dark:border-zinc-800 hover:shadow-md transition-all"
             >
-              {/* LEG ITERATION - This is where Type safety is key */}
               {itinerary.legs.map((leg: ApiLeg, i: number) => (
                 <div key={i}>
-                  {/* CONNECTION HEADER */}
                   {i > 0 && (
-                    <div className="my-4 pl-4 border-l-2 border-dashed border-slate-300 dark:border-slate-600 ml-3">
-                      <div className="text-xs font-bold text-slate-500 uppercase tracking-wide">
+                    <div className="my-4 pl-4 border-l-2 border-dashed border-slate-300 dark:border-zinc-700 ml-3">
+                      <div className="text-xs font-bold text-slate-500 dark:text-zinc-500 uppercase tracking-wide">
                         {itinerary.legs[i - 1].layover_text || "Connection"}
                       </div>
                     </div>
@@ -276,32 +277,33 @@ function App() {
                   <div className={`${i > 0 ? "pt-2" : ""}`}>
                     <div className="flex justify-between items-start">
                       <div>
-                        {/* ROUTE INFO */}
                         <div className="flex flex-col">
                           <div className="text-lg font-bold text-slate-900 dark:text-white flex items-center gap-2">
                             <span>{leg.origin.city || leg.origin.code}</span>
-                            <span className="text-slate-400 text-sm">➜</span>
+                            <span className="text-slate-400 dark:text-zinc-500 text-sm">
+                              ➜
+                            </span>
                             <span>
                               {leg.destination.city || leg.destination.code}
                             </span>
                           </div>
-                          <div className="text-xs text-slate-500 dark:text-slate-400 mb-2">
+                          <div className="text-xs text-slate-500 dark:text-zinc-400 mb-2">
                             {leg.origin.name} to {leg.destination.name}
                           </div>
                         </div>
 
-                        <div className="text-slate-700 dark:text-slate-300 font-medium text-sm mt-1">
+                        <div className="text-slate-700 dark:text-zinc-300 font-medium text-sm mt-1">
                           {formatTime(leg.departure_time)} –{" "}
                           {formatTime(leg.arrival_time)}
                         </div>
 
                         <div className="flex items-center gap-2 mt-2">
                           <span
-                            className={`text-[10px] px-2 py-0.5 rounded font-bold uppercase ${leg.is_ferry ? "bg-indigo-100 text-indigo-700 dark:bg-indigo-900 dark:text-indigo-300" : "bg-blue-100 text-blue-700 dark:bg-blue-900 dark:text-blue-300"}`}
+                            className={`text-[10px] px-2 py-0.5 rounded font-bold uppercase ${leg.is_ferry ? "bg-indigo-100 text-indigo-700 dark:bg-indigo-900/50 dark:text-indigo-300" : "bg-blue-100 text-blue-700 dark:bg-blue-900/50 dark:text-blue-300"}`}
                           >
                             {leg.is_ferry ? "Ferry" : "Flight"}
                           </span>
-                          <span className="text-slate-500 dark:text-slate-400 text-xs">
+                          <span className="text-slate-500 dark:text-zinc-400 text-xs">
                             {leg.carrier.name} ({leg.carrier.code}) •{" "}
                             {formatDuration(leg.duration_minutes)}
                           </span>
@@ -336,7 +338,7 @@ function App() {
                             Book Direct
                           </a>
                         ) : (
-                          <span className="bg-slate-100 dark:bg-slate-700 text-slate-500 text-xs px-3 py-1 rounded-full">
+                          <span className="bg-slate-100 dark:bg-zinc-800 text-slate-500 dark:text-zinc-400 text-xs px-3 py-1 rounded-full">
                             Info Only
                           </span>
                         )}
@@ -350,11 +352,11 @@ function App() {
         </div>
       </main>
 
-      <footer className="bg-white dark:bg-slate-800 border-t border-slate-200 dark:border-slate-700 py-8">
+      <footer className="bg-white dark:bg-black border-t border-slate-200 dark:border-zinc-800 py-8">
         <div className="container mx-auto px-4 text-center">
           <div className="flex justify-center items-center gap-2 mb-4">
             <span className="text-xl">✈️⛴️</span>
-            <span className="font-bold text-slate-700 dark:text-slate-300">
+            <span className="font-bold text-slate-700 dark:text-zinc-300">
               Prop & Ferry
             </span>
           </div>
@@ -366,7 +368,7 @@ function App() {
               dev@rajivwallace.com
             </a>
           </div>
-          <div className="text-xs text-slate-400">
+          <div className="text-xs text-slate-400 dark:text-zinc-500">
             &copy; {new Date().getFullYear()} Rajiv Wallace. All rights
             reserved.
           </div>
