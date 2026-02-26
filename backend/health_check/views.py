@@ -17,7 +17,7 @@ def health_detailed(request):
     health_data = {
         "status": "healthy",
         "timestamp": time.time(),
-        "service": "portfolio-backend",
+        "service": "prop-ferry-backend",
         "checks": {}
     }
 
