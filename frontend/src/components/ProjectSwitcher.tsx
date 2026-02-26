@@ -26,11 +26,14 @@ const PROJECTS = [
   },
 ];
 
-export function ProjectSwitcher() {
+interface ProjectSwitcherProps {
+  align?: "left" | "right";
+}
+
+export function ProjectSwitcher({ align = "right" }: ProjectSwitcherProps) {
   const [isOpen, setIsOpen] = useState(false);
   const dropdownRef = useRef<HTMLDivElement>(null);
 
-  // Close when clicking outside
   useEffect(() => {
     function handleClickOutside(event: MouseEvent) {
       if (
@@ -44,14 +47,16 @@ export function ProjectSwitcher() {
     return () => document.removeEventListener("mousedown", handleClickOutside);
   }, []);
 
+  const alignmentClasses =
+    align === "left" ? "left-0 origin-top-left" : "right-0 origin-top-right";
+
   return (
-    <div className="relative" ref={dropdownRef}>
+    <div className="relative z-50" ref={dropdownRef}>
       <button
         onClick={() => setIsOpen(!isOpen)}
-        className="p-2 rounded-full hover:bg-slate-100 dark:hover:bg-slate-700 transition-colors text-slate-500 dark:text-slate-400 hover:text-blue-600 dark:hover:text-blue-400"
+        className="p-2 rounded-lg text-black dark:text-white hover:bg-gray-100 dark:hover:bg-neutral-900 transition-colors"
         title="More Projects"
       >
-        {/* Waffle Icon (Grid) */}
         <svg
           xmlns="http://www.w3.org/2000/svg"
           width="24"
@@ -71,9 +76,11 @@ export function ProjectSwitcher() {
       </button>
 
       {isOpen && (
-        <div className="absolute right-0 mt-3 w-72 bg-white dark:bg-slate-800 rounded-xl shadow-xl border border-slate-100 dark:border-slate-700 overflow-hidden z-50 transform origin-top-right transition-all">
-          <div className="p-3 border-b border-slate-100 dark:border-slate-700 bg-slate-50/50 dark:bg-slate-900/50">
-            <h3 className="text-xs font-bold text-slate-500 uppercase tracking-wider">
+        <div
+          className={`absolute mt-3 w-72 bg-white dark:bg-black rounded-xl shadow-xl border border-gray-200 dark:border-neutral-800 overflow-hidden transform transition-all ${alignmentClasses}`}
+        >
+          <div className="p-3 border-b border-gray-200 dark:border-neutral-800 bg-gray-50/50 dark:bg-neutral-900/50">
+            <h3 className="text-xs font-bold text-gray-500 dark:text-gray-400 uppercase tracking-wider">
               Projects by Rajiv
             </h3>
           </div>
@@ -85,7 +92,7 @@ export function ProjectSwitcher() {
                 href={project.url}
                 target="_blank"
                 rel="noreferrer"
-                className="flex items-start gap-3 p-3 rounded-lg hover:bg-slate-50 dark:hover:bg-slate-700/50 transition-colors group"
+                className="flex items-start gap-3 p-3 rounded-lg hover:bg-gray-50 dark:hover:bg-neutral-900 transition-colors group"
               >
                 <div
                   className={`w-10 h-10 rounded-lg flex items-center justify-center text-xl shadow-sm ${project.color}`}
@@ -93,10 +100,10 @@ export function ProjectSwitcher() {
                   {project.icon}
                 </div>
                 <div>
-                  <div className="font-bold text-slate-700 dark:text-slate-200 group-hover:text-blue-600 dark:group-hover:text-blue-400 transition-colors">
+                  <div className="font-bold text-black dark:text-white group-hover:text-blue-600 dark:group-hover:text-blue-400 transition-colors">
                     {project.name}
                   </div>
-                  <div className="text-xs text-slate-500 dark:text-slate-400 leading-tight mt-0.5">
+                  <div className="text-xs text-gray-500 dark:text-gray-400 leading-tight mt-0.5">
                     {project.desc}
                   </div>
                 </div>
@@ -104,7 +111,7 @@ export function ProjectSwitcher() {
             ))}
           </div>
 
-          <div className="p-2 border-t border-slate-100 dark:border-slate-700 bg-slate-50 dark:bg-slate-900/30 text-center">
+          <div className="p-2 border-t border-gray-200 dark:border-neutral-800 bg-gray-50 dark:bg-neutral-900 text-center">
             <a
               href="https://github.com/rajivghandi767"
               target="_blank"

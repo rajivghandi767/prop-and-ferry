@@ -1,3 +1,19 @@
 @import "tailwindcss";
 
 @custom-variant dark (&:where(.dark, .dark *));
+
+body {
+  font-family: ui-sans-serif, system-ui, sans-serif;
+  transition:
+    background-color 0.2s ease,
+    color 0.2s ease;
+}
+
+/* Global Link Styles */
+a:not([class]) {
+  @apply text-blue-600 dark:text-blue-400 transition-colors duration-200;
+}
+
+a:not([class]):hover {
+  @apply underline text-blue-800 dark:text-blue-300;
+}

@@ -1,13 +1,16 @@
 import { useState, useEffect } from "react";
 
+type Theme = "light" | "dark";
+
 export function useTheme() {
-  const [theme, setTheme] = useState(() => {
-    // 1. Check Local Storage first
-    if (typeof window !== "undefined" && localStorage.getItem("theme")) {
-      return localStorage.getItem("theme");
+  const [theme, setTheme] = useState<Theme>(() => {
+    if (typeof window !== "undefined") {
+      const savedTheme = localStorage.getItem("theme");
+      if (savedTheme === "dark" || savedTheme === "light") {
+        return savedTheme;
+      }
     }
-    // 2. Fallback to System Preference
-    if (window.matchMedia("(prefers-color-scheme: dark)").matches) {
+    if (typeof window !== "undefined" && window.matchMedia("(prefers-color-scheme: dark)").matches) {
       return "dark";
     }
     return "light";
@@ -18,12 +21,26 @@ export function useTheme() {
     
     if (theme === "dark") {
       root.classList.add("dark");
+      root.setAttribute("data-amoled", "true");
       localStorage.setItem("theme", "dark");
     } else {
       root.classList.remove("dark");
+      root.removeAttribute("data-amoled");
       localStorage.setItem("theme", "light");
     }
+
+    updateMetaThemeColor(theme === "dark");
   }, [theme]);
+
+  const updateMetaThemeColor = (isDark: boolean) => {
+    let metaThemeColor = document.querySelector('meta[name="theme-color"]');
+    if (!metaThemeColor) {
+      metaThemeColor = document.createElement('meta');
+      metaThemeColor.setAttribute('name', 'theme-color');
+      document.head.appendChild(metaThemeColor);
+    }
+    metaThemeColor.setAttribute('content', isDark ? '#000000' : '#ffffff');
+  };
 
   const toggleTheme = () => {
     setTheme((prev) => (prev === "dark" ? "light" : "dark"));

@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { Sun, Moon } from "lucide-react";
 import type { Itinerary, ApiLeg, ApiResponse } from "./types";
 import { useTheme } from "./hooks/useTheme";
 import { AirportSelect } from "./components/AirportSelect";
@@ -90,8 +91,6 @@ function App() {
 
     try {
       const params = new URLSearchParams({ origin, destination, date });
-
-      // Pointing to ViewSet @action
       const response = await fetch(`${API_URL}/api/routes/search/?${params}`);
 
       const contentType = response.headers.get("content-type");
@@ -113,7 +112,6 @@ function App() {
         setDisplayDate(data.found_date || date);
       }
 
-      // No need to map structure anymore, types match 1:1
       setItineraries(data.results);
 
       if (data.results.length === 0) {
@@ -130,22 +128,66 @@ function App() {
   };
 
   return (
-    <div className="min-h-screen bg-slate-50 dark:bg-slate-900 flex flex-col font-sans text-slate-900 dark:text-slate-100 transition-colors duration-200">
-      <header className="bg-white/90 dark:bg-slate-800/90 backdrop-blur-sm border-b border-slate-200 dark:border-slate-700 py-4 sticky top-0 z-50">
-        <div className="container mx-auto px-4 flex justify-between items-center">
-          <div className="flex items-center gap-2">
+    <div className="min-h-screen bg-white dark:bg-black flex flex-col font-sans text-neutral-900 dark:text-white transition-colors duration-200">
+      {/* 1. Solid, Symmetrical AMOLED Header */}
+      <header className="bg-white dark:bg-black border-b border-gray-200 dark:border-neutral-800 py-3 sticky top-0 z-50">
+        <div className="container mx-auto px-4 flex items-center justify-between min-h-[48px]">
+          {/* LEFT: Project Switcher */}
+          <div className="flex items-center justify-start w-24">
+            <ProjectSwitcher align="left" />
+          </div>
+
+          {/* CENTER: Title (Retained blue branding, but mathematically centered) */}
+          <div className="text-center flex-1 flex justify-center items-center gap-2">
             <span className="text-2xl">✈️⛴️</span>
             <h1 className="text-xl font-bold text-blue-600 dark:text-blue-400">
               Prop & Ferry
             </h1>
           </div>
-          <div className="flex items-center gap-2">
-            <ProjectSwitcher />
+
+          {/* RIGHT: Theme Toggle */}
+          <div className="flex items-center justify-end w-24">
             <button
               onClick={toggleTheme}
-              className="text-lg p-2 rounded-full hover:bg-slate-100 dark:hover:bg-slate-700 transition-colors"
+              className="p-2 rounded-lg text-black dark:text-white hover:bg-gray-100 dark:hover:bg-neutral-900 transition-colors"
             >
-              {theme === "dark" ? "🌙" : "☀️"}
+              {theme === "dark" ? (
+                <svg
+                  xmlns="http://www.w3.org/2000/svg"
+                  width="20"
+                  height="20"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="2"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                >
+                  <circle cx="12" cy="12" r="5"></circle>
+                  <line x1="12" y1="1" x2="12" y2="3"></line>
+                  <line x1="12" y1="21" x2="12" y2="23"></line>
+                  <line x1="4.22" y1="4.22" x2="5.64" y2="5.64"></line>
+                  <line x1="18.36" y1="18.36" x2="19.78" y2="19.78"></line>
+                  <line x1="1" y1="12" x2="3" y2="12"></line>
+                  <line x1="21" y1="12" x2="23" y2="12"></line>
+                  <line x1="4.22" y1="19.78" x2="5.64" y2="18.36"></line>
+                  <line x1="18.36" y1="5.64" x2="19.78" y2="4.22"></line>
+                </svg>
+              ) : (
+                <svg
+                  xmlns="http://www.w3.org/2000/svg"
+                  width="20"
+                  height="20"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="2"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                >
+                  <path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"></path>
+                </svg>
+              )}
             </button>
           </div>
         </div>
@@ -154,20 +196,20 @@ function App() {
       <main className="flex-grow container mx-auto px-4 py-8 flex flex-col items-center">
         {!itineraries.length && !loading && (
           <div className="text-center mb-10 mt-10">
-            <h2 className="text-4xl font-extrabold mb-4">
+            <h2 className="text-4xl font-extrabold mb-4 text-black dark:text-white">
               Unlock the{" "}
               <span className="text-blue-600 dark:text-blue-400">
                 Hidden Caribbean
               </span>
             </h2>
-            <p className="text-slate-600 dark:text-slate-400">
+            <p className="text-neutral-600 dark:text-neutral-400">
               Connect major flights with local island hoppers and ferries.
             </p>
           </div>
         )}
 
-        {/* Search Box */}
-        <div className="bg-white dark:bg-slate-800 p-6 rounded-xl shadow-lg w-full max-w-4xl border border-slate-100 dark:border-slate-700 mb-8">
+        {/* 2. AMOLED Search Box */}
+        <div className="bg-white dark:bg-black p-6 rounded-xl shadow-md w-full max-w-4xl border-2 border-gray-200 dark:border-neutral-800 mb-8">
           <div className="flex flex-col md:flex-row gap-4 items-center md:items-end">
             <div className="w-full md:flex-1">
               <AirportSelect
@@ -179,7 +221,7 @@ function App() {
             </div>
             <button
               onClick={handleSwap}
-              className="p-3 rounded-full bg-slate-100 dark:bg-slate-700 hover:bg-slate-200 text-blue-600 transform md:rotate-90 shadow-sm"
+              className="p-3 rounded-full bg-gray-100 dark:bg-neutral-900 hover:bg-gray-200 dark:hover:bg-neutral-800 text-blue-600 transition-colors transform md:rotate-90"
             >
               <svg
                 xmlns="http://www.w3.org/2000/svg"
@@ -205,13 +247,14 @@ function App() {
               />
             </div>
             <div className="w-full md:flex-1">
-              <label className="text-xs font-semibold text-slate-500 uppercase mb-1">
+              <label className="text-xs font-semibold text-neutral-500 uppercase mb-1">
                 Date
               </label>
+              {/* 3. Forced White Input */}
               <input
                 type="date"
                 min={getTodayString()}
-                className="w-full p-3 bg-slate-50 dark:bg-slate-700 rounded-lg border border-slate-200 dark:border-slate-600 dark:text-white"
+                className="w-full p-3 bg-white text-black rounded-lg border border-gray-300 focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500"
                 value={date}
                 onChange={(e) => setDate(e.target.value)}
               />
@@ -231,8 +274,8 @@ function App() {
         {/* RESULTS */}
         <div className="w-full max-w-3xl space-y-4 mb-20">
           {itineraries.length > 0 && (
-            <div className="sticky top-[72px] z-40 bg-slate-50/95 dark:bg-slate-900/95 backdrop-blur py-3 text-center border-b border-slate-200 dark:border-slate-700 mb-4 shadow-sm rounded-b-lg">
-              <h3 className="text-lg font-bold text-slate-800 dark:text-slate-100">
+            <div className="sticky top-[72px] z-40 bg-white/95 dark:bg-black/95 backdrop-blur py-3 text-center border-b border-gray-200 dark:border-neutral-800 mb-4 shadow-sm rounded-b-lg">
+              <h3 className="text-lg font-bold text-black dark:text-white">
                 Results for{" "}
                 {parseDateLocal(displayDate).toLocaleDateString(undefined, {
                   weekday: "long",
@@ -259,15 +302,14 @@ function App() {
           {itineraries.map((itinerary) => (
             <div
               key={itinerary.id}
-              className="bg-white dark:bg-slate-800 p-6 rounded-lg shadow border border-slate-100 dark:border-slate-700 hover:shadow-md transition-all"
+              className="bg-white dark:bg-black p-6 rounded-lg shadow-sm border-2 border-gray-200 dark:border-neutral-800 hover:shadow-md transition-all"
             >
-              {/* LEG ITERATION - This is where Type safety is key */}
               {itinerary.legs.map((leg: ApiLeg, i: number) => (
                 <div key={i}>
                   {/* CONNECTION HEADER */}
                   {i > 0 && (
-                    <div className="my-4 pl-4 border-l-2 border-dashed border-slate-300 dark:border-slate-600 ml-3">
-                      <div className="text-xs font-bold text-slate-500 uppercase tracking-wide">
+                    <div className="my-4 pl-4 border-l-2 border-dashed border-gray-300 dark:border-neutral-700 ml-3">
+                      <div className="text-xs font-bold text-neutral-500 uppercase tracking-wide">
                         {itinerary.legs[i - 1].layover_text || "Connection"}
                       </div>
                     </div>
@@ -278,30 +320,30 @@ function App() {
                       <div>
                         {/* ROUTE INFO */}
                         <div className="flex flex-col">
-                          <div className="text-lg font-bold text-slate-900 dark:text-white flex items-center gap-2">
+                          <div className="text-lg font-bold text-black dark:text-white flex items-center gap-2">
                             <span>{leg.origin.city || leg.origin.code}</span>
-                            <span className="text-slate-400 text-sm">➜</span>
+                            <span className="text-neutral-400 text-sm">➜</span>
                             <span>
                               {leg.destination.city || leg.destination.code}
                             </span>
                           </div>
-                          <div className="text-xs text-slate-500 dark:text-slate-400 mb-2">
+                          <div className="text-xs text-neutral-500 dark:text-neutral-400 mb-2">
                             {leg.origin.name} to {leg.destination.name}
                           </div>
                         </div>
 
-                        <div className="text-slate-700 dark:text-slate-300 font-medium text-sm mt-1">
+                        <div className="text-neutral-700 dark:text-neutral-300 font-medium text-sm mt-1">
                           {formatTime(leg.departure_time)} –{" "}
                           {formatTime(leg.arrival_time)}
                         </div>
 
                         <div className="flex items-center gap-2 mt-2">
                           <span
-                            className={`text-[10px] px-2 py-0.5 rounded font-bold uppercase ${leg.is_ferry ? "bg-indigo-100 text-indigo-700 dark:bg-indigo-900 dark:text-indigo-300" : "bg-blue-100 text-blue-700 dark:bg-blue-900 dark:text-blue-300"}`}
+                            className={`text-[10px] px-2 py-0.5 rounded font-bold uppercase ${leg.is_ferry ? "bg-indigo-100 text-indigo-700 dark:bg-indigo-900/50 dark:text-indigo-300" : "bg-blue-100 text-blue-700 dark:bg-blue-900/50 dark:text-blue-300"}`}
                           >
                             {leg.is_ferry ? "Ferry" : "Flight"}
                           </span>
-                          <span className="text-slate-500 dark:text-slate-400 text-xs">
+                          <span className="text-neutral-500 dark:text-neutral-400 text-xs">
                             {leg.carrier.name} ({leg.carrier.code}) •{" "}
                             {formatDuration(leg.duration_minutes)}
                           </span>
@@ -336,7 +378,7 @@ function App() {
                             Book Direct
                           </a>
                         ) : (
-                          <span className="bg-slate-100 dark:bg-slate-700 text-slate-500 text-xs px-3 py-1 rounded-full">
+                          <span className="bg-gray-100 dark:bg-neutral-900 border border-gray-200 dark:border-neutral-800 text-neutral-500 text-xs px-3 py-1 rounded-full">
                             Info Only
                           </span>
                         )}
@@ -350,11 +392,11 @@ function App() {
         </div>
       </main>
 
-      <footer className="bg-white dark:bg-slate-800 border-t border-slate-200 dark:border-slate-700 py-8">
+      <footer className="bg-white dark:bg-black border-t border-gray-200 dark:border-neutral-800 py-8">
         <div className="container mx-auto px-4 text-center">
           <div className="flex justify-center items-center gap-2 mb-4">
             <span className="text-xl">✈️⛴️</span>
-            <span className="font-bold text-slate-700 dark:text-slate-300">
+            <span className="font-bold text-black dark:text-white">
               Prop & Ferry
             </span>
           </div>
@@ -366,7 +408,7 @@ function App() {
               dev@rajivwallace.com
             </a>
           </div>
-          <div className="text-xs text-slate-400">
+          <div className="text-xs text-neutral-500">
             &copy; {new Date().getFullYear()} Rajiv Wallace. All rights
             reserved.
           </div>
