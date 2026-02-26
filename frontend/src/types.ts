@@ -5,6 +5,7 @@ export interface Location {
   name: string;
   city: string;
   country: string;
+  location_type: "AIRPORT" | "FERRY_PORT";
 }
 
 export interface Carrier {

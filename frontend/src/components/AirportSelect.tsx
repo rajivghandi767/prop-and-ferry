@@ -120,29 +120,29 @@ export function AirportSelect({
     return {
       label: "AIR",
       className:
-        "bg-slate-100 text-slate-600 dark:bg-zinc-800 dark:text-zinc-300", // Updated to zinc
+        "bg-gray-100 text-neutral-600 dark:bg-neutral-800 dark:text-neutral-300",
     };
   };
 
   return (
     <div className="flex flex-col text-left relative w-full" ref={wrapperRef}>
-      <label className="text-xs font-semibold text-slate-500 dark:text-zinc-400 uppercase mb-1">
+      <label className="text-xs font-semibold text-neutral-500 uppercase mb-1">
         {label}
       </label>
+
+      {/* 1. Added rounded-lg to match the date input box perfectly */}
       <input
         type="text"
         placeholder={placeholder}
-        // Updated to pure black bg and zinc borders
-        className="w-full p-3 bg-slate-50 dark:bg-black rounded-lg border border-slate-200 dark:border-zinc-700 focus:outline-none focus:ring-2 focus:ring-blue-500 dark:text-white uppercase placeholder:normal-case transition-colors"
+        className="w-full p-3 rounded-lg bg-white text-black border border-gray-300 focus:border-blue-500 focus:ring-1 focus:ring-blue-500 placeholder:normal-case transition-colors focus:outline-none"
         value={query}
         onChange={handleChange}
         onFocus={() => query && setIsOpen(true)}
       />
 
-      {/* Dropdown Menu */}
+      {/* 2. Standardized dropdown menu with pure black/white and neutral borders */}
       {isOpen && filtered.length > 0 && (
-        // Updated to dark zinc background and borders
-        <ul className="absolute top-full left-0 right-0 mt-1 max-h-60 overflow-y-auto bg-white dark:bg-zinc-900 border border-slate-200 dark:border-zinc-800 rounded-lg shadow-xl z-50">
+        <ul className="absolute top-full left-0 right-0 mt-1 max-h-60 overflow-y-auto bg-white dark:bg-black border border-gray-200 dark:border-neutral-800 rounded-lg shadow-xl z-50">
           {filtered.map((loc) => {
             const badge = getBadgeInfo(loc.code, loc.location_type || "APT");
 
@@ -150,19 +150,18 @@ export function AirportSelect({
               <li
                 key={loc.id}
                 onClick={() => handleSelect(loc.code)}
-                // Updated hover and border colors to zinc
-                className="p-3 hover:bg-blue-50 dark:hover:bg-zinc-800 cursor-pointer border-b border-slate-100 dark:border-zinc-800 last:border-0"
+                className="p-3 hover:bg-gray-50 dark:hover:bg-neutral-900 cursor-pointer border-b border-gray-100 dark:border-neutral-800 last:border-0 transition-colors"
               >
                 <div className="flex justify-between items-center">
-                  <span className="font-bold text-slate-900 dark:text-white">
+                  <span className="font-bold text-black dark:text-white">
                     {loc.code}
                   </span>
-                  <span className="text-xs text-slate-500 dark:text-zinc-400">
+                  <span className="text-xs text-neutral-500">
                     {loc.city || "Unknown City"}
                   </span>
                 </div>
                 <div className="flex justify-between items-center mt-1">
-                  <span className="text-xs text-slate-400 dark:text-zinc-500 truncate max-w-[60%]">
+                  <span className="text-xs text-neutral-400 truncate max-w-[60%]">
                     {loc.name || loc.code}
                   </span>
                   <span

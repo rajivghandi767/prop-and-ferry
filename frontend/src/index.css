@@ -2,14 +2,18 @@
 
 @custom-variant dark (&:where(.dark, .dark *));
 
-/* Global Monospace Font Stack */
 body {
-  font-family:
-    ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono",
-    "Courier New", monospace;
+  font-family: ui-sans-serif, system-ui, sans-serif;
+  transition:
+    background-color 0.2s ease,
+    color 0.2s ease;
 }
 
-/* AMOLED Override (Forces Pure Black background on the body when active) */
-html[data-amoled="true"].dark body {
-  background-color: #000000;
+/* Global Link Styles */
+a:not([class]) {
+  @apply text-blue-600 dark:text-blue-400 transition-colors duration-200;
+}
+
+a:not([class]):hover {
+  @apply underline text-blue-800 dark:text-blue-300;
 }

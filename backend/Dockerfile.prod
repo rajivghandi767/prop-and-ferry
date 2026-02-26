@@ -41,7 +41,7 @@ RUN pip install --no-cache-dir --upgrade pip && \
 COPY --chown=backend:backend_group . .
     
 # Create log files with proper permissions
-RUN touch /home/backend/django/logs/portfolio.log \
+RUN touch /home/backend/django/logs/prop-ferry.log \
           /home/backend/django/logs/errors.log \
           /home/backend/django/logs/gunicorn-access.log \
           /home/backend/django/logs/gunicorn-error.log && \
