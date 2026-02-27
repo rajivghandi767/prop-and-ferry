@@ -1,5 +1,7 @@
 # Use official Node.js image to build the frontend
-FROM node:25-alpine AS build
+FROM node:22-alpine AS build
+
+ENV NODE_OPTIONS="--max-old-space-size=1024"
 
 RUN addgroup -S frontend_group && adduser -S frontend -G frontend_group && \
     mkdir -p /home/frontend/react && chown -R frontend:frontend_group /home/frontend/react
@@ -9,7 +11,7 @@ USER frontend
 
 # Copy package files and install dependencies
 COPY --chown=frontend:frontend_group package*.json ./
-RUN npm ci && npm ci npm@latest
+RUN npm ci
 
 # Copy source code
 COPY --chown=frontend:frontend_group . .

@@ -125,6 +125,8 @@ pipeline {
                                 POSTGRES_DB='${POSTGRES_DB}'
                                 ADMIN_URL='${ADMIN_URL}'
                                 DISCORD_WEBHOOK_URL='${DISCORD_WEBHOOK_URL}'
+                                AMADEUS_API_KEY='${AMADEUS_API_KEY}'
+                                AMADEUS_API_SECRET='${AMADEUS_API_SECRET}'
                             """.stripIndent()
                             
                             writeFile file: '.env.prod', text: envContent
