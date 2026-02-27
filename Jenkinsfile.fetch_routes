@@ -1,0 +1,40 @@
+pipeline {
+    agent any
+
+    triggers {
+        // Runs on the 1st of every month at 04:30 AM ET to align with API limit resets
+        cron('30 4 1 * *')
+    }
+
+    environment {
+        SSH_CRED_ID = "raspberry-pi-ssh"
+        DEPLOY_USER = "dietpi"
+        DEPLOY_HOST = "10.100.10.5"
+        DEPLOY_DIR  = "/opt/homelab-iac/services/apps/prop-and-ferry"
+    }
+
+    stages {
+        stage('Fetch Routes Data') {
+            steps {
+                sshagent([SSH_CRED_ID]) {
+                    sh """
+                        ssh -o StrictHostKeyChecking=no ${DEPLOY_USER}@${DEPLOY_HOST} "
+                            cd ${DEPLOY_DIR}
+                            # Execute the Django management command inside the running backend container
+                            docker compose exec -T prop-ferry-backend python manage.py fetch_routes
+                        "
+                    """
+                }
+            }
+        }
+    }
+    
+    post {
+        success {
+            echo "Successfully populated routes for the month."
+        }
+        failure {
+            echo "Failed to fetch routes. Check API limits and container status."
+        }
+    }
+}
