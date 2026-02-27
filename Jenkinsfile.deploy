@@ -106,6 +106,8 @@ pipeline {
                     [envVar: 'POSTGRES_DB', vaultKey: 'POSTGRES_DB'],
                     [envVar: 'ADMIN_URL', vaultKey: 'ADMIN_URL'],
                     [envVar: 'DISCORD_WEBHOOK_URL', vaultKey: 'DISCORD_WEBHOOK_URL'],
+                    [envVar: 'AMADEUS_API_KEY', vaultKey: 'AMADEUS_API_KEY'],
+                    [envVar: 'AMADEUS_API_SECRET', vaultKey: 'AMADEUS_API_SECRET'],
                 ]]]) {
                     
                     withCredentials([usernamePassword(credentialsId: REGISTRY_CRED_ID, usernameVariable: 'REGISTRY_USER', passwordVariable: 'REGISTRY_PASS')]) {
