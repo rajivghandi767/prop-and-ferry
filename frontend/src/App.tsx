@@ -1,5 +1,4 @@
 import { useState } from "react";
-import { Sun, Moon } from "lucide-react";
 import type { Itinerary, ApiLeg, ApiResponse } from "./types";
 import { useTheme } from "./hooks/useTheme";
 import { AirportSelect } from "./components/AirportSelect";
