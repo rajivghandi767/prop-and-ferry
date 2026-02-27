@@ -1,10 +1,10 @@
 pipeline {
     agent any
 
-    // 1. Scheduled Trigger (02:45 AM ET Daily)
+    // 1. Scheduled Trigger (03:00 AM ET Daily)
     triggers {
         cron('''TZ=America/New_York
-45 2 * * *''')
+0 3 * * *''')
     }
 
     // 2. Rollback Parameter
@@ -21,7 +21,7 @@ pipeline {
         
         DEPLOY_USER = "dietpi"
         DEPLOY_HOST = "10.100.10.5"
-        DEPLOY_DIR  = "/opt/homelab-iac/services/apps/prop-ferry-website"
+        DEPLOY_DIR  = "/opt/homelab-iac/services/apps/prop-and-ferry"
 
         // Image names for notifications
         IMAGE_BACKEND  = "rajivghandi767/prop-ferry-backend"

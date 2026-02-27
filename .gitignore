@@ -102,3 +102,5 @@ npm-debug.log*
 /backend/dev-requirements.in
 /backend/common.in
 /backend/dev-requirements.txt
+
+/backend/core/management/commands/seed_data.py
