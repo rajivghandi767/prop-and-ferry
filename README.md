@@ -6,79 +6,69 @@
 
 **"How do I actually get there?"**
 
-I was born and raised in Dominica 🇩🇲, and I fly home at least twice a year. Every time I do, I face the same headache, due to the fact that Dominica currently only has two nonstop flights from the mainland US: booking the flight to Antigua or Barbados is easy, but crossing that final stretch of ocean is often a nightmare.
+I was born and raised in Dominica 🇩🇲. Because the island has limited direct flights from the mainland US, traveling home is a logistical puzzle. Getting to nearby hubs like Antigua or Barbados is easy, but crossing that final stretch of ocean is often a nightmare.
 
-My friends have this problem. The visitors I invite to the island have this problem.
+Major aggregators (Google Flights, Expedia) are excellent at getting you to the Caribbean, but they fail at navigating _through_ it. They often lack data for small prop planes, inter-island ferries, and the complex, multi-modal connections required to reach "hard-to-get-to" gems.
 
-Major aggregators (Google Flights, Expedia) are great at getting you to the Caribbean, but they fail at navigating _through_ it. They often miss the small prop planes, the inter-island ferries, and the complex connections required to reach "hard-to-get-to" gems like Dominica.
-
-**Prop & Ferry** is my solution to this personal frustration. It’s a specialized routing engine designed to stitch together the major international legs with the regional "island hoppers" that big search engines ignore.
+**Prop & Ferry** is my engineering solution to this real-world business problem. It’s a specialized routing engine designed to stitch together major international flight legs with the regional "island hoppers" and maritime routes that big search engines ignore.
 
 ---
 
-## 🏝 The "Real World" Problem
+## 💡 The Product Solution
 
-Getting to smaller Caribbean islands often requires a manual, disjointed workflow:
+**Prop & Ferry** acts as an intelligent middleman. It doesn't just search flights; it builds **comprehensive itineraries**.
 
-1.  **The Data Gap:** Regional carriers (InterCaribbean, Liat, Sunrise, Winair) and ferry services (L'Express des Iles) often don't publish full availability to the systems Google uses.
-2.  **The "5-Tab" Shuffle:** Travelers have to book a jet to Antigua/Barbados/Sint Maarten etc. in one tab, then scour local airline sites in three others to find a connection, hoping the times align.
-3.  **The "Visitor Barrier":** I've had friends almost cancel trips because they couldn't figure out the logistics.
-
-## 💡 The Solution
-
-**Prop & Ferry** acts as the intelligent middleman. It doesn't just search flights; it builds **itineraries**.
+This project demonstrates strong **product-minded engineering**—identifying a fragmented data ecosystem and building a centralized, user-friendly solution to solve it.
 
 ### Core Capabilities
 
-- **Hybrid Routing:** Seamlessly combines Jet Blue/American/United flights with L'Express des Iles ferries and regional airlines in a single view.
-- **"Vibe" Search (AI-Powered):** Instead of needing airport codes, users can search by intent ("Quiet jungle retreat," "Luxury beach access"), and the system maps them to the right island.
-- **Award Logic:** Built-in intelligence for travel hackers. "For the American Airlines leg of this itinerary, consider using AAdvantage Miles, Alaska Atmos or British Airways Avios"
+- **Hybrid Routing:** Seamlessly combines major airline data (JetBlue, American) with localized transport (L'Express des Iles ferries, regional prop carriers) into a single, navigable view.
+- **Award Travel Logic:** Built-in intelligence for travel optimization. The system suggests loyalty program strategies (e.g., "Consider using British Airways Avios for this short-haul American Airlines leg").
+- **"Vibe" Search (Roadmap):** Allowing users to search by intent ("Quiet jungle retreat") rather than just airport codes, utilizing LLMs to map intent to specific islands.
 
 ---
 
-## 🛠 Technical Architecture
+## 🛠 Technical Architecture & System Design
 
-This isn't just a travel tool; it's a showcase of **Self-Hosted Microservices** running on constrained hardware (Raspberry Pi 4B).
+This tool is a showcase of building **Self-Hosted Microservices** and designing data pipelines to handle unstructured and un-federated data sources.
 
 ### The Stack
 
-- **Frontend:** React + TypeScript + Vite
-- **Styling:** Tailwind CSS
+- **Frontend:** React + TypeScript + Vite + Tailwind CSS
 - **Backend:** Python + Django REST Framework
 - **Database:** PostgreSQL
-- **Infrastructure:** Docker Compose (Containerized orchestration)
-- **Gateway:** Nginx (Reverse proxy and static file serving)
+- **Infrastructure:** Docker Compose, Nginx, Linux (Raspberry Pi 4B)
 
-### Infrastructure Design
+### Engineering Highlights
 
-Designed for the "Home Lab" environment, integrating with my existing ecosystem:
-
-- **Zero-Cost Architecture:** Leverages scraping and "Free Tier" API strategies (Amadeus Self-Service) to minimize opex.
-- **Resource Efficiency:** Uses shared database instances and optimized container builds to respect the RAM constraints of a Raspberry Pi.
-- **Security:** Environment-based configuration management (`.env`), isolated Docker networks, and strict separation of Dev/Prod database users.
+- **Data Aggregation Strategy:** To keep operational costs at zero (Zero-Cost Architecture), the backend leverages a mix of the Amadeus Self-Service API (free tier) and targeted web scraping scripts to pull in ferry and regional flight schedules that aren't available on standard GDS (Global Distribution Systems).
+- **Custom Routing Algorithm:** Designed backend logic to calculate feasible layovers between distinct modes of transport (e.g., ensuring a user has enough time to take a taxi from the airport to the ferry terminal).
+- **Resource Efficiency:** Built to run smoothly within the constrained RAM and CPU limits of a Raspberry Pi home lab, relying on optimized container builds, shared database instances, and efficient database query structuring.
 
 ---
 
-## 🗺 Roadmap
+## 🗺 Roadmap & Iteration
+
+This project follows an **Iterative MVP** methodology.
 
 ### Phase 1: The MVP (Current Status)
 
-- [x] **Infrastructure:** Dockerized Django/React skeleton running on Nginx.
-- [x] **Frontend:** Responsive landing page and search UI.
-- [ ] **Core Logic:** "Airport" and "Route" database modeling.
-- [ ] **Integration:** Basic API connection for major routes (Amadeus).
+- [x] **Infrastructure:** Dockerized Django/React skeleton running via Nginx reverse proxy.
+- [x] **Frontend:** Responsive landing page and dynamic search UI.
+- [x] **Data Modeling:** Complex relational models for Carriers, Locations, Routes, and Transport Modes.
+- [x] **Ferry Data Pipeline:** Custom Django management commands to scrape and seed regional ferry schedules.
 
-### Phase 2: The "Smart" Layer
+### Phase 2: The "Smart" Layer (In Progress)
 
-- [x] **Prop & Ferry Engine:** Custom algorithm to stitch Flight -> Ferry connections.
-- [ ] **Award Mapping:** Static rules engine ("Use Avios for AA short-haul").
-- [ ] **AI Integration:** LLM-based destination suggestions.
+- [ ] **Prop & Ferry Algorithm:** Finalizing the custom algorithm to stitch Flight -> Ferry connections seamlessly.
+- [ ] **Live API Integration:** Connecting the Amadeus API to pull real-time jet availability to regional hubs.
+- [ ] **AI Integration:** Implementing LLM-based destination intent mapping.
 
 ---
 
 ## 🚀 Getting Started (Local Dev)
 
-This project follows an **Iterative MVP** methodology. You can run it locally without Docker for rapid iteration, or containerized for production parity.
+You can run this project locally without Docker for rapid iteration, or utilize the provided Dockerfiles for production parity.
 
 ### Prerequisites
 
@@ -100,7 +90,12 @@ cd backend
 python -m venv venv
 source venv/bin/activate
 pip install -r requirements.txt
+
+# Setup Database and run migrations
 python manage.py migrate
+
+# Seed the database with scraped ferry routes
+python manage.py scrape_ferries
 python manage.py runserver
 ```
 
@@ -114,4 +109,4 @@ npm run dev
 
 ---
 
-_This project is a personal portfolio piece demonstrating full-stack engineering capabilities, system design, and product thinking._
+_This project is a personal portfolio piece demonstrating full-stack engineering capabilities, data aggregation, system design, and product thinking._
