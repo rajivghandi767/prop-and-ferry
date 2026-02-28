@@ -70,7 +70,7 @@ Designed for the "Home Lab" environment, integrating with my existing ecosystem:
 
 ### Phase 2: The "Smart" Layer
 
-- [ ] **Prop & Ferry Engine:** Custom algorithm to stitch Flight -> Ferry connections.
+- [x] **Prop & Ferry Engine:** Custom algorithm to stitch Flight -> Ferry connections.
 - [ ] **Award Mapping:** Static rules engine ("Use Avios for AA short-haul").
 - [ ] **AI Integration:** LLM-based destination suggestions.
 
