@@ -3,6 +3,7 @@ import type { Itinerary, ApiLeg, ApiResponse } from "./types";
 import { useTheme } from "./hooks/useTheme";
 import { AirportSelect } from "./components/AirportSelect";
 import { ProjectSwitcher } from "./components/ProjectSwitcher";
+import { ReportModal } from "./components/ReportModal"; // <-- NEW: Imported the Report Modal
 import { API_URL } from "./config";
 
 // --- HELPERS ---
@@ -17,6 +18,17 @@ const parseDateLocal = (dateStr: string) => {
   if (!dateStr) return new Date();
   const [y, m, d] = dateStr.split("-").map(Number);
   return new Date(y, m - 1, d);
+};
+
+const formatDateShort = (dateStr?: string) => {
+  if (!dateStr) return "";
+  const [y, m, d] = dateStr.split("-").map(Number);
+  const date = new Date(y, m - 1, d);
+  return date.toLocaleDateString(undefined, {
+    weekday: "short",
+    month: "short",
+    day: "numeric",
+  });
 };
 
 const formatTime = (timeStr?: string) => {
@@ -130,7 +142,7 @@ function App() {
     <div className="min-h-screen bg-white dark:bg-black flex flex-col font-sans text-neutral-900 dark:text-white transition-colors duration-200">
       {/* 1. Solid, Symmetrical AMOLED Header */}
       <header className="bg-white dark:bg-black border-b border-gray-200 dark:border-neutral-800 py-3 sticky top-0 z-50">
-        <div className="container mx-auto px-4 flex items-center justify-between min-h-[48px]">
+        <div className="container mx-auto px-4 flex items-center justify-between min-h-12">
           {/* LEFT: Project Switcher */}
           <div className="flex items-center justify-start w-24">
             <ProjectSwitcher align="left" />
@@ -192,7 +204,7 @@ function App() {
         </div>
       </header>
 
-      <main className="flex-grow container mx-auto px-4 py-8 flex flex-col items-center">
+      <main className="grow container mx-auto px-4 py-8 flex flex-col items-center">
         {!itineraries.length && !loading && (
           <div className="text-center mb-10 mt-10">
             <h2 className="text-4xl font-extrabold mb-4 text-black dark:text-white">
@@ -273,7 +285,7 @@ function App() {
         {/* RESULTS */}
         <div className="w-full max-w-3xl space-y-4 mb-20">
           {itineraries.length > 0 && (
-            <div className="sticky top-[72px] z-40 bg-white/95 dark:bg-black/95 backdrop-blur py-3 text-center border-b border-gray-200 dark:border-neutral-800 mb-4 shadow-sm rounded-b-lg">
+            <div className="sticky top-18 z-40 bg-white/95 dark:bg-black/95 backdrop-blur py-3 text-center border-b border-gray-200 dark:border-neutral-800 mb-4 shadow-sm rounded-b-lg">
               <h3 className="text-lg font-bold text-black dark:text-white">
                 Results for{" "}
                 {parseDateLocal(displayDate).toLocaleDateString(undefined, {
@@ -331,9 +343,22 @@ function App() {
                           </div>
                         </div>
 
-                        <div className="text-neutral-700 dark:text-neutral-300 font-medium text-sm mt-1">
-                          {formatTime(leg.departure_time)} –{" "}
-                          {formatTime(leg.arrival_time)}
+                        <div className="text-neutral-700 dark:text-neutral-300 font-medium text-sm mt-1 flex flex-col sm:flex-row sm:items-center gap-1 sm:gap-3">
+                          <div className="flex items-center gap-1.5">
+                            <span className="font-semibold text-black dark:text-white">
+                              {formatDateShort(leg.departure_date)}
+                            </span>
+                            <span>{formatTime(leg.departure_time)}</span>
+                          </div>
+                          <span className="hidden sm:inline text-neutral-400">
+                            →
+                          </span>
+                          <div className="flex items-center gap-1.5">
+                            <span className="font-semibold text-black dark:text-white">
+                              {formatDateShort(leg.arrival_date)}
+                            </span>
+                            <span>{formatTime(leg.arrival_time)}</span>
+                          </div>
                         </div>
 
                         <div className="flex items-center gap-2 mt-2">
@@ -343,8 +368,14 @@ function App() {
                             {leg.is_ferry ? "Ferry" : "Flight"}
                           </span>
                           <span className="text-neutral-500 dark:text-neutral-400 text-xs">
-                            {leg.carrier.name} ({leg.carrier.code}) •{" "}
-                            {formatDuration(leg.duration_minutes)}
+                            <span className="font-medium text-neutral-700 dark:text-neutral-300">
+                              {leg.carrier.name}
+                            </span>
+                            {leg.flight_number
+                              ? ` • ${leg.flight_number}`
+                              : ` (${leg.carrier.code})`}
+                            {leg.aircraft_type && ` • ${leg.aircraft_type}`}
+                            {` • ${formatDuration(leg.duration_minutes)}`}
                           </span>
                         </div>
 
@@ -413,6 +444,9 @@ function App() {
           </div>
         </div>
       </footer>
+
+      {/* Report Modal */}
+      <ReportModal />
     </div>
   );
 }

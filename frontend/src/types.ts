@@ -5,7 +5,9 @@ export interface Location {
   name: string;
   city: string;
   country: string;
-  location_type: "AIRPORT" | "FERRY_PORT";
+  location_type: "APT" | "PRT"; 
+  has_children: boolean;
+  parent_code: string | null;
 }
 
 export interface Carrier {
@@ -25,6 +27,10 @@ export interface ApiLeg {
   
   departure_time: string; // "HH:MM:SS"
   arrival_time: string;   // "HH:MM:SS"
+
+  departure_date?: string; 
+  arrival_date?: string;
+
   duration_minutes: number;
   
   is_active: boolean;
@@ -37,8 +43,10 @@ export interface ApiLeg {
   price_text?: string;        // e.g. "€45.00"
   date?: string;             // YYYY-MM-DD
   
-  // **NEW**: Injected by the Stitcher for UI display
   layover_text?: string;      // e.g. "2h 30m Layover in Antigua"
+
+  flight_number?: string | null;
+  aircraft_type?: string | null;
 }
 
 // 3. The "Itinerary" (What the UI actually renders)

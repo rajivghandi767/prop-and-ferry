@@ -6,105 +6,105 @@ logger = logging.getLogger(__name__)
 
 
 class Command(BaseCommand):
-    help = 'Updates airport metadata with real City, Name, and Parent relationships'
+    help = 'Updates airport metadata and bootstraps ferry terminals and topologies.'
 
     def handle(self, *args, **kwargs):
-        # Master Dictionary of Caribbean/Hub Data
-        data = {
-            # --- Major US Hubs ---
-            'MIA': {'city': 'Miami', 'name': 'Miami International', 'country': 'USA'},
-            'JFK': {'city': 'New York', 'name': 'John F. Kennedy', 'country': 'USA'},
-            'EWR': {'city': 'Newark', 'name': 'Newark Liberty Intl', 'country': 'USA'},
-            'ATL': {'city': 'Atlanta', 'name': 'Hartsfield-Jackson Atlanta Intl', 'country': 'USA'},
-            'CLT': {'city': 'Charlotte', 'name': 'Charlotte Douglas Intl', 'country': 'USA'},
-            'IAH': {'city': 'Houston', 'name': 'George Bush Intercontinental', 'country': 'USA'},
-            'FLL': {'city': 'Fort Lauderdale', 'name': 'Fort Lauderdale-Hollywood Intl', 'country': 'USA'},
-            'BOS': {'city': 'Boston', 'name': 'Logan International', 'country': 'USA'},
-
-            # --- Major Canada Hubs ---
-            'YYZ': {'city': 'Toronto', 'name': 'Toronto Pearson Intl', 'country': 'Canada'},
-            'YUL': {'city': 'Montreal', 'name': 'Montréal-Pierre Elliott Trudeau Intl', 'country': 'Canada'},
-
-            # --- Major Europe Hubs ---
-            'FRA': {'city': 'Frankfurt', 'name': 'Frankfurt am Main', 'country': 'Germany'},
-            'LGW': {'city': 'London', 'name': 'London Gatwick', 'country': 'United Kingdom'},
-            'LHR': {'city': 'London', 'name': 'London Heathrow', 'country': 'United Kingdom'},
-            'CDG': {'city': 'Paris', 'name': 'Charles de Gaulle', 'country': 'France'},
-            'ORY': {'city': 'Paris', 'name': 'Paris Orly', 'country': 'France'},
-            'AMS': {'city': 'Amsterdam', 'name': 'Amsterdam Schiphol', 'country': 'Netherlands'},
-
-            # --- Caribbean Airports ---
-            'DOM': {'city': 'Dominica', 'name': 'Douglas-Charles', 'country': 'Dominica'},
-            'DCF': {'city': 'Dominica', 'name': 'Canefield', 'country': 'Dominica'},
-            'SJU': {'city': 'San Juan', 'name': 'Luis Muñoz Marín', 'country': 'Puerto Rico'},
-            'BGI': {'city': 'Bridgetown', 'name': 'Grantley Adams', 'country': 'Barbados'},
-            'ANU': {'city': 'St. John\'s', 'name': 'V.C. Bird', 'country': 'Antigua'},
-            'PTP': {'city': 'Pointe-à-Pitre', 'name': 'Pointe-à-Pitre Intl', 'country': 'Guadeloupe'},
-            'FDF': {'city': 'Fort-de-France', 'name': 'Martinique Aimé Césaire', 'country': 'Martinique'},
-            'SLU': {'city': 'Castries', 'name': 'George F. L. Charles', 'country': 'St. Lucia'},
-            'UVF': {'city': 'Vieux Fort', 'name': 'Hewanorra', 'country': 'St. Lucia'},
-            'SXM': {'city': 'St. Maarten', 'name': 'Princess Juliana', 'country': 'Sint Maarten'},
-            'SFG': {'city': 'St. Martin', 'name': 'Grand Case-Espérance', 'country': 'Saint Martin'},
-            'EIS': {'city': 'Tortola', 'name': 'Terrance B. Lettsome', 'country': 'BVI'},
-            'POS': {'city': 'Port of Spain', 'name': 'Piarco', 'country': 'Trinidad'},
-            'PUJ': {'city': 'Punta Cana', 'name': 'Punta Cana Intl', 'country': 'Dominican Republic'},
-            'SDQ': {'city': 'Santo Domingo', 'name': 'Las Américas', 'country': 'Dominican Republic'},
-            'SKB': {'city': 'St. Kitts', 'name': 'Robert L. Bradshaw', 'country': 'St. Kitts and Nevis'},
-            'STT': {'city': 'St. Thomas', 'name': 'Cyril E. King', 'country': 'U.S. Virgin Islands'},
-            'SVD': {'city': 'Kingstown', 'name': 'Argyle Intl', 'country': 'St. Vincent and the Grenadines'},
-
-            # --- Caribbean Ferry Terminals ---
-            'DMROS': {'city': 'Roseau', 'name': 'Roseau Ferry Terminal', 'country': 'Dominica'},
-            'GPPTP': {'city': 'Pointe à Pitre', 'name': 'Bergevin Ferry Terminal', 'country': 'Guadeloupe'},
-            'MQFDF': {'city': 'Fort de France', 'name': 'Fort de France Terminal', 'country': 'Martinique'},
-            'LCCAS': {'city': 'Castries', 'name': 'Castries Ferry Terminal', 'country': 'St. Lucia'},
-        }
-
-        # Parent/Child Relationships (Smart Linking)
-        # Links Ferry Terminals/Small Airports to the Main Island Code
-        relationships = {
-            'UVF': 'SLU',   # Hewanorra -> Castries (St. Lucia)
-            'LCCAS': 'SLU',  # Castries Ferry -> Castries (St. Lucia)
-
-            'DCF': 'DOM',   # Canefield -> Douglas-Charles (Dominica)
-            'DMROS': 'DOM',  # Roseau Ferry -> Douglas-Charles (Dominica)
-
-            'GPPTP': 'PTP',  # Bergevin Ferry -> PTP Airport (Guadeloupe)
-            'MQFDF': 'FDF',  # FDF Ferry -> FDF Airport (Martinique)
-
-            'SFG': 'SXM',
-            'ORY': 'CDG',
-            'LGW': 'LHR',
-            'EWR': 'JFK',
-        }
-
         self.stdout.write("🌍 Enriching Location Data...")
 
-        # 1. Update Metadata
-        for code, details in data.items():
-            updated_count = Location.objects.filter(code=code).update(
-                city=details['city'],
-                name=details['name'],
-                country=details['country']
+        # FORMAT: (Code, City, Name, Country)
+        location_data = [
+            # --- Major US Hubs ---
+            ('MIA', 'Miami', 'Miami International', 'USA'),
+            ('JFK', 'New York', 'John F. Kennedy', 'USA'),
+            ('EWR', 'Newark', 'Newark Liberty Intl', 'USA'),
+            ('ATL', 'Atlanta', 'Hartsfield-Jackson Atlanta Intl', 'USA'),
+            ('CLT', 'Charlotte', 'Charlotte Douglas Intl', 'USA'),
+            ('IAH', 'Houston', 'George Bush Intercontinental', 'USA'),
+            ('FLL', 'Fort Lauderdale', 'Fort Lauderdale-Hollywood Intl', 'USA'),
+            ('BOS', 'Boston', 'Logan International', 'USA'),
+
+            # --- Major Canada Hubs ---
+            ('YYZ', 'Toronto', 'Toronto Pearson Intl', 'Canada'),
+            ('YUL', 'Montreal', 'Montréal-Pierre Elliott Trudeau Intl', 'Canada'),
+
+            # --- Major Europe Hubs ---
+            ('LHR', 'London', 'Heathrow', 'UK'),
+            ('LGW', 'London', 'Gatwick', 'UK'),
+            ('CDG', 'Paris', 'Charles de Gaulle', 'France'),
+            ('ORY', 'Paris', 'Orly', 'France'),
+            ('FRA', 'Frankfurt', 'Frankfurt am Main', 'Germany'),
+            ('AMS', 'Amsterdam', 'Schiphol', 'Netherlands'),
+
+            # --- Caribbean Hubs & Destinations ---
+            ('SJU', 'San Juan', 'Luis Muñoz Marín Intl', 'Puerto Rico'),
+            ('ANU', 'St. John\'s', 'V.C. Bird Intl', 'Antigua'),
+            ('PTP', 'Pointe-à-Pitre', 'Pointe-à-Pitre Intl', 'Guadeloupe'),
+            ('BGI', 'Bridgetown', 'Grantley Adams Intl', 'Barbados'),
+            ('POS', 'Port of Spain', 'Piarco Intl', 'Trinidad & Tobago'),
+            ('SXM', 'Philipsburg', 'Princess Juliana Intl', 'St. Maarten'),
+            ('UVF', 'Vieux Fort', 'Hewanorra Intl', 'St. Lucia'),
+            ('SLU', 'Castries', 'George F. L. Charles', 'St. Lucia'),
+            ('DOM', 'Marigot', 'Douglas-Charles', 'Dominica'),
+            ('FDF', 'Fort-de-France', 'Martinique Aimé Césaire Intl', 'Martinique'),
+            ('SKB', 'Basseterre', 'Robert L. Bradshaw Intl', 'St. Kitts'),
+            ('GND', 'St. George\'s', 'Maurice Bishop Intl', 'Grenada'),
+            ('SVD', 'Kingstown', 'Argyle Intl', 'St. Vincent'),
+
+            # --- Ferry Terminals ---
+            ('DMROS', 'Roseau', 'Roseau Ferry Terminal', 'Dominica'),
+            ('LCCAS', 'Castries', 'Castries Ferry Terminal', 'St. Lucia'),
+            ('GPPTP', 'Pointe-à-Pitre', 'Bergevin Ferry Terminal', 'Guadeloupe'),
+            ('MQFDF', 'Fort-de-France', 'Fort-de-France Ferry Terminal', 'Martinique'),
+
+            # --- Metropolitan / Parent Codes ---
+            ('NYC', 'New York', 'All Airports', 'USA'),
+            ('LON', 'London', 'All Airports', 'UK'),
+            ('PAR', 'Paris', 'All Airports', 'France'),
+        ]
+
+        # 1. Update or Create Metadata (Bootstrapping capability)
+        for code, city, name, country in location_data:
+            loc_type = 'PRT' if code in [
+                'DMROS', 'LCCAS', 'GPPTP', 'MQFDF'] else 'APT'
+
+            obj, created = Location.objects.update_or_create(
+                code=code,
+                defaults={
+                    'city': city,
+                    'name': name,
+                    'country': country,
+                    'location_type': loc_type
+                }
             )
-            if updated_count > 0:
-                logger.info(f"Updated Metadata: {code} -> {details['city']}")
-            else:
-                logger.debug(f"Skipped {code} (Not found in DB)")
+            if created:
+                logger.info(f"🏗️ Built Core Location: {code} ({city})")
 
         # 2. Establish Relationships
-        for child_code, parent_code in relationships.items():
-            try:
-                parent = Location.objects.filter(code=parent_code).first()
-                child = Location.objects.filter(code=child_code).first()
+        relationships = {
+            'PAR': ['ORY', 'CDG'],
+            'NYC': ['JFK', 'EWR'],
+            'LON': ['LHR', 'LGW'],
+            'DOM': ['DMROS'],
+            'SLU': ['LCCAS', 'UVF'],
+            'PTP': ['GPPTP'],
+            'FDF': ['MQFDF']
+        }
 
-                if parent and child:
-                    child.parent = parent
-                    child.save()
-                    logger.info(
-                        f"Linked {child_code} -> Parent: {parent_code}")
-            except Exception as e:
-                logger.error(
-                    f"Failed to link {child_code} to {parent_code}: {e}")
+        for parent_code, children in relationships.items():
+            parent = Location.objects.filter(code=parent_code).first()
+            if parent:
+                for child_code in children:
+                    child = Location.objects.filter(code=child_code).first()
+                    if child:
+                        child.parent = parent
+                        child.save()
+                        logger.info(
+                            f"Linked {child_code} -> Parent: {parent_code}")
+                    else:
+                        logger.warning(
+                            f"Could not find child {child_code} in DB.")
+            else:
+                logger.warning(f"Could not find parent {parent_code} in DB.")
 
-        self.stdout.write(self.style.SUCCESS("✅ Locations Enriched"))
+        self.stdout.write(self.style.SUCCESS(
+            "✨ Locations Enriched & Topologies Linked!"))

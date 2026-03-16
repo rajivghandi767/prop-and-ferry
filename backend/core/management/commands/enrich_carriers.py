@@ -9,54 +9,49 @@ class Command(BaseCommand):
     help = 'Updates airline codes with User-Preferred Names and Official Websites'
 
     def handle(self, *args, **kwargs):
-        data = {
-            # --- Regional / Caribbean Carriers ---
-            'S6': {'name': 'Sunrise Airways', 'url': 'https://www.sunriseairways.net'},
-            'BW': {'name': 'Caribbean Airlines', 'url': 'https://www.caribbean-airlines.com'},
-            'JY': {'name': 'interCaribbean Airways', 'url': 'https://www.intercaribbean.com'},
-            '5L': {'name': 'Liat 2020', 'url': 'https://www.flyliat20.com'},
-            '3S': {'name': 'Air Antilles', 'url': 'https://www.airantilles.com'},
-            'TX': {'name': 'Air Caraïbes', 'url': 'https://www.aircaraibes.com'},
-            'WM': {'name': 'Winair', 'url': 'https://www.winair.sx'},
-            'LF': {'name': 'Contour Airlines', 'url': 'https://www.contourairlines.com'},
-
-            # --- US Carriers ---
-            'AA': {'name': 'American Airlines', 'url': 'https://www.aa.com'},
-            'B6': {'name': 'JetBlue', 'url': 'https://www.jetblue.com'},
-            'DL': {'name': 'Delta Air Lines', 'url': 'https://www.delta.com'},
-            'UA': {'name': 'United Airlines', 'url': 'https://www.united.com'},
-            'F9': {'name': 'Frontier Airlines', 'url': 'https://www.flyfrontier.com'},
-            'NK': {'name': 'Spirit Airlines', 'url': 'https://www.spirit.com'},
-
-            # --- Canada Carriers ---
-            'AC': {'name': 'Air Canada', 'url': 'https://www.aircanada.com'},
-            'WS': {'name': 'WestJet', 'url': 'https://www.westjet.com'},
-            'TS': {'name': 'Air Transat', 'url': 'https://www.airtransat.com'},
-
-            # --- European Carriers ---
-            'BA': {'name': 'British Airways', 'url': 'https://www.britishairways.com'},
-            'VS': {'name': 'Virgin Atlantic', 'url': 'https://www.virginatlantic.com'},
-            'AF': {'name': 'Air France', 'url': 'https://www.airfrance.com'},
-            'KL': {'name': 'KLM Royal Dutch Airlines', 'url': 'https://www.klm.com'},
-            'DE': {'name': 'Condor', 'url': 'https://www.condor.com'},
-            'LH': {'name': 'Lufthansa', 'url': 'https://www.lufthansa.com'},
-            'E9': {'name': 'Eurowings', 'url': 'https://www.eurowings.com'},
-            'SS': {'name': 'Corsair', 'url': 'https://www.flycorsair.com'},
-            'Q4': {'name': 'Euroairlines', 'url': 'https://www.euroairlines.es'},
-        }
-
         self.stdout.write("✈️  Enriching Carrier Data...")
+
+        carrier_data = [
+            ('S6', 'Sunrise Airways', 'AIR', 'https://www.sunriseairways.net'),
+            ('BW', 'Caribbean Airlines', 'AIR',
+             'https://www.caribbean-airlines.com'),
+            ('JY', 'interCaribbean Airways', 'AIR',
+             'https://www.intercaribbean.com'),
+            ('5L', 'Liat 2020', 'AIR', 'https://www.flyliat20.com'),
+            ('3S', 'Air Antilles', 'AIR', 'https://www.airantilles.com'),
+            ('TX', 'Air Caraïbes', 'AIR', 'https://www.aircaraibes.com'),
+            ('WM', 'Winair', 'AIR', 'https://www.winair.sx'),
+            ('LF', 'Contour Airlines', 'AIR', 'https://www.contourairlines.com'),
+            ('AA', 'American Airlines', 'AIR', 'https://www.aa.com'),
+            ('B6', 'JetBlue', 'AIR', 'https://www.jetblue.com'),
+            ('DL', 'Delta Air Lines', 'AIR', 'https://www.delta.com'),
+            ('UA', 'United Airlines', 'AIR', 'https://www.united.com'),
+            ('AC', 'Air Canada', 'AIR', 'https://www.aircanada.com'),
+            ('WS', 'WestJet', 'AIR', 'https://www.westjet.com'),
+            ('BA', 'British Airways', 'AIR', 'https://www.britishairways.com'),
+            ('VS', 'Virgin Atlantic', 'AIR', 'https://www.virginatlantic.com'),
+            ('AF', 'Air France', 'AIR', 'https://www.airfrance.com'),
+            ('KL', 'KLM Royal Dutch Airlines', 'AIR', 'https://www.klm.com'),
+            ('DE', 'Condor', 'AIR', 'https://www.condor.com'),
+            ('LH', 'Lufthansa', 'AIR', 'https://www.lufthansa.com'),
+            ('E9', 'Eurowings', 'AIR', 'https://www.eurowings.com'),
+            ('SS', 'Corsair', 'AIR', 'https://www.flycorsair.com'),
+            ('Q4', 'Euroairlines', 'AIR', 'https://www.euroairlines.es'),
+            # Ferry Operator
+            ('LXI', "L'Express des Iles", 'SEA',
+             'https://www.frs-express.com'),
+        ]
 
         updated_count = 0
         created_count = 0
 
-        for code, info in data.items():
+        for code, name, c_type, url in carrier_data:
             obj, created = Carrier.objects.update_or_create(
                 code=code,
                 defaults={
-                    'name': info['name'],
-                    'website': info['url'],
-                    'carrier_type': 'AIR'
+                    'name': name,
+                    'website': url,
+                    'carrier_type': c_type
                 }
             )
 
@@ -66,7 +61,5 @@ class Command(BaseCommand):
             else:
                 updated_count += 1
 
-        logger.info(
-            f"Carrier Enrichment: {created_count} Created, {updated_count} Updated")
-        self.stdout.write(self.style.SUCCESS(
-            f"✅ Enriched {len(data)} carriers."))
+        logger.info(f"Updated {updated_count} existing carriers.")
+        self.stdout.write(self.style.SUCCESS("✨ Carriers Enriched!"))

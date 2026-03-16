@@ -7,7 +7,7 @@ from django.views.decorators.http import require_http_methods
 from django.views.decorators.cache import cache_control
 from rest_framework.routers import DefaultRouter
 
-from core.views import LocationViewSet, RouteViewSet, CarrierViewSet, SailingViewSet
+from core.views import LocationViewSet, ReportedIssueViewSet, RouteViewSet, CarrierViewSet, SailingViewSet
 
 # Import health check views
 from health_check.views import health_detailed, health_simple
@@ -40,8 +40,8 @@ router = DefaultRouter()
 router.register(r'locations', LocationViewSet, basename='location')
 router.register(r'carriers', CarrierViewSet, basename='carrier')
 router.register(r'routes', RouteViewSet, basename='route')
-# Added this for completeness
 router.register(r'sailings', SailingViewSet, basename='sailing')
+router.register(r'reports', ReportedIssueViewSet)
 
 # URL patterns
 urlpatterns = [
