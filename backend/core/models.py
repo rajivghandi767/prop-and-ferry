@@ -59,6 +59,9 @@ class Route(models.Model):
     days_of_operation = models.CharField(max_length=7, default="1234567")
     is_active = models.BooleanField(default=True, db_index=True)
 
+    flight_number = models.CharField(max_length=20, blank=True, null=True)
+    aircraft_type = models.CharField(max_length=20, blank=True, null=True)
+
     # Baselines (Actual times for ferries come from Sailing model)
     duration_minutes = models.IntegerField(null=True, blank=True)
     departure_time = models.TimeField(null=True, blank=True)
@@ -96,3 +99,20 @@ class Sailing(models.Model):
 
     def __str__(self):
         return f"{self.route} on {self.date}"
+
+
+class ReportedIssue(models.Model):
+    ISSUE_TYPES = [
+        ('routing_error', 'Bad Route or Connection'),
+        ('missing_data', 'Missing Airport or Ferry'),
+        ('ui_bug', 'UI or Visual Bug'),
+        ('other', 'Other'),
+    ]
+
+    issue_type = models.CharField(max_length=20, choices=ISSUE_TYPES)
+    user_note = models.TextField()
+    resolved = models.BooleanField(default=False)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    def __str__(self):
+        return f"{self.get_issue_type_display()} - {self.created_at.strftime('%m/%d/%Y')}"

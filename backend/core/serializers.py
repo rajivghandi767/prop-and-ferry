@@ -1,11 +1,24 @@
 from rest_framework import serializers
-from .models import Location, Route, Carrier, Sailing
+from .models import Location, Route, Carrier, Sailing, ReportedIssue
 
 
 class LocationSerializer(serializers.ModelSerializer):
+    # Calculate if this location has sub-locations
+    has_children = serializers.SerializerMethodField()
+    # Grab the code of the parent (returns None if it's a top-level location)
+    parent_code = serializers.CharField(
+        source='parent.code', read_only=True, allow_null=True)
+
     class Meta:
         model = Location
-        fields = ['code', 'name', 'city', 'country', 'location_type']
+        fields = [
+            'id', 'code', 'name', 'city', 'country',
+            'location_type', 'has_children', 'parent_code'
+        ]
+
+    def get_has_children(self, obj):
+        # Uses the related_name 'sub_locations' defined in your models.py
+        return obj.sub_locations.exists()
 
 
 class CarrierSerializer(serializers.ModelSerializer):
@@ -26,7 +39,7 @@ class RouteSerializer(serializers.ModelSerializer):
         fields = [
             'id', 'origin', 'destination', 'carrier',
             'duration_minutes', 'departure_time', 'arrival_time',
-            'days_of_operation', 'is_ferry'
+            'days_of_operation', 'is_ferry', 'flight_number', 'aircraft_type'
         ]
 
     def get_is_ferry(self, obj):
@@ -51,3 +64,9 @@ class SailingSerializer(serializers.ModelSerializer):
 
     def get_is_ferry(self, obj):
         return True
+
+
+class ReportedIssueSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = ReportedIssue
+        fields = '__all__'

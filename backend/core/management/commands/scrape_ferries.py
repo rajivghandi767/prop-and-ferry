@@ -13,6 +13,11 @@ from core.constants import (
 
 logger = logging.getLogger(__name__)
 
+FRENCH_MONTHS = {
+    'jan': 1, 'fév': 2, 'fev': 2, 'mar': 3, 'avr': 4, 'mai': 5, 'juin': 6,
+    'juil': 7, 'aoû': 8, 'aou': 8, 'sep': 9, 'oct': 10, 'nov': 11, 'déc': 12, 'dec': 12
+}
+
 
 class Command(BaseCommand):
     help = "FRS - Express Ferry Schedule Scraper: Extracts Exact Times, Durations & Prices"
@@ -21,7 +26,6 @@ class Command(BaseCommand):
         self.stdout.write(
             "🚢 Initializing FRS-Express Ferry Schedule Scraper...")
 
-        # 1. SETUP
         base_routes = [
             (PORT_PTP, PORT_ROSEAU),
             (PORT_FDF, PORT_ROSEAU),
@@ -36,15 +40,16 @@ class Command(BaseCommand):
         session = requests.Session()
         session.headers.update({
             'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.114 Safari/537.36',
-            'Referer': 'https://www.express-des-iles.fr/',
+            'Referer': 'https://www.frs-express.com/',
             'Accept-Language': 'fr-FR,fr;q=0.9,en-US;q=0.8,en;q=0.7'
         })
 
         carrier, _ = Carrier.objects.get_or_create(
-            code="LXI", defaults={'name': "L'Express des Iles", 'carrier_type': 'SEA', 'website': 'https://www.frs-express.com'}
+            code="LXI",
+            defaults={'name': "L'Express des Iles", 'carrier_type': 'SEA',
+                      'website': 'https://www.frs-express.com'}
         )
 
-        # 2. SCRAPE LOOP (Check 3 weeks out)
         check_intervals = [0, 7, 14]
         start_date_base = datetime.now().date()
 
@@ -52,7 +57,6 @@ class Command(BaseCommand):
             logger.info(f"Checking Route: {origin_code} -> {dest_code}")
 
             try:
-                # Identify the base Route object
                 loc_origin = Location.objects.get(code=origin_code)
                 loc_dest = Location.objects.get(code=dest_code)
                 route_obj, _ = Route.objects.get_or_create(
@@ -86,7 +90,6 @@ class Command(BaseCommand):
 
                     soup = BeautifulSoup(resp.content, 'html.parser')
 
-                    # STEP A: READ CALENDAR BUTTONS TO FIND VALID DATES & PRICES
                     valid_dates_in_week = []
                     all_buttons = soup.find_all("button")
 
@@ -94,10 +97,8 @@ class Command(BaseCommand):
                         if "à partir de" in btn.get_text():
                             p_tags = btn.find_all("p")
                             if len(p_tags) >= 3:
-                                date_text = p_tags[0].get_text(
-                                    strip=True)  # e.g. "Lun. 02 Fév."
-                                price_text = p_tags[2].get_text(
-                                    strip=True)  # e.g. "39,00 €"
+                                date_text = p_tags[0].get_text(strip=True)
+                                price_text = p_tags[2].get_text(strip=True)
 
                                 if any(c.isdigit() for c in price_text):
                                     parsed_date = self.parse_french_date(
@@ -109,7 +110,6 @@ class Command(BaseCommand):
                     if not valid_dates_in_week:
                         continue
 
-                    # STEP B: FETCH DETAILS FOR EACH VALID DATE
                     for target_date, day_price in valid_dates_in_week:
                         if target_date in processed_dates:
                             continue
@@ -144,7 +144,8 @@ class Command(BaseCommand):
                     logger.error(
                         f"Scrape Error {origin_code}->{dest_code}: {e}")
 
-        self.stdout.write(self.style.SUCCESS("\n✨ Scrape Complete"))
+        self.stdout.write(self.style.SUCCESS(
+            "✨ Ferry scraping complete! All maritime schedules updated."))
 
     def parse_daily_schedule(self, soup, route_obj, date_obj, price_text="Available"):
         try:
@@ -219,8 +220,7 @@ class Command(BaseCommand):
     def parse_french_date(self, date_str):
         if not date_str:
             return None
-        MONTHS = {'jan': 1, 'fév': 2, 'fev': 2, 'mar': 3, 'avr': 4, 'mai': 5, 'juin': 6,
-                  'juil': 7, 'aoû': 8, 'aou': 8, 'sep': 9, 'oct': 10, 'nov': 11, 'déc': 12, 'dec': 12}
+
         try:
             clean = date_str.lower().replace('.', '').replace(
                 ':', '').replace('date depart', '').strip()
@@ -232,15 +232,20 @@ class Command(BaseCommand):
                     day = int(part)
                     month_idx = i + 1
                     break
+
             if not day or month_idx >= len(parts):
                 return None
 
             month_str = parts[month_idx][0:3]
-            month = MONTHS.get(month_str, 1)
+            month = FRENCH_MONTHS.get(month_str, 1)
             today = datetime.now().date()
             year = today.year
+
             if month < today.month - 2:
                 year += 1
+
             return datetime(year, month, day).date()
-        except:
+
+        except Exception as e:
+            logger.debug(f"Date parse failed for '{date_str}': {e}")
             return None

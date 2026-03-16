@@ -9,12 +9,6 @@ interface AirportSelectProps {
   placeholder?: string;
 }
 
-// 1. CONFIG: Ports to hide because they are covered by the main island code
-const HIDDEN_CODES = ["DMROS", "GPPTP", "MQFDF", "LCCAS"];
-
-// 2. CONFIG: Hubs that should show "AIR / FERRY" because they search both
-const HYBRID_CODES = ["DOM", "PTP", "FDF", "SLU"];
-
 export function AirportSelect({
   label,
   value,
@@ -63,8 +57,9 @@ export function AirportSelect({
           (loc.city || "").toLowerCase().includes(lowerQuery) ||
           (loc.name || "").toLowerCase().includes(lowerQuery);
 
-        // B. EXCLUSION: Hide the specific ferry ports
-        const isHidden = HIDDEN_CODES.includes(loc.code);
+        // B. EXCLUSION: Hide sub-terminals (like DMROS) because their parent (DOM) handles them
+        // If a location has a parent_code, it's a sub-terminal, so we hide it from the main list.
+        const isHidden = loc.parent_code !== null;
 
         return matchesSearch && !isHidden;
       });
@@ -102,15 +97,17 @@ export function AirportSelect({
   };
 
   // Helper to determine Badge Style & Text
-  const getBadgeInfo = (code: string, type: string) => {
-    if (HYBRID_CODES.includes(code)) {
+  // Pass the entire Location object in so we can check its flags
+  const getBadgeInfo = (loc: Location) => {
+    // If it has children, it's a main island code like DOM or SLU
+    if (loc.has_children) {
       return {
         label: "AIR / FERRY",
         className:
           "bg-purple-100 text-purple-700 dark:bg-purple-900/40 dark:text-purple-300",
       };
     }
-    if (type === "PRT") {
+    if (loc.location_type === "PRT") {
       return {
         label: "FERRY",
         className:
@@ -144,7 +141,7 @@ export function AirportSelect({
       {isOpen && filtered.length > 0 && (
         <ul className="absolute top-full left-0 right-0 mt-1 max-h-60 overflow-y-auto bg-white dark:bg-black border border-gray-200 dark:border-neutral-800 rounded-lg shadow-xl z-50">
           {filtered.map((loc) => {
-            const badge = getBadgeInfo(loc.code, loc.location_type || "APT");
+            const badge = getBadgeInfo(loc);
 
             return (
               <li
