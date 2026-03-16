@@ -1,17 +1,25 @@
-import { useState } from "react";
+import { useState, useEffect, useRef } from "react";
 import type { Itinerary, ApiLeg, ApiResponse } from "./types";
 import { useTheme } from "./hooks/useTheme";
+
+// --- IMPORTED COMPONENTS ---
 import { AirportSelect } from "./components/AirportSelect";
 import { ProjectSwitcher } from "./components/ProjectSwitcher";
-import { ReportModal } from "./components/ReportModal"; // <-- NEW: Imported the Report Modal
+import { ReportModal } from "./components/ReportModal";
+import { DateCarousel } from "./components/DateCarousel";
+import { LeanCalendar } from "./components/LeanCalendar";
 import { API_URL } from "./config";
 
-// --- HELPERS ---
+// ==========================================
+// 1. DATE & TIME FORMATTING HELPERS
+// ==========================================
+// These helpers ensure consistent, local-timezone rendering
+// without relying on heavy external libraries like moment.js
+
 const getTodayString = () => {
+  const pad = (n: number) => n.toString().padStart(2, "0");
   const d = new Date();
-  const offset = d.getTimezoneOffset();
-  const localDate = new Date(d.getTime() - offset * 60 * 1000);
-  return localDate.toISOString().split("T")[0];
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
 };
 
 const parseDateLocal = (dateStr: string) => {
@@ -35,19 +43,14 @@ const formatTime = (timeStr?: string) => {
   if (!timeStr) return "";
   const parts = timeStr.split(":");
   if (parts.length < 2) return timeStr;
-  const hours = parseInt(parts[0]);
-  const minutes = parseInt(parts[1]);
   const date = new Date();
-  date.setHours(hours);
-  date.setMinutes(minutes);
+  date.setHours(parseInt(parts[0]), parseInt(parts[1]));
   return date.toLocaleTimeString([], { hour: "numeric", minute: "2-digit" });
 };
 
 const formatDuration = (minutes: number | null) => {
   if (!minutes) return "--";
-  const hours = Math.floor(minutes / 60);
-  const mins = minutes % 60;
-  return `${hours}h ${mins}m`;
+  return `${Math.floor(minutes / 60)}h ${minutes % 60}m`;
 };
 
 const formatSchedule = (days?: string) => {
@@ -72,42 +75,88 @@ const formatSchedule = (days?: string) => {
   );
 };
 
-// --- MAIN COMPONENT ---
-
+// ==========================================
+// 2. MAIN APPLICATION COMPONENT
+// ==========================================
 function App() {
   const { theme, toggleTheme } = useTheme();
 
+  // --- Search Parameters State ---
   const [origin, setOrigin] = useState("");
   const [destination, setDestination] = useState("");
   const [date, setDate] = useState(getTodayString());
 
+  // --- UI/UX & Availability State ---
+  const [availableDates, setAvailableDates] = useState<string[]>([]);
+  const [isCalendarOpen, setIsCalendarOpen] = useState(false);
+  const calendarRef = useRef<HTMLDivElement>(null);
+
+  // --- API Results State ---
   const [itineraries, setItineraries] = useState<Itinerary[]>([]);
-  const [displayDate, setDisplayDate] = useState("");
-  const [dateChanged, setDateChanged] = useState(false);
+  const [displayDate, setDisplayDate] = useState(""); // The date actually shown in the results
+  const [dateChanged, setDateChanged] = useState(false); // Flags if the backend auto-shifted the user's date
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
+
+  // ==========================================
+  // 3. LIFECYCLE EFFECTS
+  // ==========================================
+
+  // EFFECT: Fetch route availability when airports are selected
+  // This powers the green dots on the Calendar and Carousel
+  useEffect(() => {
+    if (origin.length >= 3 && destination.length >= 3) {
+      fetch(
+        `${API_URL}/api/routes/available-dates/?origin=${origin}&destination=${destination}`,
+      )
+        .then((res) => res.json())
+        .then((data) => {
+          if (data.available_dates) setAvailableDates(data.available_dates);
+        })
+        .catch(console.error);
+    } else {
+      setAvailableDates([]); // Reset if airports are cleared
+    }
+  }, [origin, destination]);
+
+  // EFFECT: Close the calendar popover if the user clicks outside of it
+  useEffect(() => {
+    function handleClickOutside(event: MouseEvent) {
+      if (
+        calendarRef.current &&
+        !calendarRef.current.contains(event.target as Node)
+      ) {
+        setIsCalendarOpen(false);
+      }
+    }
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, []);
+
+  // ==========================================
+  // 4. EVENT HANDLERS
+  // ==========================================
 
   const handleSwap = () => {
     setOrigin(destination);
     setDestination(origin);
   };
 
-  const handleSearch = async (e: React.FormEvent) => {
-    e.preventDefault();
+  // The core function that triggers the Django backend search
+  const performSearch = async (searchDate: string) => {
     setLoading(true);
     setError("");
     setItineraries([]);
     setDateChanged(false);
-    setDisplayDate(date);
+    setDisplayDate(searchDate);
 
     try {
-      const params = new URLSearchParams({ origin, destination, date });
+      const params = new URLSearchParams({
+        origin,
+        destination,
+        date: searchDate,
+      });
       const response = await fetch(`${API_URL}/api/routes/search/?${params}`);
-
-      const contentType = response.headers.get("content-type");
-      if (!contentType || !contentType.includes("application/json")) {
-        throw new Error("Server Error: Check backend logs.");
-      }
 
       if (!response.ok) {
         const errorData = await response.json();
@@ -116,95 +165,79 @@ function App() {
 
       const data: ApiResponse = await response.json();
 
+      // Check if the backend implemented fallback logic (shifting to the next valid date)
       if (data.date_was_changed) {
         setDateChanged(true);
         setDisplayDate(data.found_date);
+        setDate(data.found_date); // Sync UI state with the backend's forced change
       } else {
-        setDisplayDate(data.found_date || date);
+        setDisplayDate(data.found_date || searchDate);
       }
 
       setItineraries(data.results);
-
       if (data.results.length === 0) {
         setError(
           `No routes found from ${origin} to ${destination} within the next 3 days.`,
         );
       }
     } catch (err: any) {
-      console.error(err);
       setError(err.message || "An error occurred");
     } finally {
       setLoading(false);
     }
   };
 
+  // Wrapper for the main "Find Routes" button
+  const handleSearchSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    setIsCalendarOpen(false);
+    performSearch(date);
+  };
+
+  // Triggered when a user clicks a date on EITHER the Carousel or the Calendar
+  const handleDateSelect = (selectedDate: Date) => {
+    const pad = (n: number) => n.toString().padStart(2, "0");
+    const dateStr = `${selectedDate.getFullYear()}-${pad(selectedDate.getMonth() + 1)}-${pad(selectedDate.getDate())}`;
+
+    setDate(dateStr);
+    setIsCalendarOpen(false);
+
+    // Auto-trigger search if we already have origin/destination (UX enhancement)
+    if (origin && destination) {
+      performSearch(dateStr);
+    }
+  };
+
+  // ==========================================
+  // 5. RENDER
+  // ==========================================
   return (
     <div className="min-h-screen bg-white dark:bg-black flex flex-col font-sans text-neutral-900 dark:text-white transition-colors duration-200">
-      {/* 1. Solid, Symmetrical AMOLED Header */}
+      {/* HEADER */}
       <header className="bg-white dark:bg-black border-b border-gray-200 dark:border-neutral-800 py-3 sticky top-0 z-50">
         <div className="container mx-auto px-4 flex items-center justify-between min-h-12">
-          {/* LEFT: Project Switcher */}
           <div className="flex items-center justify-start w-24">
             <ProjectSwitcher align="left" />
           </div>
-
-          {/* CENTER: Title (Retained blue branding, but mathematically centered) */}
           <div className="text-center flex-1 flex justify-center items-center gap-2">
             <span className="text-2xl">✈️⛴️</span>
             <h1 className="text-xl font-bold text-blue-600 dark:text-blue-400">
               Prop & Ferry
             </h1>
           </div>
-
-          {/* RIGHT: Theme Toggle */}
           <div className="flex items-center justify-end w-24">
             <button
               onClick={toggleTheme}
               className="p-2 rounded-lg text-black dark:text-white hover:bg-gray-100 dark:hover:bg-neutral-900 transition-colors"
             >
-              {theme === "dark" ? (
-                <svg
-                  xmlns="http://www.w3.org/2000/svg"
-                  width="20"
-                  height="20"
-                  viewBox="0 0 24 24"
-                  fill="none"
-                  stroke="currentColor"
-                  strokeWidth="2"
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                >
-                  <circle cx="12" cy="12" r="5"></circle>
-                  <line x1="12" y1="1" x2="12" y2="3"></line>
-                  <line x1="12" y1="21" x2="12" y2="23"></line>
-                  <line x1="4.22" y1="4.22" x2="5.64" y2="5.64"></line>
-                  <line x1="18.36" y1="18.36" x2="19.78" y2="19.78"></line>
-                  <line x1="1" y1="12" x2="3" y2="12"></line>
-                  <line x1="21" y1="12" x2="23" y2="12"></line>
-                  <line x1="4.22" y1="19.78" x2="5.64" y2="18.36"></line>
-                  <line x1="18.36" y1="5.64" x2="19.78" y2="4.22"></line>
-                </svg>
-              ) : (
-                <svg
-                  xmlns="http://www.w3.org/2000/svg"
-                  width="20"
-                  height="20"
-                  viewBox="0 0 24 24"
-                  fill="none"
-                  stroke="currentColor"
-                  strokeWidth="2"
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                >
-                  <path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"></path>
-                </svg>
-              )}
+              {theme === "dark" ? "☀️" : "🌙"}
             </button>
           </div>
         </div>
       </header>
 
       <main className="grow container mx-auto px-4 py-8 flex flex-col items-center">
+        {/* HERO SECTION (Hidden when results exist) */}
         {!itineraries.length && !loading && (
           <div className="text-center mb-10 mt-10">
             <h2 className="text-4xl font-extrabold mb-4 text-black dark:text-white">
@@ -219,8 +252,8 @@ function App() {
           </div>
         )}
 
-        {/* 2. AMOLED Search Box */}
-        <div className="bg-white dark:bg-black p-6 rounded-xl shadow-md w-full max-w-4xl border-2 border-gray-200 dark:border-neutral-800 mb-8">
+        {/* --- SEARCH BOX CONTROL CENTER --- */}
+        <div className="bg-white dark:bg-black p-6 rounded-xl shadow-md w-full max-w-4xl border border-gray-200 dark:border-neutral-800 mb-8">
           <div className="flex flex-col md:flex-row gap-4 items-center md:items-end">
             <div className="w-full md:flex-1">
               <AirportSelect
@@ -230,25 +263,14 @@ function App() {
                 onChange={setOrigin}
               />
             </div>
+
             <button
               onClick={handleSwap}
               className="p-3 rounded-full bg-gray-100 dark:bg-neutral-900 hover:bg-gray-200 dark:hover:bg-neutral-800 text-blue-600 transition-colors transform md:rotate-90"
             >
-              <svg
-                xmlns="http://www.w3.org/2000/svg"
-                width="20"
-                height="20"
-                viewBox="0 0 24 24"
-                fill="none"
-                stroke="currentColor"
-                strokeWidth="2"
-                strokeLinecap="round"
-                strokeLinejoin="round"
-              >
-                <path d="M7 16V4M7 4L3 8M7 4L11 8" />
-                <path d="M17 8v12M17 20l4-4M17 20l-4-4" />
-              </svg>
+              ⇅
             </button>
+
             <div className="w-full md:flex-1">
               <AirportSelect
                 label="To"
@@ -257,23 +279,37 @@ function App() {
                 onChange={setDestination}
               />
             </div>
-            <div className="w-full md:flex-1">
-              <label className="text-xs font-semibold text-neutral-500 uppercase mb-1">
+
+            {/* CUSTOM DATE PICKER LOGIC */}
+            <div className="w-full md:flex-1 relative" ref={calendarRef}>
+              <label className="text-xs font-semibold text-neutral-500 uppercase mb-1 block">
                 Date
               </label>
-              {/* 3. Forced White Input */}
-              <input
-                type="date"
-                min={getTodayString()}
-                className="w-full p-3 bg-white text-black rounded-lg border border-gray-300 focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500"
-                value={date}
-                onChange={(e) => setDate(e.target.value)}
-              />
+
+              {/* Trigger button that replaces the native HTML <input type="date"> */}
+              <button
+                onClick={() => setIsCalendarOpen(!isCalendarOpen)}
+                className="w-full p-3 text-left font-medium bg-white dark:bg-black text-black dark:text-white rounded-lg border border-gray-300 dark:border-neutral-700 focus:border-blue-500 focus:ring-1 focus:ring-blue-500 transition-colors"
+              >
+                {formatDateShort(date)}
+              </button>
+
+              {/* The Floating Calendar Popover */}
+              {isCalendarOpen && (
+                <div className="absolute top-full right-0 mt-2 z-50 animate-fade-in-down">
+                  <LeanCalendar
+                    selectedDate={parseDateLocal(date)}
+                    onDateSelect={handleDateSelect}
+                    availableDates={availableDates}
+                  />
+                </div>
+              )}
             </div>
           </div>
+
           <div className="mt-6 flex justify-center">
             <button
-              onClick={handleSearch}
+              onClick={handleSearchSubmit}
               disabled={loading}
               className="w-full md:w-1/3 bg-blue-600 hover:bg-blue-700 text-white font-bold py-3 px-6 rounded-lg disabled:opacity-50 transition-colors shadow-md"
             >
@@ -282,25 +318,24 @@ function App() {
           </div>
         </div>
 
-        {/* RESULTS */}
+        {/* --- RESULTS AREA --- */}
         <div className="w-full max-w-3xl space-y-4 mb-20">
-          {itineraries.length > 0 && (
-            <div className="sticky top-18 z-40 bg-white/95 dark:bg-black/95 backdrop-blur py-3 text-center border-b border-gray-200 dark:border-neutral-800 mb-4 shadow-sm rounded-b-lg">
-              <h3 className="text-lg font-bold text-black dark:text-white">
-                Results for{" "}
-                {parseDateLocal(displayDate).toLocaleDateString(undefined, {
-                  weekday: "long",
-                  month: "long",
-                  day: "numeric",
-                })}
-              </h3>
+          {/* THE DATE CAROUSEL (Appears above results for rapid date switching) */}
+          {(itineraries.length > 0 || dateChanged) && (
+            <div className="mb-6 animate-fade-in-up">
+              <DateCarousel
+                selectedDate={parseDateLocal(displayDate)}
+                onDateSelect={handleDateSelect}
+                availableDates={availableDates}
+              />
             </div>
           )}
 
+          {/* ALERTS */}
           {dateChanged && (
             <div className="p-4 bg-yellow-50 dark:bg-yellow-900/20 text-yellow-800 dark:text-yellow-200 rounded-lg border border-yellow-200 dark:border-yellow-700 text-center text-sm mb-4">
               ⚠️ No trips found on {parseDateLocal(date).toLocaleDateString()}.
-              We automatically moved you to the next available date.
+              Moved to next available date.
             </div>
           )}
 
@@ -310,14 +345,15 @@ function App() {
             </div>
           )}
 
+          {/* ITINERARY CARDS */}
           {itineraries.map((itinerary) => (
             <div
               key={itinerary.id}
-              className="bg-white dark:bg-black p-6 rounded-lg shadow-sm border-2 border-gray-200 dark:border-neutral-800 hover:shadow-md transition-all"
+              className="bg-white dark:bg-black p-6 rounded-lg shadow-sm border border-gray-200 dark:border-neutral-800 hover:shadow-md transition-all"
             >
               {itinerary.legs.map((leg: ApiLeg, i: number) => (
                 <div key={i}>
-                  {/* CONNECTION HEADER */}
+                  {/* Connection Indicator */}
                   {i > 0 && (
                     <div className="my-4 pl-4 border-l-2 border-dashed border-gray-300 dark:border-neutral-700 ml-3">
                       <div className="text-xs font-bold text-neutral-500 uppercase tracking-wide">
@@ -329,7 +365,7 @@ function App() {
                   <div className={`${i > 0 ? "pt-2" : ""}`}>
                     <div className="flex justify-between items-start">
                       <div>
-                        {/* ROUTE INFO */}
+                        {/* Route Origin -> Destination */}
                         <div className="flex flex-col">
                           <div className="text-lg font-bold text-black dark:text-white flex items-center gap-2">
                             <span>{leg.origin.city || leg.origin.code}</span>
@@ -343,6 +379,7 @@ function App() {
                           </div>
                         </div>
 
+                        {/* Times & Dates */}
                         <div className="text-neutral-700 dark:text-neutral-300 font-medium text-sm mt-1 flex flex-col sm:flex-row sm:items-center gap-1 sm:gap-3">
                           <div className="flex items-center gap-1.5">
                             <span className="font-semibold text-black dark:text-white">
@@ -361,6 +398,7 @@ function App() {
                           </div>
                         </div>
 
+                        {/* Carrier & Modality Tags */}
                         <div className="flex items-center gap-2 mt-2">
                           <span
                             className={`text-[10px] px-2 py-0.5 rounded font-bold uppercase ${leg.is_ferry ? "bg-indigo-100 text-indigo-700 dark:bg-indigo-900/50 dark:text-indigo-300" : "bg-blue-100 text-blue-700 dark:bg-blue-900/50 dark:text-blue-300"}`}
@@ -379,6 +417,7 @@ function App() {
                           </span>
                         </div>
 
+                        {/* Pricing & Scheduling Details */}
                         {leg.days_of_operation ? (
                           <div className="text-blue-500/80 dark:text-blue-400/80 text-xs italic mt-1">
                             {formatSchedule(leg.days_of_operation)}
@@ -397,6 +436,7 @@ function App() {
                         )}
                       </div>
 
+                      {/* Booking Link */}
                       <div className="text-right flex flex-col items-end gap-2">
                         {leg.carrier.website ? (
                           <a
@@ -445,7 +485,6 @@ function App() {
         </div>
       </footer>
 
-      {/* Report Modal */}
       <ReportModal />
     </div>
   );

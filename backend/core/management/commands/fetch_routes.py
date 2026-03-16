@@ -9,7 +9,7 @@ from django.core.management.base import BaseCommand
 from django.utils import timezone
 from amadeus import Client, ResponseError
 
-from core.models import Location, Route, Carrier
+from core.models import Location, Route, Carrier, FlightInstance
 from core.constants import TARGETS, REGIONAL_HUBS, GATEWAYS
 
 logger = logging.getLogger(__name__)
@@ -35,14 +35,13 @@ class Command(BaseCommand):
                 departureAirportCode=origin)
             return {item['iataCode'] for item in response.data} if response.data else set()
         except ResponseError as e:
-            logger.warning(f"Amadeus API Error for {origin}: {e}")
             return set()
 
     def fetch_and_save(self, amadeus: Client, origin: str, dest: str, date_str: str):
-        yesterday = timezone.now() - timedelta(hours=24)
-        if Route.objects.filter(origin__code=origin, destination__code=dest, updated_at__gte=yesterday).exists():
+        # DATE-SPECIFIC CACHE: Avoids checking the same day repeatedly
+        if FlightInstance.objects.filter(route__origin__code=origin, route__destination__code=dest, date=date_str).exists():
             self.stdout.write(
-                f"[API Calls: {self.api_calls}] 💤 Skipping {origin}->{dest} (Fresh)", ending='\r')
+                f"[API Calls: {self.api_calls}] 💤 Skipping {origin}->{dest} on {date_str} (Cached)", ending='\r')
             return
 
         self.stdout.write(
@@ -56,33 +55,31 @@ class Command(BaseCommand):
             )
         except ResponseError as e:
             if e.code == 429:
-                logger.error(
-                    f"[API Calls: {self.api_calls}] ⏳ Rate Limit Hit! Sleeping for 2 seconds...")
                 time.sleep(2)
-            else:
-                logger.warning(f"Failed to fetch {origin}->{dest}: {e}")
             return
 
         if response.data:
             for offer in response.data:
+                price = offer.get('price', {}).get('total')
+                currency = offer.get('price', {}).get('currency')
+                seats = offer.get('numberOfBookableSeats')
+
                 for itinerary in offer.get('itineraries', []):
                     segments = itinerary.get('segments', [])
                     if len(segments) == 1:
-                        self._process_segment(segments[0], date_str)
+                        cabin = offer.get('travelerPricings', [{}])[0].get(
+                            'fareDetailsBySegment', [{}])[0].get('cabin', '')
+                        self._process_segment(
+                            segments[0], date_str, price, currency, seats, cabin)
         time.sleep(0.1)
 
-    def _process_segment(self, segment: dict, date_str: str):
+    def _process_segment(self, segment: dict, date_str: str, price: str, currency: str, seats: int, cabin: str):
         carrier_code = segment['carrierCode']
         dep_code = segment['departure']['iataCode']
         arr_code = segment['arrival']['iataCode']
 
-        flight_num = f"{carrier_code} {segment.get('number', '')}".strip()
-        aircraft_code = segment.get('aircraft', {}).get('code', '')
-
-        carrier, _ = Carrier.objects.get_or_create(
-            code=carrier_code, defaults={
-                'name': f"Airline {carrier_code}", 'carrier_type': 'AIR'}
-        )
+        carrier, _ = Carrier.objects.get_or_create(code=carrier_code, defaults={
+                                                   'name': f"Airline {carrier_code}", 'carrier_type': 'AIR'})
         loc_dep, _ = Location.objects.get_or_create(
             code=dep_code, defaults={'name': dep_code})
         loc_arr, _ = Location.objects.get_or_create(
@@ -94,37 +91,44 @@ class Command(BaseCommand):
         route, created = Route.objects.update_or_create(
             origin=loc_dep, destination=loc_arr, carrier=carrier, departure_time=dep_time,
             defaults={
-                'is_active': True,
-                'duration_minutes': self.parse_duration(segment.get('duration')),
-                'arrival_time': arr_time,
-                'flight_number': flight_num,
-                'aircraft_type': aircraft_code
+                'is_active': True, 'duration_minutes': self.parse_duration(segment.get('duration')),
+                'arrival_time': arr_time, 'flight_number': f"{carrier_code} {segment.get('number', '')}".strip(),
+                'aircraft_type': segment.get('aircraft', {}).get('code', '')
             }
         )
 
         found_day = str(datetime.strptime(date_str, '%Y-%m-%d').isoweekday())
         current_days = route.days_of_operation or ""
-
         if found_day not in current_days:
             route.days_of_operation = "".join(sorted(current_days + found_day))
             route.save()
-            if created:
-                logger.info(
-                    f"✨ DISCOVERED: {flight_num} {dep_code}->{arr_code} @ {dep_time} (Day {found_day})")
+
+        date_obj = datetime.strptime(date_str, '%Y-%m-%d').date()
+        FlightInstance.objects.update_or_create(
+            route=route, date=date_obj,
+            defaults={'price_amount': price, 'currency': currency,
+                      'available_seats': seats, 'cabin_class': cabin}
+        )
 
     def handle(self, *args, **kwargs):
         self.stdout.write("✈️  Initializing Smart Route Scraper...")
+
+        # DB BLOAT PROTECTION: Clean up past flights
+        today = datetime.now().date()
+        deleted_flights, _ = FlightInstance.objects.filter(
+            date__lt=today).delete()
+        if deleted_flights:
+            self.stdout.write(
+                f"🧹 Pruned {deleted_flights} past flight instances.")
+
         amadeus = Client(client_id=os.getenv('AMADEUS_API_KEY'),
                          client_secret=os.getenv('AMADEUS_API_SECRET'))
 
         self.stdout.write(self.style.WARNING(
             "\n--- PHASE 0: TOPOLOGY MAPPING ---"))
         valid_routes = set()
-        all_origins = set(GATEWAYS + REGIONAL_HUBS)
-
-        for origin in all_origins:
+        for origin in set(GATEWAYS + REGIONAL_HUBS):
             destinations = self.get_valid_destinations(amadeus, origin)
-
             if origin in GATEWAYS:
                 for hub in REGIONAL_HUBS:
                     if hub in destinations and hub != origin:
@@ -133,7 +137,6 @@ class Command(BaseCommand):
                     if target in destinations:
                         valid_routes.update(
                             [(origin, target), (target, origin)])
-
             if origin in REGIONAL_HUBS:
                 for target in TARGETS:
                     if target in destinations:
@@ -143,13 +146,22 @@ class Command(BaseCommand):
                     if other_hub in destinations and other_hub != origin:
                         valid_routes.add((origin, other_hub))
 
-        self.stdout.write(self.style.SUCCESS(
-            f"\n✅ Topology mapped. {self.api_calls} API calls used."))
-
         self.stdout.write(self.style.WARNING(
             "\n--- PHASE 1: SCHEDULE SWEEP ---"))
-        dates = [(datetime.now() + timedelta(days=21+i)).strftime('%Y-%m-%d')
-                 for i in range(7)]
+        # THE COLD START FIX:
+        has_immediate_flights = FlightInstance.objects.filter(
+            date__range=[today, today + timedelta(days=7)]).exists()
+
+        if not has_immediate_flights:
+            self.stdout.write(
+                "🧊 Cold Start Detected! Running initial 28-day deep sweep...")
+            dates = [(datetime.now() + timedelta(days=i)).strftime('%Y-%m-%d')
+                     for i in range(1, 29)]
+        else:
+            self.stdout.write(
+                "🔥 DB is warm. Appending new dates to the rolling window...")
+            dates = [(datetime.now() + timedelta(days=21+i)
+                      ).strftime('%Y-%m-%d') for i in range(7)]
 
         for date in dates:
             for origin, dest in valid_routes:

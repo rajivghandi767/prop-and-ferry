@@ -9,6 +9,7 @@ from rest_framework.routers import DefaultRouter
 
 from core.views import LocationViewSet, ReportedIssueViewSet, RouteViewSet, CarrierViewSet, SailingViewSet
 
+
 # Import health check views
 from health_check.views import health_detailed, health_simple
 
@@ -42,6 +43,7 @@ router.register(r'carriers', CarrierViewSet, basename='carrier')
 router.register(r'routes', RouteViewSet, basename='route')
 router.register(r'sailings', SailingViewSet, basename='sailing')
 router.register(r'reports', ReportedIssueViewSet)
+
 
 # URL patterns
 urlpatterns = [
