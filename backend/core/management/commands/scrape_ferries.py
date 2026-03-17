@@ -4,6 +4,7 @@ import requests
 import re
 from bs4 import BeautifulSoup
 from datetime import datetime, timedelta
+from django.db import transaction
 from django.core.management.base import BaseCommand
 from core.models import Location, Route, Carrier, Sailing
 from core.constants import PORT_ROSEAU, PORT_PTP, PORT_FDF, PORT_CASTRIES, DB_TO_SITE_OPTS
@@ -19,16 +20,47 @@ FRENCH_MONTHS = {
 class Command(BaseCommand):
     help = "FRS - Express Ferry Schedule Scraper: Extracts Exact Times, Durations & Prices"
 
+    def __init__(self):
+        super().__init__()
+        self.sailings_to_create = []
+
+    def bootstrap_locations(self):
+        """
+        Removes dependency on seed_data.py or fetch_routes.py.
+        Ensures ferry terminals exist and are correctly linked to their parent airports.
+        """
+        terminals = {
+            PORT_ROSEAU: {'name': 'Roseau Ferry Terminal', 'city': 'Roseau', 'parent': 'DOM'},
+            PORT_PTP: {'name': 'Bergevin Ferry Terminal', 'city': 'Guadeloupe', 'parent': 'PTP'},
+            PORT_FDF: {'name': 'Fort-de-France Ferry Terminal', 'city': 'Fort-de-France', 'parent': 'FDF'},
+            PORT_CASTRIES: {'name': 'Castries Ferry Terminal', 'city': 'St. Lucia', 'parent': 'SLU'},
+        }
+
+        for port_code, data in terminals.items():
+            parent_loc, _ = Location.objects.get_or_create(
+                code=data['parent'],
+                defaults={
+                    'name': f"{data['parent']} Airport", 'location_type': 'APT'}
+            )
+            port_loc, _ = Location.objects.get_or_create(
+                code=port_code,
+                defaults={'name': data['name'],
+                          'city': data['city'], 'location_type': 'PRT'}
+            )
+
+            # Ensure the topological link exists for the Stitcher to find
+            if port_loc.parent != parent_loc:
+                port_loc.parent = parent_loc
+                port_loc.save()
+
     def handle(self, *args, **kwargs):
         self.stdout.write(
             "🚢 Initializing FRS-Express Ferry Schedule Scraper...")
 
-        # DB BLOAT PROTECTION: Wipe future sailings for fresh replacement
-        today = datetime.now().date()
-        deleted_count, _ = Sailing.objects.filter(date__gte=today).delete()
-        self.stdout.write(
-            f"🗑️ Cleared {deleted_count} upcoming sailings for fresh data update.")
+        # 1. Guarantee DB Dependencies Exist
+        self.bootstrap_locations()
 
+        today = datetime.now().date()
         base_routes = [(PORT_PTP, PORT_ROSEAU), (PORT_FDF,
                                                  PORT_ROSEAU), (PORT_CASTRIES, PORT_ROSEAU)]
         final_routes = []
@@ -55,15 +87,15 @@ class Command(BaseCommand):
 
         for origin_code, dest_code in final_routes:
             logger.info(f"Checking Route: {origin_code} -> {dest_code}")
-            try:
-                loc_origin = Location.objects.get(code=origin_code)
-                loc_dest = Location.objects.get(code=dest_code)
-                route_obj, _ = Route.objects.get_or_create(
-                    origin=loc_origin, destination=loc_dest, carrier=carrier, defaults={
-                        'is_active': True}
-                )
-            except Location.DoesNotExist:
-                continue
+
+            # No longer wrapped in try/except; we know these exist because we bootstrapped them
+            loc_origin = Location.objects.get(code=origin_code)
+            loc_dest = Location.objects.get(code=dest_code)
+
+            route_obj, _ = Route.objects.get_or_create(
+                origin=loc_origin, destination=loc_dest, carrier=carrier, defaults={
+                    'is_active': True}
+            )
 
             processed_dates = set()
 
@@ -123,7 +155,23 @@ class Command(BaseCommand):
                 except Exception as e:
                     logger.error(f"Scrape Error: {e}")
 
-        self.stdout.write(self.style.SUCCESS("✨ Ferry scraping complete!"))
+        # Atomic commit logic for safety
+        if self.sailings_to_create:
+            try:
+                with transaction.atomic():
+                    deleted_count, _ = Sailing.objects.filter(
+                        date__gte=today).delete()
+                    self.stdout.write(
+                        f"🗑️ Cleared {deleted_count} upcoming sailings.")
+                    Sailing.objects.bulk_create(self.sailings_to_create)
+                    self.stdout.write(self.style.SUCCESS(
+                        f"✨ Successfully saved {len(self.sailings_to_create)} sailings!"))
+            except Exception as e:
+                self.stdout.write(self.style.ERROR(
+                    f"❌ Database commit failed. Rolling back. Error: {e}"))
+        else:
+            self.stdout.write(self.style.WARNING(
+                "⚠️ No sailings found. Database was left untouched."))
 
     def parse_daily_schedule(self, soup, route_obj, date_obj, price_text):
         try:
@@ -152,11 +200,10 @@ class Command(BaseCommand):
                         duration_mins = (int(match.group(1))
                                          * 60) + int(match.group(2))
 
-                    Sailing.objects.update_or_create(
+                    self.sailings_to_create.append(Sailing(
                         route=route_obj, date=date_obj, departure_time=dep_time,
-                        defaults={
-                            'arrival_time': arr_time, 'duration_minutes': duration_mins, 'price_text': price_text}
-                    )
+                        arrival_time=arr_time, duration_minutes=duration_mins, price_text=price_text
+                    ))
         except Exception as e:
             logger.error(f"Parse Error on {date_obj}: {e}")
 
@@ -164,12 +211,11 @@ class Command(BaseCommand):
         times = soup.find_all('time')
         for i in range(0, len(times), 2):
             if i + 1 < len(times):
-                Sailing.objects.update_or_create(
+                self.sailings_to_create.append(Sailing(
                     route=route_obj, date=date_obj, departure_time=times[i].get_text(
                         strip=True),
-                    defaults={'arrival_time': times[i+1].get_text(
-                        strip=True), 'duration_minutes': 120, 'price_text': price_text}
-                )
+                    arrival_time=times[i+1].get_text(strip=True), duration_minutes=120, price_text=price_text
+                ))
 
     def parse_french_date(self, date_str):
         if not date_str:

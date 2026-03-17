@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef } from "react";
 import type { Itinerary, ApiLeg, ApiResponse } from "./types";
 import { useTheme } from "./hooks/useTheme";
+import { Sun, Moon, Plane, Ship } from "lucide-react";
 
 // --- IMPORTED COMPONENTS ---
 import { AirportSelect } from "./components/AirportSelect";
@@ -9,12 +10,6 @@ import { ReportModal } from "./components/ReportModal";
 import { DateCarousel } from "./components/DateCarousel";
 import { LeanCalendar } from "./components/LeanCalendar";
 import { API_URL } from "./config";
-
-// ==========================================
-// 1. DATE & TIME FORMATTING HELPERS
-// ==========================================
-// These helpers ensure consistent, local-timezone rendering
-// without relying on heavy external libraries like moment.js
 
 const getTodayString = () => {
   const pad = (n: number) => n.toString().padStart(2, "0");
@@ -75,35 +70,24 @@ const formatSchedule = (days?: string) => {
   );
 };
 
-// ==========================================
-// 2. MAIN APPLICATION COMPONENT
-// ==========================================
 function App() {
   const { theme, toggleTheme } = useTheme();
 
-  // --- Search Parameters State ---
   const [origin, setOrigin] = useState("");
   const [destination, setDestination] = useState("");
   const [date, setDate] = useState(getTodayString());
+  const [searchedDate, setSearchedDate] = useState("");
 
-  // --- UI/UX & Availability State ---
   const [availableDates, setAvailableDates] = useState<string[]>([]);
   const [isCalendarOpen, setIsCalendarOpen] = useState(false);
   const calendarRef = useRef<HTMLDivElement>(null);
 
-  // --- API Results State ---
   const [itineraries, setItineraries] = useState<Itinerary[]>([]);
-  const [displayDate, setDisplayDate] = useState(""); // The date actually shown in the results
-  const [dateChanged, setDateChanged] = useState(false); // Flags if the backend auto-shifted the user's date
+  const [displayDate, setDisplayDate] = useState("");
+  const [dateChanged, setDateChanged] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
 
-  // ==========================================
-  // 3. LIFECYCLE EFFECTS
-  // ==========================================
-
-  // EFFECT: Fetch route availability when airports are selected
-  // This powers the green dots on the Calendar and Carousel
   useEffect(() => {
     if (origin.length >= 3 && destination.length >= 3) {
       fetch(
@@ -115,11 +99,10 @@ function App() {
         })
         .catch(console.error);
     } else {
-      setAvailableDates([]); // Reset if airports are cleared
+      setAvailableDates([]);
     }
   }, [origin, destination]);
 
-  // EFFECT: Close the calendar popover if the user clicks outside of it
   useEffect(() => {
     function handleClickOutside(event: MouseEvent) {
       if (
@@ -133,22 +116,18 @@ function App() {
     return () => document.removeEventListener("mousedown", handleClickOutside);
   }, []);
 
-  // ==========================================
-  // 4. EVENT HANDLERS
-  // ==========================================
-
   const handleSwap = () => {
     setOrigin(destination);
     setDestination(origin);
   };
 
-  // The core function that triggers the Django backend search
   const performSearch = async (searchDate: string) => {
     setLoading(true);
     setError("");
     setItineraries([]);
     setDateChanged(false);
     setDisplayDate(searchDate);
+    setSearchedDate(searchDate);
 
     try {
       const params = new URLSearchParams({
@@ -165,11 +144,10 @@ function App() {
 
       const data: ApiResponse = await response.json();
 
-      // Check if the backend implemented fallback logic (shifting to the next valid date)
       if (data.date_was_changed) {
         setDateChanged(true);
         setDisplayDate(data.found_date);
-        setDate(data.found_date); // Sync UI state with the backend's forced change
+        setDate(data.found_date);
       } else {
         setDisplayDate(data.found_date || searchDate);
       }
@@ -187,14 +165,12 @@ function App() {
     }
   };
 
-  // Wrapper for the main "Find Routes" button
   const handleSearchSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     setIsCalendarOpen(false);
     performSearch(date);
   };
 
-  // Triggered when a user clicks a date on EITHER the Carousel or the Calendar
   const handleDateSelect = (selectedDate: Date) => {
     const pad = (n: number) => n.toString().padStart(2, "0");
     const dateStr = `${selectedDate.getFullYear()}-${pad(selectedDate.getMonth() + 1)}-${pad(selectedDate.getDate())}`;
@@ -202,25 +178,21 @@ function App() {
     setDate(dateStr);
     setIsCalendarOpen(false);
 
-    // Auto-trigger search if we already have origin/destination (UX enhancement)
-    if (origin && destination) {
-      performSearch(dateStr);
-    }
+    if (origin && destination) performSearch(dateStr);
   };
 
-  // ==========================================
-  // 5. RENDER
-  // ==========================================
   return (
     <div className="min-h-screen bg-white dark:bg-black flex flex-col font-sans text-neutral-900 dark:text-white transition-colors duration-200">
-      {/* HEADER */}
       <header className="bg-white dark:bg-black border-b border-gray-200 dark:border-neutral-800 py-3 sticky top-0 z-50">
         <div className="container mx-auto px-4 flex items-center justify-between min-h-12">
           <div className="flex items-center justify-start w-24">
             <ProjectSwitcher align="left" />
           </div>
           <div className="text-center flex-1 flex justify-center items-center gap-2">
-            <span className="text-2xl">✈️⛴️</span>
+            <div className="flex -space-x-1 text-blue-600 dark:text-blue-400">
+              <Plane size={24} />
+              <Ship size={24} />
+            </div>
             <h1 className="text-xl font-bold text-blue-600 dark:text-blue-400">
               Prop & Ferry
             </h1>
@@ -228,16 +200,15 @@ function App() {
           <div className="flex items-center justify-end w-24">
             <button
               onClick={toggleTheme}
-              className="p-2 rounded-lg text-black dark:text-white hover:bg-gray-100 dark:hover:bg-neutral-900 transition-colors"
+              className="p-2 rounded-lg text-neutral-600 dark:text-neutral-400 hover:bg-gray-100 dark:hover:bg-neutral-900 transition-colors"
             >
-              {theme === "dark" ? "☀️" : "🌙"}
+              {theme === "dark" ? <Sun size={20} /> : <Moon size={20} />}
             </button>
           </div>
         </div>
       </header>
 
       <main className="grow container mx-auto px-4 py-8 flex flex-col items-center">
-        {/* HERO SECTION (Hidden when results exist) */}
         {!itineraries.length && !loading && (
           <div className="text-center mb-10 mt-10">
             <h2 className="text-4xl font-extrabold mb-4 text-black dark:text-white">
@@ -252,7 +223,6 @@ function App() {
           </div>
         )}
 
-        {/* --- SEARCH BOX CONTROL CENTER --- */}
         <div className="bg-white dark:bg-black p-6 rounded-xl shadow-md w-full max-w-4xl border border-gray-200 dark:border-neutral-800 mb-8">
           <div className="flex flex-col md:flex-row gap-4 items-center md:items-end">
             <div className="w-full md:flex-1">
@@ -280,13 +250,10 @@ function App() {
               />
             </div>
 
-            {/* CUSTOM DATE PICKER LOGIC */}
             <div className="w-full md:flex-1 relative" ref={calendarRef}>
               <label className="text-xs font-semibold text-neutral-500 uppercase mb-1 block">
                 Date
               </label>
-
-              {/* Trigger button that replaces the native HTML <input type="date"> */}
               <button
                 onClick={() => setIsCalendarOpen(!isCalendarOpen)}
                 className="w-full p-3 text-left font-medium bg-white dark:bg-black text-black dark:text-white rounded-lg border border-gray-300 dark:border-neutral-700 focus:border-blue-500 focus:ring-1 focus:ring-blue-500 transition-colors"
@@ -294,7 +261,6 @@ function App() {
                 {formatDateShort(date)}
               </button>
 
-              {/* The Floating Calendar Popover */}
               {isCalendarOpen && (
                 <div className="absolute top-full right-0 mt-2 z-50 animate-fade-in-down">
                   <LeanCalendar
@@ -318,9 +284,7 @@ function App() {
           </div>
         </div>
 
-        {/* --- RESULTS AREA --- */}
         <div className="w-full max-w-3xl space-y-4 mb-20">
-          {/* THE DATE CAROUSEL (Appears above results for rapid date switching) */}
           {(itineraries.length > 0 || dateChanged) && (
             <div className="mb-6 animate-fade-in-up">
               <DateCarousel
@@ -331,11 +295,11 @@ function App() {
             </div>
           )}
 
-          {/* ALERTS */}
-          {dateChanged && (
+          {dateChanged && searchedDate && (
             <div className="p-4 bg-yellow-50 dark:bg-yellow-900/20 text-yellow-800 dark:text-yellow-200 rounded-lg border border-yellow-200 dark:border-yellow-700 text-center text-sm mb-4">
-              ⚠️ No trips found on {parseDateLocal(date).toLocaleDateString()}.
-              Moved to next available date.
+              ⚠️ No trips found on{" "}
+              {parseDateLocal(searchedDate).toLocaleDateString()}. Moved to next
+              available date.
             </div>
           )}
 
@@ -345,7 +309,6 @@ function App() {
             </div>
           )}
 
-          {/* ITINERARY CARDS */}
           {itineraries.map((itinerary) => (
             <div
               key={itinerary.id}
@@ -353,7 +316,6 @@ function App() {
             >
               {itinerary.legs.map((leg: ApiLeg, i: number) => (
                 <div key={i}>
-                  {/* Connection Indicator */}
                   {i > 0 && (
                     <div className="my-4 pl-4 border-l-2 border-dashed border-gray-300 dark:border-neutral-700 ml-3">
                       <div className="text-xs font-bold text-neutral-500 uppercase tracking-wide">
@@ -365,7 +327,6 @@ function App() {
                   <div className={`${i > 0 ? "pt-2" : ""}`}>
                     <div className="flex justify-between items-start">
                       <div>
-                        {/* Route Origin -> Destination */}
                         <div className="flex flex-col">
                           <div className="text-lg font-bold text-black dark:text-white flex items-center gap-2">
                             <span>{leg.origin.city || leg.origin.code}</span>
@@ -379,7 +340,6 @@ function App() {
                           </div>
                         </div>
 
-                        {/* Times & Dates */}
                         <div className="text-neutral-700 dark:text-neutral-300 font-medium text-sm mt-1 flex flex-col sm:flex-row sm:items-center gap-1 sm:gap-3">
                           <div className="flex items-center gap-1.5">
                             <span className="font-semibold text-black dark:text-white">
@@ -398,7 +358,6 @@ function App() {
                           </div>
                         </div>
 
-                        {/* Carrier & Modality Tags */}
                         <div className="flex items-center gap-2 mt-2">
                           <span
                             className={`text-[10px] px-2 py-0.5 rounded font-bold uppercase ${leg.is_ferry ? "bg-indigo-100 text-indigo-700 dark:bg-indigo-900/50 dark:text-indigo-300" : "bg-blue-100 text-blue-700 dark:bg-blue-900/50 dark:text-blue-300"}`}
@@ -417,15 +376,20 @@ function App() {
                           </span>
                         </div>
 
-                        {/* Pricing & Scheduling Details */}
-                        {leg.days_of_operation ? (
+                        {leg.days_of_operation && !leg.is_ferry ? (
                           <div className="text-blue-500/80 dark:text-blue-400/80 text-xs italic mt-1">
                             {formatSchedule(leg.days_of_operation)}
                           </div>
                         ) : (
                           <div className="flex gap-2 items-center mt-1">
-                            <span className="text-indigo-500/80 dark:text-indigo-400/80 text-xs italic">
-                              Sailing confirmed
+                            <span
+                              className={`text-xs italic ${leg.is_ferry ? "text-indigo-500/80 dark:text-indigo-400/80" : "text-blue-500/80 dark:text-blue-400/80"}`}
+                            >
+                              {leg.is_ferry
+                                ? "Price Last Seen"
+                                : leg.last_seen_at
+                                  ? `Last seen: ${leg.last_seen_at}`
+                                  : "Flight confirmed"}
                             </span>
                             {leg.price_text && (
                               <span className="text-xs font-bold text-green-600 dark:text-green-400 bg-green-50 dark:bg-green-900/30 px-2 rounded-full">
@@ -436,7 +400,6 @@ function App() {
                         )}
                       </div>
 
-                      {/* Booking Link */}
                       <div className="text-right flex flex-col items-end gap-2">
                         {leg.carrier.website ? (
                           <a
@@ -465,7 +428,10 @@ function App() {
       <footer className="bg-white dark:bg-black border-t border-gray-200 dark:border-neutral-800 py-8">
         <div className="container mx-auto px-4 text-center">
           <div className="flex justify-center items-center gap-2 mb-4">
-            <span className="text-xl">✈️⛴️</span>
+            <div className="flex -space-x-1 text-neutral-700 dark:text-neutral-300">
+              <Plane size={20} />
+              <Ship size={20} />
+            </div>
             <span className="font-bold text-black dark:text-white">
               Prop & Ferry
             </span>
@@ -484,7 +450,6 @@ function App() {
           </div>
         </div>
       </footer>
-
       <ReportModal />
     </div>
   );

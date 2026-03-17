@@ -1,13 +1,22 @@
 from rest_framework import serializers
-from .models import Location, Carrier, Route, FlightInstance, Sailing
+from .models import Location, Carrier, Route, FlightInstance, Sailing, ReportedIssue
 
 # --- STANDARD CRUD SERIALIZERS ---
 
 
 class LocationSerializer(serializers.ModelSerializer):
+    parent_code = serializers.CharField(
+        source='parent.code', read_only=True, default=None)
+    has_children = serializers.SerializerMethodField()
+
     class Meta:
         model = Location
-        fields = ['code', 'name', 'city', 'country', 'location_type']
+        fields = ['id', 'code', 'name', 'city', 'country',
+                  'location_type', 'parent_code', 'has_children']
+
+    def get_has_children(self, obj):
+        # Prevent N+1 query by checking the prefetched cache
+        return len(obj.sub_locations.all()) > 0
 
 
 class CarrierSerializer(serializers.ModelSerializer):
@@ -117,6 +126,11 @@ class ItineraryLegSerializer(serializers.Serializer):
             return f"${obj.price_amount} {obj.currency}"
         return None
 
+    def get_last_seen_at(self, obj):
+        if hasattr(obj, 'last_seen_at') and obj.last_seen_at:
+            return obj.last_seen_at.strftime('%b %d, %H:%M')
+        return None
+
 
 class ItinerarySerializer(serializers.Serializer):
     id = serializers.CharField()
@@ -127,3 +141,9 @@ class SearchResponseSerializer(serializers.Serializer):
     date_was_changed = serializers.BooleanField()
     found_date = serializers.CharField()
     results = ItinerarySerializer(many=True)
+
+
+class ReportedIssueSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = ReportedIssue
+        fields = '__all__'
