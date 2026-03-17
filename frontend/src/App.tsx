@@ -284,10 +284,10 @@ function App() {
         {/* POC Disclaimer */}
         <div className="w-full max-w-4xl text-center mb-8 px-4 animate-fade-in">
           <p className="text-xs text-neutral-500 dark:text-neutral-400 bg-gray-50 dark:bg-neutral-900/40 border border-gray-200 dark:border-neutral-800 rounded-lg p-3">
-            <strong>POC Notice:</strong> Flight schedules are actively indexed
-            for a rolling 14-day window originating strictly from Gateways in{" "}
-            <strong>New York (NYC)</strong>, <strong>London (LON)</strong>, and{" "}
-            <strong>Paris (PAR)</strong>.
+            <strong>Proof of Concept Notice:</strong> Flight schedules are
+            actively indexed for a rolling 14-day window originating strictly
+            from Gateways in <strong>New York (NYC)</strong>,{" "}
+            <strong>London (LON)</strong>, and <strong>Paris (PAR)</strong>.
           </p>
         </div>
 
@@ -428,7 +428,7 @@ function App() {
                         {/* 2. Unified "Last Seen" Estimates Block */}
                         <div className="mt-3.5 pt-3 border-t border-gray-100 dark:border-neutral-800/50 flex flex-col gap-2">
                           <div className="text-[10px] font-bold text-neutral-400 dark:text-neutral-500 uppercase tracking-widest">
-                            Historical Data (Last Seen)
+                            Price & Availability Last Seen
                           </div>
 
                           <div className="flex flex-wrap items-center gap-2">
