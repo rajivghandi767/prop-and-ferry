@@ -2,8 +2,8 @@ pipeline {
     agent any
 
     triggers {
-        // Runs on the 1st of every month at 04:30 AM ET to align with API limit resets
-        cron('30 4 1 * *')
+        // Runs on the 1st and 15th of every month at 04:30 AM ET
+        cron('30 4 1,15 * *')
     }
 
     environment {
@@ -20,7 +20,6 @@ pipeline {
                     sh """
                         ssh -o StrictHostKeyChecking=no ${DEPLOY_USER}@${DEPLOY_HOST} "
                             cd ${DEPLOY_DIR}
-                            # Execute the Django management command inside the running backend container
                             docker compose exec -T prop-ferry-backend python manage.py fetch_routes
                         "
                     """
@@ -31,7 +30,15 @@ pipeline {
     
     post {
         success {
-            echo "Successfully populated routes for the month."
+            echo "Successfully populated 14-day flight window. Checking for unenriched stubs..."
+            sshagent([SSH_CRED_ID]) {
+                sh """
+                    ssh -o StrictHostKeyChecking=no ${DEPLOY_USER}@${DEPLOY_HOST} "
+                        cd ${DEPLOY_DIR}
+                        docker compose exec -T prop-ferry-backend python manage.py notify_unenriched
+                    "
+                """
+            }
         }
         failure {
             echo "Failed to fetch routes. Check API limits and container status."

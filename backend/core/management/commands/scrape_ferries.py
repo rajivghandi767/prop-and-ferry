@@ -88,7 +88,6 @@ class Command(BaseCommand):
         for origin_code, dest_code in final_routes:
             logger.info(f"Checking Route: {origin_code} -> {dest_code}")
 
-            # No longer wrapped in try/except; we know these exist because we bootstrapped them
             loc_origin = Location.objects.get(code=origin_code)
             loc_dest = Location.objects.get(code=dest_code)
 
@@ -159,8 +158,7 @@ class Command(BaseCommand):
         if self.sailings_to_create:
             try:
                 with transaction.atomic():
-                    deleted_count, _ = Sailing.objects.filter(
-                        date__gte=today).delete()
+                    deleted_count, _ = Sailing.objects.all().delete()
                     self.stdout.write(
                         f"🗑️ Cleared {deleted_count} upcoming sailings.")
                     Sailing.objects.bulk_create(self.sailings_to_create)

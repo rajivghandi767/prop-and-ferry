@@ -6,7 +6,6 @@ from typing import Set
 from datetime import datetime, timedelta
 
 from django.core.management.base import BaseCommand
-from django.utils import timezone
 from amadeus import Client, ResponseError
 
 from core.models import Location, Route, Carrier, FlightInstance
@@ -16,7 +15,7 @@ logger = logging.getLogger(__name__)
 
 
 class Command(BaseCommand):
-    help = 'Fetches flight routes using a 2-Phase Strategy: Topology Mapping -> Schedule Sweep.'
+    help = 'Fetches flight routes for a continuous 14-Day Free-Tier Proof of Concept window.'
     api_calls = 0
 
     def parse_duration(self, iso_str: str) -> int:
@@ -34,16 +33,11 @@ class Command(BaseCommand):
             response = amadeus.airport.direct_destinations.get(
                 departureAirportCode=origin)
             return {item['iataCode'] for item in response.data} if response.data else set()
-        except ResponseError as e:
+        except ResponseError:
             return set()
 
     def fetch_and_save(self, amadeus: Client, origin: str, dest: str, date_str: str):
-        # DATE-SPECIFIC CACHE: Avoids checking the same day repeatedly
-        if FlightInstance.objects.filter(route__origin__code=origin, route__destination__code=dest, date=date_str).exists():
-            self.stdout.write(
-                f"[API Calls: {self.api_calls}] 💤 Skipping {origin}->{dest} on {date_str} (Cached)", ending='\r')
-            return
-
+        target_date = datetime.strptime(date_str, '%Y-%m-%d').date()
         self.stdout.write(
             f"[API Calls: {self.api_calls + 1}] 🔎 Checking {origin}->{dest} on {date_str}", ending='\r')
 
@@ -58,7 +52,11 @@ class Command(BaseCommand):
                 time.sleep(2)
             return
 
-        if response.data:
+        if response.data is not None:
+            # Overwrite logic: Drops existing records for this day to account for airline cancellations
+            FlightInstance.objects.filter(
+                route__origin__code=origin, route__destination__code=dest, date=target_date).delete()
+
             for offer in response.data:
                 price = offer.get('price', {}).get('total')
                 currency = offer.get('price', {}).get('currency')
@@ -88,7 +86,7 @@ class Command(BaseCommand):
         dep_time = segment['departure']['at'].split('T')[1]
         arr_time = segment['arrival']['at'].split('T')[1]
 
-        route, created = Route.objects.update_or_create(
+        route, _ = Route.objects.update_or_create(
             origin=loc_dep, destination=loc_arr, carrier=carrier, departure_time=dep_time,
             defaults={
                 'is_active': True, 'duration_minutes': self.parse_duration(segment.get('duration')),
@@ -111,10 +109,11 @@ class Command(BaseCommand):
         )
 
     def handle(self, *args, **kwargs):
-        self.stdout.write("✈️  Initializing Smart Route Scraper...")
+        self.stdout.write("✈️  Initializing POC Flight Scraper...")
 
-        # DB BLOAT PROTECTION: Clean up past flights
         today = datetime.now().date()
+
+        # Aggressive DietPi Database optimization: Immediately prune dead historical data
         deleted_flights, _ = FlightInstance.objects.filter(
             date__lt=today).delete()
         if deleted_flights:
@@ -147,21 +146,9 @@ class Command(BaseCommand):
                         valid_routes.add((origin, other_hub))
 
         self.stdout.write(self.style.WARNING(
-            "\n--- PHASE 1: SCHEDULE SWEEP ---"))
-        # THE COLD START FIX:
-        has_immediate_flights = FlightInstance.objects.filter(
-            date__range=[today, today + timedelta(days=7)]).exists()
-
-        if not has_immediate_flights:
-            self.stdout.write(
-                "🧊 Cold Start Detected! Running initial 28-day deep sweep...")
-            dates = [(datetime.now() + timedelta(days=i)).strftime('%Y-%m-%d')
-                     for i in range(1, 29)]
-        else:
-            self.stdout.write(
-                "🔥 DB is warm. Appending new dates to the rolling window...")
-            dates = [(datetime.now() + timedelta(days=21+i)
-                      ).strftime('%Y-%m-%d') for i in range(7)]
+            "\n--- PHASE 1: SCHEDULE SWEEP (14-DAY WINDOW) ---"))
+        dates = [(datetime.now() + timedelta(days=i)).strftime('%Y-%m-%d')
+                 for i in range(14)]
 
         for date in dates:
             for origin, dest in valid_routes:
