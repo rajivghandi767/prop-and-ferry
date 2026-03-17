@@ -1,19 +1,97 @@
 @import "tailwindcss";
+@plugin "@tailwindcss/typography";
 
 @custom-variant dark (&:where(.dark, .dark *));
 
-body {
-  font-family: ui-sans-serif, system-ui, sans-serif;
-  transition:
-    background-color 0.2s ease,
-    color 0.2s ease;
+/* =========================================
+   1. DESIGN TOKENS
+========================================= */
+@theme {
+  --font-sans:
+    ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono",
+    "Courier New", monospace;
+
+  /* These automatically generate classes like text-brand-light, bg-brand-light, etc. */
+  --color-brand-light: var(--color-neutral-900);
+  --color-brand-dark: var(--color-white);
+
+  --color-bg-light: var(--color-white);
+  --color-bg-dark: var(--color-black);
 }
 
-/* Global Link Styles */
-a:not([class]) {
-  @apply text-blue-600 dark:text-blue-400 transition-colors duration-200;
+/* =========================================
+   2. GLOBAL BASE STYLES
+========================================= */
+@layer base {
+  body {
+    background-color: var(--color-bg-light);
+    color: var(--color-brand-light);
+    transition:
+      background-color 0.2s ease,
+      color 0.2s ease;
+    scroll-behavior: smooth;
+  }
+
+  .dark body {
+    background-color: var(--color-bg-dark);
+    color: var(--color-brand-dark);
+  }
+
+  /* Raw CSS for universal links, completely removing @apply */
+  a:not([class]) {
+    color: var(--color-neutral-600);
+    transition-property: color, text-decoration-color;
+    transition-duration: 200ms;
+  }
+
+  .dark a:not([class]) {
+    color: var(--color-neutral-400);
+  }
+
+  a:not([class]):hover {
+    color: var(--color-brand-light);
+    text-decoration-line: underline;
+  }
+
+  .dark a:not([class]):hover {
+    color: var(--color-brand-dark);
+  }
 }
 
-a:not([class]):hover {
-  @apply underline text-blue-800 dark:text-blue-300;
+/* =========================================
+   3. UNIVERSAL ANIMATIONS
+========================================= */
+@theme {
+  --animate-fade-in: fadeIn 0.5s ease-in-out;
+  --animate-fade-up: fadeUp 0.5s ease-out;
+  --animate-scale-in: scaleIn 0.3s ease-out;
+
+  @keyframes fadeIn {
+    from {
+      opacity: 0;
+    }
+    to {
+      opacity: 1;
+    }
+  }
+  @keyframes fadeUp {
+    from {
+      opacity: 0;
+      transform: translateY(20px);
+    }
+    to {
+      opacity: 1;
+      transform: translateY(0);
+    }
+  }
+  @keyframes scaleIn {
+    from {
+      opacity: 0;
+      transform: scale(0.95);
+    }
+    to {
+      opacity: 1;
+      transform: scale(1);
+    }
+  }
 }

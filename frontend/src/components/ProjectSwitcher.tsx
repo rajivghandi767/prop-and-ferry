@@ -54,7 +54,7 @@ export function ProjectSwitcher({ align = "right" }: ProjectSwitcherProps) {
     <div className="relative z-50" ref={dropdownRef}>
       <button
         onClick={() => setIsOpen(!isOpen)}
-        className="p-2 rounded-lg text-black dark:text-white hover:bg-gray-100 dark:hover:bg-neutral-900 transition-colors"
+        className="p-2 rounded-lg text-brand-light dark:text-brand-dark hover:bg-gray-100 dark:hover:bg-neutral-900 transition-colors"
         title="More Projects"
       >
         <svg
@@ -77,7 +77,7 @@ export function ProjectSwitcher({ align = "right" }: ProjectSwitcherProps) {
 
       {isOpen && (
         <div
-          className={`absolute mt-3 w-72 bg-white dark:bg-black rounded-xl shadow-xl border border-gray-200 dark:border-neutral-800 overflow-hidden transform transition-all ${alignmentClasses}`}
+          className={`absolute mt-3 w-72 bg-bg-light dark:bg-bg-dark rounded-xl shadow-xl border border-gray-200 dark:border-neutral-800 overflow-hidden transform transition-all ${alignmentClasses}`}
         >
           <div className="p-3 border-b border-gray-200 dark:border-neutral-800 bg-gray-50/50 dark:bg-neutral-900/50">
             <h3 className="text-xs font-bold text-gray-500 dark:text-gray-400 uppercase tracking-wider">
@@ -100,7 +100,7 @@ export function ProjectSwitcher({ align = "right" }: ProjectSwitcherProps) {
                   {project.icon}
                 </div>
                 <div>
-                  <div className="font-bold text-black dark:text-white group-hover:text-blue-600 dark:group-hover:text-blue-400 transition-colors">
+                  <div className="font-bold text-brand-light dark:text-brand-dark group-hover:text-brand-light/80 dark:group-hover:text-brand-dark/80 transition-colors">
                     {project.name}
                   </div>
                   <div className="text-xs text-gray-500 dark:text-gray-400 leading-tight mt-0.5">
@@ -116,7 +116,7 @@ export function ProjectSwitcher({ align = "right" }: ProjectSwitcherProps) {
               href="https://github.com/rajivghandi767"
               target="_blank"
               rel="noreferrer"
-              className="text-xs font-medium text-blue-600 dark:text-blue-400 hover:underline"
+              className="text-xs font-medium text-brand-light dark:text-brand-dark hover:underline"
             >
               View Rajiv's GitHub Repo →
             </a>

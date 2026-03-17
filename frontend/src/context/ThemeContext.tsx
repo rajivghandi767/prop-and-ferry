@@ -2,7 +2,7 @@ import { createContext, useContext, ReactNode } from "react";
 import { useTheme } from "../hooks/useTheme";
 
 interface ThemeContextType {
-  theme: "light" | "dark"; // Updated from boolean to string
+  theme: "light" | "dark";
   toggleTheme: () => void;
 }
 

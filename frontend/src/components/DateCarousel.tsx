@@ -42,7 +42,7 @@ export function DateCarousel({
   ];
 
   return (
-    <div className="flex items-center justify-between bg-white dark:bg-black border border-gray-200 dark:border-neutral-800 shadow-sm p-4 rounded-xl overflow-x-auto gap-2">
+    <div className="flex items-center justify-between bg-bg-light dark:bg-bg-dark border border-gray-200 dark:border-neutral-800 shadow-sm p-4 rounded-xl overflow-x-auto gap-2 transition-colors duration-200">
       {dateWindow.map((date) => {
         const dateStr = toISODate(date);
         const isSelected = toISODate(selectedDate) === dateStr;
@@ -55,7 +55,11 @@ export function DateCarousel({
             disabled={!hasTravel}
             className={`
               flex flex-col items-center justify-center p-3 rounded-lg min-w-17.5 transition-all shrink-0 relative overflow-hidden
-              ${isSelected ? "bg-blue-600 text-white shadow-md border border-blue-600" : "text-gray-600 dark:text-neutral-300 hover:bg-gray-100 dark:hover:bg-neutral-900 border border-transparent"}
+              ${
+                isSelected
+                  ? "bg-brand-light text-white shadow-md border border-brand-light dark:bg-brand-dark dark:text-black dark:border-brand-dark"
+                  : "text-neutral-600 dark:text-neutral-300 hover:bg-gray-100 dark:hover:bg-neutral-900 border border-transparent"
+              }
               ${!hasTravel && !isSelected ? "opacity-30 cursor-not-allowed" : "cursor-pointer"}
             `}
           >

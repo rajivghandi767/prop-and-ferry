@@ -61,8 +61,10 @@ class RouteViewSet(viewsets.ReadOnlyModelViewSet):
             return Response({'error': 'Missing parameters'}, status=400)
 
         try:
-            origin_loc = Location.objects.get(code=origin_query)
-            dest_loc = Location.objects.get(code=dest_query)
+            origin_loc = Location.objects.select_related('parent').prefetch_related(
+                'sub_locations', 'parent__sub_locations').get(code=origin_query)
+            dest_loc = Location.objects.select_related('parent').prefetch_related(
+                'sub_locations', 'parent__sub_locations').get(code=dest_query)
         except Location.DoesNotExist:
             return Response({'error': 'Location not found'}, status=404)
 
@@ -94,8 +96,10 @@ class RouteViewSet(viewsets.ReadOnlyModelViewSet):
             return Response({'error': 'Missing parameters'}, status=400)
 
         try:
-            origin_loc = Location.objects.get(code=origin_query)
-            dest_loc = Location.objects.get(code=dest_query)
+            origin_loc = Location.objects.select_related('parent').prefetch_related(
+                'sub_locations', 'parent__sub_locations').get(code=origin_query)
+            dest_loc = Location.objects.select_related('parent').prefetch_related(
+                'sub_locations', 'parent__sub_locations').get(code=dest_query)
             target_date = datetime.strptime(target_date_str, '%Y-%m-%d').date()
         except (Location.DoesNotExist, ValueError):
             return Response({'error': 'Invalid parameters'}, status=400)
@@ -244,7 +248,7 @@ class RouteViewSet(viewsets.ReadOnlyModelViewSet):
                         if l1.date != l2.date:
                             l1_data['layover_text'] = f"🌙 Overnight Transfer: {hours}h {mins}m to {l2.route.origin.name}"
                         else:
-                            l1_data['layover_text'] = f"🚕 {hours}h {mins}m Transfer to {l2.route.origin.name}"
+                            l1_data['layover_text'] = f"⛴️ {hours}h {mins}m Transfer to {l2.route.origin.name}"
 
                         day_itineraries.append(
                             {"id": f"c_fs_{l1.id}_{l2.id}", "legs": [l1_data, l2_data]})
