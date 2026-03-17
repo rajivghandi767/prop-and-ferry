@@ -37,7 +37,7 @@
     color: var(--color-brand-dark);
   }
 
-  /* Raw CSS for universal links, completely removing @apply */
+  /* Raw CSS for universal links */
   a:not([class]) {
     color: var(--color-neutral-600);
     transition-property: color, text-decoration-color;
