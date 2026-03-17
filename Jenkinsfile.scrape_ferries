@@ -1,0 +1,40 @@
+pipeline {
+    agent any
+
+    triggers {
+        // Runs at 04:45 AM every Sunday
+        cron('45 4 * * 0')
+    }
+
+    environment {
+        SSH_CRED_ID = "raspberry-pi-ssh"
+        DEPLOY_USER = "dietpi"
+        DEPLOY_HOST = "10.100.10.5"
+        DEPLOY_DIR  = "/opt/homelab-iac/services/apps/prop-and-ferry"
+    }
+
+    stages {
+        stage('Scrape Ferry Data') {
+            steps {
+                sshagent([SSH_CRED_ID]) {
+                    sh """
+                        ssh -o StrictHostKeyChecking=no ${DEPLOY_USER}@${DEPLOY_HOST} "
+                            cd ${DEPLOY_DIR}
+                            # Execute the ferry scraper inside the running backend container
+                            docker compose exec -T prop-ferry-backend python manage.py scrape_ferries
+                        "
+                    """
+                }
+            }
+        }
+    }
+    
+    post {
+        success {
+            echo "Successfully updated ferry schedules."
+        }
+        failure {
+            echo "Failed to scrape ferries. Check website structure and container status."
+        }
+    }
+}

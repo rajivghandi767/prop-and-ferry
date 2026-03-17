@@ -47,6 +47,17 @@ This tool is a showcase of building **Self-Hosted Microservices** and designing 
 
 ---
 
+## 📉 Architecture & Cost Optimization
+
+As a proof of concept running on a self-hosted Homelab (Raspberry Pi 4B), this project prioritizes extreme cost-efficiency and lean resource management.
+
+To stay within the Amadeus Self-Service Free Tier (<$5.00/mo) while maintaining 100% data accuracy regarding cancellations and schedule changes, the Flight Scraper is intentionally constrained:
+
+- **The Demo Window:** Flight schedules are swept once monthly, producing a highly accurate, rolling **14-day booking window**.
+- **Graph Traversal over DB Recursion:** To spare the host Pi's memory, complex layover logic is handled via an overnight-aware in-memory stitcher rather than heavy recursive PostgreSQL queries.
+
+---
+
 ## 🗺 Roadmap & Iteration
 
 This project follows an **Iterative MVP** methodology.

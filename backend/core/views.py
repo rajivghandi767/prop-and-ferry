@@ -71,10 +71,12 @@ class RouteViewSet(viewsets.ReadOnlyModelViewSet):
         origin_aliases = origin_loc.resolve_aliases()
         dest_aliases = dest_loc.resolve_aliases()
 
+        # Exclude sold-out flights from generating active dates on the frontend calendar
         flight_dates = FlightInstance.objects.filter(
             route__origin__code__in=origin_aliases,
             route__destination__code__in=dest_aliases,
-            route__is_active=True
+            route__is_active=True,
+            available_seats__gt=0
         ).values_list('date', flat=True).distinct()
 
         ferry_dates = Sailing.objects.filter(
@@ -115,7 +117,8 @@ class RouteViewSet(viewsets.ReadOnlyModelViewSet):
             route__origin__code__in=origin_aliases,
             route__destination__code__in=dest_aliases,
             date__range=[target_date, end_date],
-            route__is_active=True
+            route__is_active=True,
+            available_seats__gt=0
         ).select_related('route', 'route__carrier', 'route__origin', 'route__destination')
 
         direct_ferries = Sailing.objects.filter(
@@ -127,11 +130,12 @@ class RouteViewSet(viewsets.ReadOnlyModelViewSet):
 
         # --- 2. THE STITCHER (GRAPH TRAVERSAL) ---
 
-        # Level 1: Get all outgoing flights that are NOT direct
+        # Level 1: Get all outgoing flights that are NOT direct and NOT sold out
         leg1_flights = FlightInstance.objects.filter(
             route__origin__code__in=origin_aliases,
             date__range=[target_date, end_date],
-            route__is_active=True
+            route__is_active=True,
+            available_seats__gt=0
         ).exclude(route__destination__code__in=dest_aliases).select_related(
             'route', 'route__carrier', 'route__origin', 'route__destination'
         )
@@ -151,7 +155,8 @@ class RouteViewSet(viewsets.ReadOnlyModelViewSet):
             route__origin__code__in=expanded_hubs,
             route__destination__code__in=dest_aliases,
             date__range=[target_date, end_date],
-            route__is_active=True
+            route__is_active=True,
+            available_seats__gt=0
         ).select_related('route', 'route__carrier', 'route__origin', 'route__destination')
 
         leg2_ferries = Sailing.objects.filter(
