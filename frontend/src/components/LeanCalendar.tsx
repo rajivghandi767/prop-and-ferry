@@ -31,9 +31,9 @@ export function LeanCalendar({
   const daysOfWeek = ["Su", "Mo", "Tu", "We", "Th", "Fr", "Sa"];
 
   return (
-    <div className="w-full min-w-75 bg-white dark:bg-black rounded-xl border border-gray-200 dark:border-neutral-800 shadow-2xl p-4">
+    <div className="w-full min-w-75 bg-bg-light dark:bg-bg-dark rounded-xl border border-gray-200 dark:border-neutral-800 shadow-2xl p-4 transition-colors duration-200">
       {/* Header */}
-      <div className="flex justify-between items-center mb-4 text-black dark:text-white">
+      <div className="flex justify-between items-center mb-4 text-brand-light dark:text-brand-dark">
         <button
           type="button"
           onClick={prevMonth}
@@ -91,10 +91,10 @@ export function LeanCalendar({
               disabled={!hasTravel}
               className={`
                 p-2 rounded-full w-9 h-9 flex flex-col items-center justify-center text-sm mx-auto transition-all font-medium
-                ${isSelected ? "bg-blue-600 text-white font-bold shadow-md" : "text-neutral-700 dark:text-neutral-300"}
+                ${isSelected ? "bg-brand-light text-white dark:bg-brand-dark dark:text-black font-bold shadow-md" : "text-neutral-700 dark:text-neutral-300"}
                 ${!isSelected && hasTravel ? "bg-green-50 text-green-700 dark:bg-green-900/30 dark:text-green-400 hover:bg-green-100 dark:hover:bg-green-900/50" : ""}
                 ${!hasTravel && !isSelected ? "opacity-20 cursor-not-allowed" : ""}
-                ${isToday && !isSelected ? "border border-blue-500" : ""}
+                ${isToday && !isSelected ? "border border-brand-light dark:border-brand-dark" : ""}
               `}
             >
               {i + 1}

@@ -46,20 +46,19 @@ export function AirportSelect({
     setQuery(value);
   }, [value]);
 
-  // Filter Logic
+  // Filter Logic (Fixed to show parent airports)
   useEffect(() => {
     if (query.length > 0) {
       const lowerQuery = query.toLowerCase();
       const results = locations.filter((loc) => {
-        // A. Basic Search Match
         const matchesSearch =
           (loc.code || "").toLowerCase().includes(lowerQuery) ||
           (loc.city || "").toLowerCase().includes(lowerQuery) ||
           (loc.name || "").toLowerCase().includes(lowerQuery);
 
-        // B. EXCLUSION: Hide sub-terminals (like DMROS) because their parent (DOM) handles them
-        // If a location has a parent_code, it's a sub-terminal, so we hide it from the main list.
-        const isHidden = loc.parent_code !== null;
+        // Hide ONLY internal sub-terminals (like DMROS), keep airports like JFK/ORY visible
+        const isHidden =
+          loc.location_type === "PRT" && loc.parent_code !== null;
 
         return matchesSearch && !isHidden;
       });
@@ -90,16 +89,14 @@ export function AirportSelect({
   };
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const val = e.target.value;
+    // Force uppercase immediately for a uniform search experience
+    const val = e.target.value.toUpperCase();
     setQuery(val);
     onChange(val);
     if (val.length > 0) setIsOpen(true);
   };
 
-  // Helper to determine Badge Style & Text
-  // Pass the entire Location object in so we can check its flags
   const getBadgeInfo = (loc: Location) => {
-    // If it has children, it's a main island code like DOM or SLU
     if (loc.has_children) {
       return {
         label: "AIR / FERRY",
@@ -127,19 +124,18 @@ export function AirportSelect({
         {label}
       </label>
 
-      {/* 1. Added rounded-lg to match the date input box perfectly */}
+      {/* Styled using new theme tokens */}
       <input
         type="text"
         placeholder={placeholder}
-        className="w-full p-3 rounded-lg bg-white text-black border border-gray-300 focus:border-blue-500 focus:ring-1 focus:ring-blue-500 placeholder:normal-case transition-colors focus:outline-none"
+        className="w-full p-3 rounded-lg bg-bg-light dark:bg-bg-dark text-brand-light dark:text-brand-dark border border-gray-300 dark:border-neutral-700 focus:border-brand-light dark:focus:border-brand-dark focus:ring-1 focus:ring-brand-light dark:focus:ring-brand-dark placeholder:normal-case transition-colors focus:outline-none uppercase"
         value={query}
         onChange={handleChange}
         onFocus={() => query && setIsOpen(true)}
       />
 
-      {/* 2. Standardized dropdown menu with pure black/white and neutral borders */}
       {isOpen && filtered.length > 0 && (
-        <ul className="absolute top-full left-0 right-0 mt-1 max-h-60 overflow-y-auto bg-white dark:bg-black border border-gray-200 dark:border-neutral-800 rounded-lg shadow-xl z-50">
+        <ul className="absolute top-full left-0 right-0 mt-1 max-h-60 overflow-y-auto bg-bg-light dark:bg-bg-dark border border-gray-200 dark:border-neutral-800 rounded-lg shadow-xl z-50">
           {filtered.map((loc) => {
             const badge = getBadgeInfo(loc);
 
@@ -150,7 +146,7 @@ export function AirportSelect({
                 className="p-3 hover:bg-gray-50 dark:hover:bg-neutral-900 cursor-pointer border-b border-gray-100 dark:border-neutral-800 last:border-0 transition-colors"
               >
                 <div className="flex justify-between items-center">
-                  <span className="font-bold text-black dark:text-white">
+                  <span className="font-bold text-brand-light dark:text-brand-dark">
                     {loc.code}
                   </span>
                   <span className="text-xs text-neutral-500">

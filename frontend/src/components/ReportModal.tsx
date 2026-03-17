@@ -44,7 +44,7 @@ export function ReportModal() {
     <>
       <button
         onClick={() => setIsOpen(true)}
-        className="fixed bottom-6 right-6 bg-blue-600 hover:bg-blue-700 text-white rounded-full p-4 shadow-lg transition-transform hover:scale-105 z-50 flex items-center justify-center"
+        className="fixed bottom-6 right-6 bg-brand-light dark:bg-brand-dark text-white dark:text-black hover:opacity-90 rounded-full p-4 shadow-lg transition-transform hover:scale-105 z-50 flex items-center justify-center"
       >
         <svg
           xmlns="http://www.w3.org/2000/svg"
@@ -63,7 +63,7 @@ export function ReportModal() {
 
       {isOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-60 backdrop-blur-sm p-4">
-          <div className="bg-white dark:bg-black text-neutral-900 dark:text-white border border-gray-200 dark:border-neutral-800 rounded-lg p-6 w-full max-w-md shadow-2xl relative">
+          <div className="bg-bg-light dark:bg-bg-dark text-brand-light dark:text-brand-dark border border-gray-200 dark:border-neutral-800 rounded-lg p-6 w-full max-w-md shadow-2xl relative transition-colors duration-200">
             <button
               onClick={() => setIsOpen(false)}
               className="absolute top-4 right-4 opacity-50 hover:opacity-100 transition-opacity"
@@ -86,7 +86,7 @@ export function ReportModal() {
                   <select
                     value={issueType}
                     onChange={(e) => setIssueType(e.target.value)}
-                    className="w-full rounded-md border border-gray-300 bg-white text-black p-2.5 focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500"
+                    className="w-full rounded-md border border-gray-300 dark:border-neutral-700 bg-bg-light dark:bg-bg-dark text-brand-light dark:text-brand-dark p-2.5 focus:outline-none focus:border-brand-light dark:focus:border-brand-dark focus:ring-1 focus:ring-brand-light dark:focus:ring-brand-dark transition-colors"
                   >
                     <option value="routing_error">
                       Bad Route or Connection
@@ -109,7 +109,7 @@ export function ReportModal() {
                     placeholder="Provide details..."
                     value={userNote}
                     onChange={(e) => setUserNote(e.target.value)}
-                    className="w-full rounded-md border border-gray-300 bg-white text-black p-2.5 focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500 resize-none"
+                    className="w-full rounded-md border border-gray-300 dark:border-neutral-700 bg-bg-light dark:bg-bg-dark text-brand-light dark:text-brand-dark p-2.5 focus:outline-none focus:border-brand-light dark:focus:border-brand-dark focus:ring-1 focus:ring-brand-light dark:focus:ring-brand-dark resize-none transition-colors"
                   />
                 </div>
 
@@ -124,7 +124,7 @@ export function ReportModal() {
                   <button
                     type="submit"
                     disabled={isSubmitting}
-                    className="px-4 py-2 text-sm font-medium text-white bg-blue-600 rounded-md hover:bg-blue-700 disabled:opacity-50 transition-colors"
+                    className="px-4 py-2 text-sm font-medium text-white dark:text-black bg-brand-light dark:bg-brand-dark rounded-md hover:opacity-90 disabled:opacity-50 transition-all"
                   >
                     {isSubmitting ? "Sending..." : "Submit Report"}
                   </button>

@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from "react";
 import type { Itinerary, ApiLeg, ApiResponse } from "./types";
-import { useTheme } from "./hooks/useTheme";
+import { useThemeContext } from "./context/ThemeContext";
 import { Sun, Moon, Plane, Ship } from "lucide-react";
 
 // --- IMPORTED COMPONENTS ---
@@ -71,7 +71,7 @@ const formatSchedule = (days?: string) => {
 };
 
 function App() {
-  const { theme, toggleTheme } = useTheme();
+  const { theme, toggleTheme } = useThemeContext();
 
   const [origin, setOrigin] = useState("");
   const [destination, setDestination] = useState("");
@@ -182,18 +182,18 @@ function App() {
   };
 
   return (
-    <div className="min-h-screen bg-white dark:bg-black flex flex-col font-sans text-neutral-900 dark:text-white transition-colors duration-200">
-      <header className="bg-white dark:bg-black border-b border-gray-200 dark:border-neutral-800 py-3 sticky top-0 z-50">
+    <div className="min-h-screen bg-bg-light dark:bg-bg-dark flex flex-col font-sans text-neutral-900 dark:text-white transition-colors duration-200">
+      <header className="bg-bg-light dark:bg-bg-dark border-b border-gray-200 dark:border-neutral-800 py-3 sticky top-0 z-50 transition-colors duration-200">
         <div className="container mx-auto px-4 flex items-center justify-between min-h-12">
           <div className="flex items-center justify-start w-24">
             <ProjectSwitcher align="left" />
           </div>
           <div className="text-center flex-1 flex justify-center items-center gap-2">
-            <div className="flex -space-x-1 text-blue-600 dark:text-blue-400">
+            <div className="flex -space-x-1 text-brand-light dark:text-brand-dark">
               <Plane size={24} />
               <Ship size={24} />
             </div>
-            <h1 className="text-xl font-bold text-blue-600 dark:text-blue-400">
+            <h1 className="text-xl font-bold text-brand-light dark:text-brand-dark">
               Prop & Ferry
             </h1>
           </div>
@@ -213,7 +213,7 @@ function App() {
           <div className="text-center mb-10 mt-10">
             <h2 className="text-4xl font-extrabold mb-4 text-black dark:text-white">
               Unlock the{" "}
-              <span className="text-blue-600 dark:text-blue-400">
+              <span className="text-brand-light dark:text-brand-dark">
                 Hidden Caribbean
               </span>
             </h2>
@@ -223,7 +223,7 @@ function App() {
           </div>
         )}
 
-        <div className="bg-white dark:bg-black p-6 rounded-xl shadow-md w-full max-w-4xl border border-gray-200 dark:border-neutral-800 mb-8">
+        <div className="bg-bg-light dark:bg-bg-dark p-6 rounded-xl shadow-md w-full max-w-4xl border border-gray-200 dark:border-neutral-800 mb-8 transition-colors duration-200">
           <div className="flex flex-col md:flex-row gap-4 items-center md:items-end">
             <div className="w-full md:flex-1">
               <AirportSelect
@@ -236,7 +236,7 @@ function App() {
 
             <button
               onClick={handleSwap}
-              className="p-3 rounded-full bg-gray-100 dark:bg-neutral-900 hover:bg-gray-200 dark:hover:bg-neutral-800 text-blue-600 transition-colors transform md:rotate-90"
+              className="p-3 rounded-full bg-gray-100 dark:bg-neutral-900 hover:bg-gray-200 dark:hover:bg-neutral-800 text-brand-light dark:text-brand-dark transition-colors transform md:rotate-90"
             >
               ⇅
             </button>
@@ -256,7 +256,7 @@ function App() {
               </label>
               <button
                 onClick={() => setIsCalendarOpen(!isCalendarOpen)}
-                className="w-full p-3 text-left font-medium bg-white dark:bg-black text-black dark:text-white rounded-lg border border-gray-300 dark:border-neutral-700 focus:border-blue-500 focus:ring-1 focus:ring-blue-500 transition-colors"
+                className="w-full p-3 text-left font-medium bg-bg-light dark:bg-bg-dark text-black dark:text-white rounded-lg border border-gray-300 dark:border-neutral-700 focus:border-brand-light dark:focus:border-brand-dark focus:ring-1 focus:ring-brand-light dark:focus:ring-brand-dark transition-colors"
               >
                 {formatDateShort(date)}
               </button>
@@ -277,7 +277,7 @@ function App() {
             <button
               onClick={handleSearchSubmit}
               disabled={loading}
-              className="w-full md:w-1/3 bg-blue-600 hover:bg-blue-700 text-white font-bold py-3 px-6 rounded-lg disabled:opacity-50 transition-colors shadow-md"
+              className="w-full md:w-1/3 bg-brand-light dark:bg-brand-dark text-white dark:text-black hover:opacity-90 font-bold py-3 px-6 rounded-lg disabled:opacity-50 transition-colors shadow-md"
             >
               {loading ? "Searching..." : "Find Routes"}
             </button>
@@ -312,7 +312,7 @@ function App() {
           {itineraries.map((itinerary) => (
             <div
               key={itinerary.id}
-              className="bg-white dark:bg-black p-6 rounded-lg shadow-sm border border-gray-200 dark:border-neutral-800 hover:shadow-md transition-all"
+              className="bg-bg-light dark:bg-bg-dark p-6 rounded-lg shadow-sm border border-gray-200 dark:border-neutral-800 hover:shadow-md transition-all"
             >
               {itinerary.legs.map((leg: ApiLeg, i: number) => (
                 <div key={i}>
@@ -360,7 +360,7 @@ function App() {
 
                         <div className="flex items-center gap-2 mt-2">
                           <span
-                            className={`text-[10px] px-2 py-0.5 rounded font-bold uppercase ${leg.is_ferry ? "bg-indigo-100 text-indigo-700 dark:bg-indigo-900/50 dark:text-indigo-300" : "bg-blue-100 text-blue-700 dark:bg-blue-900/50 dark:text-blue-300"}`}
+                            className={`text-[10px] px-2 py-0.5 rounded font-bold uppercase ${leg.is_ferry ? "bg-indigo-100 text-indigo-700 dark:bg-indigo-900/50 dark:text-indigo-300" : "bg-brand-light/10 text-brand-light dark:bg-brand-dark/20 dark:text-brand-dark"}`}
                           >
                             {leg.is_ferry ? "Ferry" : "Flight"}
                           </span>
@@ -377,13 +377,13 @@ function App() {
                         </div>
 
                         {leg.days_of_operation && !leg.is_ferry ? (
-                          <div className="text-blue-500/80 dark:text-blue-400/80 text-xs italic mt-1">
+                          <div className="text-brand-light/80 dark:text-brand-dark/80 text-xs italic mt-1">
                             {formatSchedule(leg.days_of_operation)}
                           </div>
                         ) : (
                           <div className="flex gap-2 items-center mt-1">
                             <span
-                              className={`text-xs italic ${leg.is_ferry ? "text-indigo-500/80 dark:text-indigo-400/80" : "text-blue-500/80 dark:text-blue-400/80"}`}
+                              className={`text-xs italic ${leg.is_ferry ? "text-indigo-500/80 dark:text-indigo-400/80" : "text-brand-light/80 dark:text-brand-dark/80"}`}
                             >
                               {leg.is_ferry
                                 ? "Price Last Seen"
@@ -406,7 +406,7 @@ function App() {
                             href={leg.carrier.website}
                             target="_blank"
                             rel="noreferrer"
-                            className="bg-blue-600 hover:bg-blue-700 text-white text-xs px-4 py-2 rounded-full font-bold shadow-sm"
+                            className="bg-brand-light dark:bg-brand-dark hover:opacity-90 text-white dark:text-black text-xs px-4 py-2 rounded-full font-bold shadow-sm"
                           >
                             Book Direct
                           </a>
@@ -425,7 +425,7 @@ function App() {
         </div>
       </main>
 
-      <footer className="bg-white dark:bg-black border-t border-gray-200 dark:border-neutral-800 py-8">
+      <footer className="bg-bg-light dark:bg-bg-dark border-t border-gray-200 dark:border-neutral-800 py-8 transition-colors duration-200">
         <div className="container mx-auto px-4 text-center">
           <div className="flex justify-center items-center gap-2 mb-4">
             <div className="flex -space-x-1 text-neutral-700 dark:text-neutral-300">
@@ -439,7 +439,7 @@ function App() {
           <div className="mb-4">
             <a
               href="mailto:dev@rajivwallace.com"
-              className="text-blue-600 dark:text-blue-400 hover:underline text-sm font-medium transition-colors"
+              className="text-brand-light dark:text-brand-dark hover:underline text-sm font-medium transition-colors"
             >
               dev@rajivwallace.com
             </a>
