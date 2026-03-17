@@ -78,6 +78,8 @@ class ItineraryLegSerializer(serializers.Serializer):
     aircraft_type = serializers.SerializerMethodField()
     days_of_operation = serializers.SerializerMethodField()
     price_text = serializers.SerializerMethodField()
+    available_seats = serializers.SerializerMethodField()
+    last_seen_at = serializers.SerializerMethodField()
 
     def get_is_ferry(self, obj):
         return isinstance(obj, Sailing)
@@ -123,8 +125,13 @@ class ItineraryLegSerializer(serializers.Serializer):
         if isinstance(obj, Sailing):
             return obj.price_text
         if getattr(obj, 'price_amount', None):
-            return f"${obj.price_amount} {obj.currency}"
+            return f"{obj.currency} {obj.price_amount}"
         return None
+
+    def get_available_seats(self, obj):
+        if isinstance(obj, Sailing):
+            return None
+        return getattr(obj, 'available_seats', None)
 
     def get_last_seen_at(self, obj):
         if hasattr(obj, 'last_seen_at') and obj.last_seen_at:
