@@ -26,7 +26,11 @@ export interface ApiLeg {
   flight_number?: string;
   aircraft_type?: string;
   days_of_operation?: string;
+  
+  // Cleaned up Pricing & Seats
   price_text?: string;
+  available_seats?: number;
+  
   layover_text?: string;
   last_seen_at?: string;
 }

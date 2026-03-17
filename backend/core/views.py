@@ -225,9 +225,9 @@ class RouteViewSet(viewsets.ReadOnlyModelViewSet):
 
                         # Dynamically flag if the layover spills into the next day
                         if l1.date != l2.date:
-                            l1_data['layover_text'] = f"🌙 Overnight Layover: {hours}h {mins}m in {l1.route.destination.city}"
+                            l1_data['layover_text'] = f"🌙 Overnight Layover: {hours}h {mins}m in {l1.route.destination.city} • Connect via Flight"
                         else:
-                            l1_data['layover_text'] = f"{hours}h {mins}m Layover in {l1.route.destination.city}"
+                            l1_data['layover_text'] = f"✈️ {hours}h {mins}m Layover in {l1.route.destination.city} • Connect via Flight"
 
                         day_itineraries.append(
                             {"id": f"c_ff_{l1.id}_{l2.id}", "legs": [l1_data, l2_data]})
@@ -251,9 +251,9 @@ class RouteViewSet(viewsets.ReadOnlyModelViewSet):
 
                         # Dynamically flag if the layover spills into the next day
                         if l1.date != l2.date:
-                            l1_data['layover_text'] = f"🌙 Overnight Transfer: {hours}h {mins}m to {l2.route.origin.name}"
+                            l1_data['layover_text'] = f"🌙 Overnight Layover: {hours}h {mins}m in {l1.route.destination.city} • Connect via Ferry"
                         else:
-                            l1_data['layover_text'] = f"⛴️ {hours}h {mins}m Transfer to {l2.route.origin.name}"
+                            l1_data['layover_text'] = f"⛴️ {hours}h {mins}m Layover in {l1.route.destination.city} • Connect via Ferry"
 
                         day_itineraries.append(
                             {"id": f"c_fs_{l1.id}_{l2.id}", "legs": [l1_data, l2_data]})

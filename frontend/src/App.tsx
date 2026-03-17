@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef } from "react";
 import type { Itinerary, ApiLeg, ApiResponse } from "./types";
 import { useThemeContext } from "./context/ThemeContext";
-import { Sun, Moon, Plane, Ship } from "lucide-react";
+import { Sun, Moon, Plane, Ship, Users } from "lucide-react";
 
 // --- IMPORTED COMPONENTS ---
 import { AirportSelect } from "./components/AirportSelect";
@@ -48,27 +48,7 @@ const formatDuration = (minutes: number | null) => {
   return `${Math.floor(minutes / 60)}h ${minutes % 60}m`;
 };
 
-const formatSchedule = (days?: string) => {
-  if (!days) return "";
-  if (days.includes("1234567")) return "Runs Daily";
-  if (days === "12345") return "Runs Mon-Fri";
-  const map: Record<string, string> = {
-    "1": "Mon",
-    "2": "Tue",
-    "3": "Wed",
-    "4": "Thu",
-    "5": "Fri",
-    "6": "Sat",
-    "7": "Sun",
-  };
-  return (
-    "Runs " +
-    days
-      .split("")
-      .map((d) => map[d])
-      .join(", ")
-  );
-};
+type FilterType = "all" | "ferry" | "flight";
 
 function App() {
   const { theme, toggleTheme } = useThemeContext();
@@ -83,6 +63,7 @@ function App() {
   const calendarRef = useRef<HTMLDivElement>(null);
 
   const [itineraries, setItineraries] = useState<Itinerary[]>([]);
+  const [filter, setFilter] = useState<FilterType>("all");
   const [displayDate, setDisplayDate] = useState("");
   const [dateChanged, setDateChanged] = useState(false);
   const [loading, setLoading] = useState(false);
@@ -128,6 +109,7 @@ function App() {
     setDateChanged(false);
     setDisplayDate(searchDate);
     setSearchedDate(searchDate);
+    setFilter("all"); // Reset filter on new search
 
     try {
       const params = new URLSearchParams({
@@ -181,6 +163,21 @@ function App() {
     if (origin && destination) performSearch(dateStr);
   };
 
+  // --- FILTER & SORT LOGIC ---
+  const displayedItineraries = itineraries
+    .filter((itinerary) => {
+      const hasFerry = itinerary.legs.some((leg) => leg.is_ferry);
+      if (filter === "ferry") return hasFerry;
+      if (filter === "flight") return !hasFerry;
+      return true;
+    })
+    .sort((a, b) => {
+      // Prioritize itineraries that include a ferry connection
+      const aHasFerry = a.legs.some((leg) => leg.is_ferry) ? 1 : 0;
+      const bHasFerry = b.legs.some((leg) => leg.is_ferry) ? 1 : 0;
+      return bHasFerry - aHasFerry;
+    });
+
   return (
     <div className="min-h-screen bg-bg-light dark:bg-bg-dark flex flex-col font-sans text-neutral-900 dark:text-white transition-colors duration-200">
       <header className="bg-bg-light dark:bg-bg-dark border-b border-gray-200 dark:border-neutral-800 py-3 sticky top-0 z-50 transition-colors duration-200">
@@ -189,11 +186,11 @@ function App() {
             <ProjectSwitcher align="left" />
           </div>
           <div className="text-center flex-1 flex justify-center items-center gap-2">
-            <div className="flex -space-x-1 text-brand-light dark:text-brand-dark">
+            <div className="flex -space-x-1 text-black dark:text-white">
               <Plane size={24} />
               <Ship size={24} />
             </div>
-            <h1 className="text-xl font-bold text-brand-light dark:text-brand-dark">
+            <h1 className="text-xl font-bold text-black dark:text-white">
               Prop & Ferry
             </h1>
           </div>
@@ -223,7 +220,7 @@ function App() {
           </div>
         )}
 
-        <div className="bg-bg-light dark:bg-bg-dark p-6 rounded-xl shadow-md w-full max-w-4xl border border-gray-200 dark:border-neutral-800 mb-8 transition-colors duration-200">
+        <div className="bg-bg-light dark:bg-bg-dark p-6 rounded-xl shadow-md w-full max-w-4xl border border-gray-200 dark:border-neutral-800 mb-4 transition-colors duration-200">
           <div className="flex flex-col md:flex-row gap-4 items-center md:items-end">
             <div className="w-full md:flex-1">
               <AirportSelect
@@ -284,6 +281,16 @@ function App() {
           </div>
         </div>
 
+        {/* POC Disclaimer */}
+        <div className="w-full max-w-4xl text-center mb-8 px-4 animate-fade-in">
+          <p className="text-xs text-neutral-500 dark:text-neutral-400 bg-gray-50 dark:bg-neutral-900/40 border border-gray-200 dark:border-neutral-800 rounded-lg p-3">
+            <strong>POC Notice:</strong> Flight schedules are actively indexed
+            for a rolling 14-day window originating strictly from Gateways in{" "}
+            <strong>New York (NYC)</strong>, <strong>London (LON)</strong>, and{" "}
+            <strong>Paris (PAR)</strong>.
+          </p>
+        </div>
+
         <div className="w-full max-w-3xl space-y-4 mb-20">
           {(itineraries.length > 0 || dateChanged) && (
             <div className="mb-6 animate-fade-in-up">
@@ -292,6 +299,27 @@ function App() {
                 onDateSelect={handleDateSelect}
                 availableDates={availableDates}
               />
+            </div>
+          )}
+
+          {/* Segmented Filter Control */}
+          {itineraries.length > 0 && (
+            <div className="flex justify-center gap-2 mb-6 animate-fade-in">
+              {(["all", "ferry", "flight"] as FilterType[]).map((type) => (
+                <button
+                  key={type}
+                  onClick={() => setFilter(type)}
+                  className={`px-4 py-2 rounded-full text-xs sm:text-sm font-semibold transition-colors ${
+                    filter === type
+                      ? "bg-brand-light dark:bg-brand-dark text-white dark:text-black shadow-sm"
+                      : "bg-gray-100 dark:bg-neutral-900 text-neutral-600 dark:text-neutral-400 hover:bg-gray-200 dark:hover:bg-neutral-800"
+                  }`}
+                >
+                  {type === "all" && "All Routes"}
+                  {type === "ferry" && "Includes Ferry"}
+                  {type === "flight" && "Flights Only"}
+                </button>
+              ))}
             </div>
           )}
 
@@ -309,10 +337,10 @@ function App() {
             </div>
           )}
 
-          {itineraries.map((itinerary) => (
+          {displayedItineraries.map((itinerary) => (
             <div
               key={itinerary.id}
-              className="bg-bg-light dark:bg-bg-dark p-6 rounded-lg shadow-sm border border-gray-200 dark:border-neutral-800 hover:shadow-md transition-all"
+              className="bg-bg-light dark:bg-bg-dark p-6 rounded-lg shadow-sm border border-gray-200 dark:border-neutral-800 hover:shadow-md transition-all animate-fade-in-up"
             >
               {itinerary.legs.map((leg: ApiLeg, i: number) => (
                 <div key={i}>
@@ -326,7 +354,7 @@ function App() {
 
                   <div className={`${i > 0 ? "pt-2" : ""}`}>
                     <div className="flex justify-between items-start">
-                      <div>
+                      <div className="flex-1 pr-4">
                         <div className="flex flex-col">
                           <div className="text-lg font-bold text-black dark:text-white flex items-center gap-2">
                             <span>{leg.origin.city || leg.origin.code}</span>
@@ -358,46 +386,83 @@ function App() {
                           </div>
                         </div>
 
-                        <div className="flex items-center gap-2 mt-2">
+                        {/* 1. Scannable Carrier & Flight Info */}
+                        <div className="flex items-center flex-wrap gap-2 mt-2.5">
                           <span
-                            className={`text-[10px] px-2 py-0.5 rounded font-bold uppercase ${leg.is_ferry ? "bg-indigo-100 text-indigo-700 dark:bg-indigo-900/50 dark:text-indigo-300" : "bg-brand-light/10 text-brand-light dark:bg-brand-dark/20 dark:text-brand-dark"}`}
+                            className={`text-[10px] px-2 py-0.5 rounded font-bold uppercase tracking-wider flex items-center gap-1 ${
+                              leg.is_ferry
+                                ? "bg-indigo-100 text-indigo-700 dark:bg-indigo-900/40 dark:text-indigo-300"
+                                : "bg-sky-100 text-sky-700 dark:bg-sky-900/40 dark:text-sky-300"
+                            }`}
                           >
-                            {leg.is_ferry ? "Ferry" : "Flight"}
+                            {leg.is_ferry ? "⛴ Ferry" : "✈ Flight"}
                           </span>
-                          <span className="text-neutral-500 dark:text-neutral-400 text-xs">
-                            <span className="font-medium text-neutral-700 dark:text-neutral-300">
+
+                          <span className="text-neutral-500 dark:text-neutral-400 text-xs flex flex-wrap items-center gap-1.5">
+                            <span
+                              className={`font-bold ${
+                                leg.is_ferry
+                                  ? "text-indigo-700 dark:text-indigo-400"
+                                  : "text-sky-700 dark:text-sky-400"
+                              }`}
+                            >
                               {leg.carrier.name}
                             </span>
-                            {leg.flight_number
-                              ? ` • ${leg.flight_number}`
-                              : ` (${leg.carrier.code})`}
-                            {leg.aircraft_type && ` • ${leg.aircraft_type}`}
-                            {` • ${formatDuration(leg.duration_minutes)}`}
+                            <span className="opacity-40">•</span>
+                            <span>
+                              {leg.flight_number
+                                ? leg.flight_number
+                                : leg.carrier.code}
+                            </span>
+                            {leg.aircraft_type && (
+                              <>
+                                <span className="opacity-40">•</span>
+                                <span>{leg.aircraft_type}</span>
+                              </>
+                            )}
+                            <span className="opacity-40">•</span>
+                            <span>{formatDuration(leg.duration_minutes)}</span>
                           </span>
                         </div>
 
-                        {leg.days_of_operation && !leg.is_ferry ? (
-                          <div className="text-brand-light/80 dark:text-brand-dark/80 text-xs italic mt-1">
-                            {formatSchedule(leg.days_of_operation)}
+                        {/* 2. Unified "Last Seen" Estimates Block */}
+                        <div className="mt-3.5 pt-3 border-t border-gray-100 dark:border-neutral-800/50 flex flex-col gap-2">
+                          <div className="text-[10px] font-bold text-neutral-400 dark:text-neutral-500 uppercase tracking-widest">
+                            Historical Data (Last Seen)
                           </div>
-                        ) : (
-                          <div className="flex gap-2 items-center mt-1">
-                            <span
-                              className={`text-xs italic ${leg.is_ferry ? "text-indigo-500/80 dark:text-indigo-400/80" : "text-brand-light/80 dark:text-brand-dark/80"}`}
-                            >
-                              {leg.is_ferry
-                                ? "Price Last Seen"
-                                : leg.last_seen_at
-                                  ? `Last seen: ${leg.last_seen_at}`
-                                  : "Flight confirmed"}
-                            </span>
-                            {leg.price_text && (
-                              <span className="text-xs font-bold text-green-600 dark:text-green-400 bg-green-50 dark:bg-green-900/30 px-2 rounded-full">
+
+                          <div className="flex flex-wrap items-center gap-2">
+                            {/* Price Pill */}
+                            {leg.price_text ? (
+                              <span className="text-xs font-bold text-emerald-700 dark:text-emerald-300 bg-emerald-50 dark:bg-emerald-900/30 px-2.5 py-1 rounded-md border border-emerald-200/50 dark:border-emerald-800/30">
                                 {leg.price_text}
                               </span>
+                            ) : (
+                              <span className="text-xs font-medium text-neutral-500 bg-gray-50 dark:bg-neutral-800 px-2.5 py-1 rounded-md border border-gray-200 dark:border-neutral-700">
+                                Check Site
+                              </span>
                             )}
+
+                            {/* Seats Pill */}
+                            <div
+                              className={`flex items-center gap-1.5 text-xs font-bold px-2.5 py-1 rounded-md border ${
+                                leg.is_ferry
+                                  ? "bg-indigo-50 text-indigo-600 border-indigo-100 dark:bg-indigo-900/20 dark:text-indigo-300 dark:border-indigo-800/30"
+                                  : "bg-amber-50 text-amber-700 border-amber-100 dark:bg-amber-900/20 dark:text-amber-400 dark:border-amber-800/30"
+                              }`}
+                            >
+                              <Users
+                                size={14}
+                                className={leg.is_ferry ? "opacity-70" : ""}
+                              />
+                              <span>
+                                {leg.is_ferry
+                                  ? "General Seating"
+                                  : `${leg.available_seats !== undefined && leg.available_seats !== null ? leg.available_seats : "--"} Seats Left`}
+                              </span>
+                            </div>
                           </div>
-                        )}
+                        </div>
                       </div>
 
                       <div className="text-right flex flex-col items-end gap-2">
@@ -422,6 +487,11 @@ function App() {
               ))}
             </div>
           ))}
+          {displayedItineraries.length === 0 && itineraries.length > 0 && (
+            <div className="text-center py-10 text-neutral-500">
+              No routes match the selected filter.
+            </div>
+          )}
         </div>
       </main>
 
