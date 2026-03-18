@@ -1,123 +1,119 @@
-# Prop & Ferry ✈️⚓
+# ✈️⛴️ Prop & Ferry
 
-### The "Last Mile" Caribbean Routing Engine
+**Prop & Ferry** is a full-stack Caribbean travel aggregator and proof-of-concept application designed to bridge the gap between major international airline routes and regional airlines (Liat20, Winair, interCaribbean) and island-hopping ferries (like FRS Express).
 
-![Status](https://img.shields.io/badge/Status-Prototype-blue) ![Stack](https://img.shields.io/badge/Stack-Django%20|%20React%20|%20Docker-green) ![License](https://img.shields.io/badge/License-MIT-lightgrey)
+Many Caribbean destinations (like Dominica) lack direct international flights, requiring complex, unlinked transfers between planes and ferries. This application automatically maps and stitches these disparate transit networks together, surfacing overnight-aware connections and providing a unified booking interface.
 
-**"How do I actually get there?"**
-
-I was born and raised in Dominica 🇩🇲. Because the island has limited direct flights from the mainland US, traveling home is a logistical puzzle. Getting to nearby hubs like Antigua or Barbados is easy, but crossing that final stretch of ocean is often a nightmare.
-
-Major aggregators (Google Flights, Expedia) are excellent at getting you to the Caribbean, but they fail at navigating _through_ it. They often lack data for small prop planes, inter-island ferries, and the complex, multi-modal connections required to reach "hard-to-get-to" gems.
-
-**Prop & Ferry** is my engineering solution to this real-world business problem. It’s a specialized routing engine designed to stitch together major international flight legs with the regional "island hoppers" and maritime routes that big search engines ignore.
+**🌍 [View the Live Demo: prop-ferry.rajivwallace.com](https://prop-ferry.rajivwallace.com)**
 
 ---
 
-## 💡 The Product Solution
+## 🚀 Tech Stack
 
-**Prop & Ferry** acts as an intelligent middleman. It doesn't just search flights; it builds **comprehensive itineraries**.
+**Frontend:**
 
-This project demonstrates strong **product-minded engineering**—identifying a fragmented data ecosystem and building a centralized, user-friendly solution to solve it.
+- React 19 & TypeScript
+- Tailwind CSS v4 (Custom UI with Dark/Light mode)
+- Vite
 
-### Core Capabilities
+**Backend:**
 
-- **Hybrid Routing:** Seamlessly combines major airline data (JetBlue, American) with localized transport (L'Express des Iles ferries, regional prop carriers) into a single, navigable view.
-- **Award Travel Logic:** Built-in intelligence for travel optimization. The system suggests loyalty program strategies (e.g., "Consider using British Airways Avios for this short-haul American Airlines leg").
-- **"Vibe" Search (Roadmap):** Allowing users to search by intent ("Quiet jungle retreat") rather than just airport codes, utilizing LLMs to map intent to specific islands.
+- Django & Django REST Framework (DRF)
+- PostgreSQL (Containerized)
+- BeautifulSoup4 (Ferry Web Scraping)
+- Amadeus API (Flight Data)
 
----
+**Infrastructure & CI/CD:**
 
-## 🛠 Technical Architecture & System Design
-
-This tool is a showcase of building **Self-Hosted Microservices** and designing data pipelines to handle unstructured and un-federated data sources.
-
-### The Stack
-
-- **Frontend:** React + TypeScript + Vite + Tailwind CSS
-- **Backend:** Python + Django REST Framework
-- **Database:** PostgreSQL
-- **Infrastructure:** Docker Compose, Nginx, Linux (Raspberry Pi 4B)
-
-### Engineering Highlights
-
-- **Data Aggregation Strategy:** To keep operational costs at zero (Zero-Cost Architecture), the backend leverages a mix of the Amadeus Self-Service API (free tier) and targeted web scraping scripts to pull in ferry and regional flight schedules that aren't available on standard GDS (Global Distribution Systems).
-- **Custom Routing Algorithm:** Designed backend logic to calculate feasible layovers between distinct modes of transport (e.g., ensuring a user has enough time to take a taxi from the airport to the ferry terminal).
-- **Resource Efficiency:** Built to run smoothly within the constrained RAM and CPU limits of a Raspberry Pi home lab, relying on optimized container builds, shared database instances, and efficient database query structuring.
+- Self-hosted on a Raspberry Pi 4B (DietPi OS)
+- Docker & Docker Compose
+- Jenkins (Automated ETL Pipelines)
+- Nginx Proxy Manager & Cloudflare
+- Discord Webhook Alerts
 
 ---
 
-## 📉 Architecture & Cost Optimization
+## 🧠 Core Architecture & Features
 
-As a proof of concept running on a self-hosted Homelab (Raspberry Pi 4B), this project prioritizes extreme cost-efficiency and lean resource management.
+### 1. In-Memory Graph Traversal (The "Stitcher")
 
-To stay within the Amadeus Self-Service Free Tier (<$5.00/mo) while maintaining 100% data accuracy regarding cancellations and schedule changes, the Flight Scraper is intentionally constrained:
+Rather than relying on computationally expensive recursive SQL queries, the backend pulls normalized route data and uses O(1) set lookups to map topologies in memory. The stitcher natively understands overnight delays, dynamically flagging connections that require a hotel stay before an onward ferry transfer.
 
-- **The Demo Window:** Flight schedules are swept once monthly, producing a highly accurate, rolling **14-day booking window**.
-- **Graph Traversal over DB Recursion:** To spare the host Pi's memory, complex layover logic is handled via an overnight-aware in-memory stitcher rather than heavy recursive PostgreSQL queries.
+### 2. Dual-Source ETL Pipeline
 
----
+The database is actively maintained by two distinct, automated scrapers triggered by Jenkins cron jobs:
 
-## 🗺 Roadmap & Iteration
-
-This project follows an **Iterative MVP** methodology.
-
-### Phase 1: The MVP (Current Status)
-
-- [x] **Infrastructure:** Dockerized Django/React skeleton running via Nginx reverse proxy.
-- [x] **Frontend:** Responsive landing page and dynamic search UI.
-- [x] **Data Modeling:** Complex relational models for Carriers, Locations, Routes, and Transport Modes.
-- [x] **Ferry Data Pipeline:** Custom Django management commands to scrape and seed regional ferry schedules.
-
-### Phase 2: The "Smart" Layer (In Progress)
-
-- [ ] **Prop & Ferry Algorithm:** Finalizing the custom algorithm to stitch Flight -> Ferry connections seamlessly.
-- [ ] **Live API Integration:** Connecting the Amadeus API to pull real-time jet availability to regional hubs.
-- [ ] **AI Integration:** Implementing LLM-based destination intent mapping.
+- **The Flight Scraper:** Interfaces with the Amadeus API to pull active schedules, pricing, and seat availability.
+- **The Ferry Scraper:** Uses `requests` and `BeautifulSoup` to scrape, parse, and normalize ferry schedules (FRS-Express) into the application's standard `ApiLeg` contract.
 
 ---
 
-## 🚀 Getting Started (Local Dev)
+## 📉 Engineering Constraints & Cost Optimization
 
-You can run this project locally without Docker for rapid iteration, or utilize the provided Dockerfiles for production parity.
+As a proof of concept running on a self-hosted Homelab, this project prioritizes extreme cost-efficiency, lean resource management, and hardware longevity.
+
+### Achieving a $0.00 API Budget
+
+Amadeus API queries are strictly constrained to remain within the Self-Service Free Tier (~3,000 calls/month). To achieve continuous coverage without incurring charges:
+
+- **MAC Compression:** International origins are restricted to Metropolitan Area Codes (`NYC`, `LON`, `PAR`). This forces the API to search up to a dozen physical airports simultaneously while only charging for 3 API requests.
+- **Rolling 14-Day Window:** The CI/CD pipeline runs a bi-weekly sweep, overwriting the database to maintain a highly accurate, rolling two-week booking window that naturally catches airline cancellations and sold-out inventory.
+
+### Raspberry Pi Hardware Protection
+
+To protect the host SD card from I/O degradation and database bloat:
+
+- The ferry scraper executes within an `atomic` database transaction, cleanly wiping and replacing the current schedule without locking the UI.
+- Both scrapers actively prune historical (past-date) transit records on initialization to keep PostgreSQL queries lightning fast.
+
+---
+
+## ⚙️ CI/CD & Monitoring
+
+Automated Jenkins pipelines handle the data fetching directly within the production Docker containers via SSH:
+
+- **Flights:** Runs at `04:30 AM` on the 1st and 15th of the month.
+- **Ferries:** Runs at `04:45 AM` every Sunday.
+- **Alerting:** If Amadeus returns an unknown airport code or a new airline carrier, the backend triggers a Discord Webhook, alerting the developer to enrich the database topology manually.
+
+---
+
+## 💻 Local Development
 
 ### Prerequisites
 
-- Python 3.10+
-- Node.js 20+
-- PostgreSQL
+- Docker & Docker Compose
+- Amadeus API Keys
 
-### 1. Clone & Setup
+### Quickstart
 
-```bash
-git clone [https://github.com/rajivghandi767/prop-and-ferry.git](https://github.com/rajivghandi767/prop-and-ferry.git)
-cd prop-and-ferry
-```
-
-### 2. Backend (Django)
-
-```bash
-cd backend
-python -m venv venv
-source venv/bin/activate
-pip install -r requirements.txt
-
-# Setup Database and run migrations
-python manage.py migrate
-
-# Seed the database with scraped ferry routes
-python manage.py scrape_ferries
-python manage.py runserver
-```
-
-### 3. Frontend (React)
-
-```bash
-cd frontend
-npm install
-npm run dev
-```
+1. Clone the repository:
+   ```bash
+   git clone [https://github.com/rajivghandi767/prop-and-ferry.git](https://github.com/rajivghandi767/prop-and-ferry.git)
+   cd prop-and-ferry
+   ```
+2. Set up your `.env` files (see `.env.example` in both `/backend` and `/frontend`).
+3. Build and spin up the containers:
+   ```bash
+   docker compose up --build
+   ```
+4. Run migrations and populate the initial dataset:
+   ```bash
+   docker compose exec prop-ferry-backend python manage.py migrate
+   docker compose exec prop-ferry-backend python manage.py fetch_routes
+   docker compose exec prop-ferry-backend python manage.py scrape_ferries
+   ```
+5. Access the frontend at `http://localhost:5173` and the backend at `http://localhost:8000`.
 
 ---
 
-_This project is a personal portfolio piece demonstrating full-stack engineering capabilities, data aggregation, system design, and product thinking._
+## 📫 Contact
+
+Have questions or want to discuss the architecture behind this project? Feel free to reach out:
+
+- **Email:** [dev@rajivwallace.com](mailto:dev@rajivwallace.com)
+- **GitHub:** [rajivghandi767](https://github.com/rajivghandi767)
+
+---
+
+_Designed & Engineered by Rajiv Wallace_
