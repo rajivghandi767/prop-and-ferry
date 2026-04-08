@@ -106,8 +106,7 @@ pipeline {
                     [envVar: 'POSTGRES_DB', vaultKey: 'POSTGRES_DB'],
                     [envVar: 'ADMIN_URL', vaultKey: 'ADMIN_URL'],
                     [envVar: 'DISCORD_WEBHOOK_URL', vaultKey: 'DISCORD_WEBHOOK_URL'],
-                    [envVar: 'AMADEUS_API_KEY', vaultKey: 'AMADEUS_API_KEY'],
-                    [envVar: 'AMADEUS_API_SECRET', vaultKey: 'AMADEUS_API_SECRET'],
+                    [envVar: 'DUFFEL_ACCESS_TOKEN', vaultKey: 'DUFFEL_ACCESS_TOKEN'],
                 ]]]) {
                     
                     withCredentials([usernamePassword(credentialsId: REGISTRY_CRED_ID, usernameVariable: 'REGISTRY_USER', passwordVariable: 'REGISTRY_PASS')]) {
@@ -125,8 +124,7 @@ pipeline {
                                 POSTGRES_DB='${POSTGRES_DB}'
                                 ADMIN_URL='${ADMIN_URL}'
                                 DISCORD_WEBHOOK_URL='${DISCORD_WEBHOOK_URL}'
-                                AMADEUS_API_KEY='${AMADEUS_API_KEY}'
-                                AMADEUS_API_SECRET='${AMADEUS_API_SECRET}'
+                                DUFFEL_ACCESS_TOKEN='${DUFFEL_ACCESS_TOKEN}'
                             """.stripIndent()
                             
                             writeFile file: '.env.prod', text: envContent
