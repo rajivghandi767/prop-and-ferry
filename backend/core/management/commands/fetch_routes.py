@@ -109,6 +109,16 @@ class Command(BaseCommand):
         )
 
     def handle(self, *args, **kwargs):
+        self.stdout.write(self.style.ERROR(
+            "\n" + "="*60 + "\n"
+            "⚠️ DEPRECATION WARNING ⚠️\n"
+            "This Amadeus flight scraper is no longer supported and has \n"
+            "been phased out due to discontinued developer support.\n"
+            "Please use the new Duffel integration instead:\n"
+            "   python manage.py fetch_duffel_routes\n"
+            + "="*60 + "\n"
+        ))
+
         self.stdout.write("✈️  Initializing POC Flight Scraper...")
 
         today = datetime.now().date()

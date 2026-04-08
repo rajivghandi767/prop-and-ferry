@@ -2,8 +2,8 @@ pipeline {
     agent any
 
     triggers {
-        // Runs on the 1st and 15th of every month at 04:30 AM ET
-        cron('30 4 1,15 * *')
+        // Runs on the Sunday and Wednesday at 4:30
+        cron('30 4 * * 0,3')
     }
 
     environment {
@@ -20,7 +20,7 @@ pipeline {
                     sh """
                         ssh -o StrictHostKeyChecking=no ${DEPLOY_USER}@${DEPLOY_HOST} "
                             cd ${DEPLOY_DIR}
-                            docker compose exec -T prop-ferry-backend python manage.py fetch_routes
+                            docker compose exec -T prop-ferry-backend python manage.py fetch_duffel_routes
                         "
                     """
                 }
@@ -30,7 +30,7 @@ pipeline {
     
     post {
         success {
-            echo "Successfully populated 14-day flight window. Checking for unenriched stubs..."
+            echo "Successfully populated 3-day flight window. Checking for unenriched stubs..."
             sshagent([SSH_CRED_ID]) {
                 sh """
                     ssh -o StrictHostKeyChecking=no ${DEPLOY_USER}@${DEPLOY_HOST} "
