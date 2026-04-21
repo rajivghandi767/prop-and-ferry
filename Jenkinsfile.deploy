@@ -1,100 +1,46 @@
+@Library('homelab-library') _
+
 pipeline {
     agent any
 
-    // 1. Scheduled Trigger (03:00 AM ET Daily)
     triggers {
         cron('''TZ=America/New_York
 0 3 * * *''')
     }
 
-    // 2. Rollback Parameter
     parameters {
-        string(name: 'TAG_TO_DEPLOY', defaultValue: 'latest', description: 'Image Version to Manually Deploy (e.g. "latest" or build number "45")')
+        string(name: 'TAG_TO_DEPLOY', defaultValue: 'latest', description: 'Image Version to Deploy')
     }
 
     environment {
-        // --- CONFIGURATION ---
+        APP_NAME         = "Prop & Ferry Web App" 
         SSH_CRED_ID      = "raspberry-pi-ssh"
         VAULT_CRED_ID    = "vault-prop-ferry-approle"
         REGISTRY_CRED_ID = "github-packages-pat"
-        VAULT_ADDR       = 'http://vault:8200'
         
         DEPLOY_USER = "dietpi"
         DEPLOY_HOST = "10.100.10.5"
         DEPLOY_DIR  = "/opt/homelab-iac/services/apps/prop-and-ferry"
 
-        // Image names for notifications
         IMAGE_BACKEND  = "rajivghandi767/prop-ferry-backend"
         IMAGE_FRONTEND = "rajivghandi767/prop-ferry-frontend"
         IMAGE_NGINX    = "rajivghandi767/prop-ferry-nginx"
-
-        // --- NOTIFICATIONS ---
-        JENKINS_DISCORD_WEBHOOK = credentials('jenkins-discord-webhook')
     }
 
     stages {
-        // --- STAGE 1: CHECK VAULT STATUS ---
-        stage('🔍 Check Status') {
+        stage('🔍 Vault Status & Unseal') {
             steps {
                 script {
-                    echo "Checking Vault Seal Status..."
-                    def statusJson = sh(script: "curl -s ${VAULT_ADDR}/v1/sys/seal-status || wget -qO- ${VAULT_ADDR}/v1/sys/seal-status", returnStdout: true).trim()
-                    
-                    if (statusJson.contains('"sealed":false')) {
-                        echo "✅ Vault is ALREADY UNSEALED. No action required."
-                        env.VAULT_STATUS = "OPEN" 
-                    } else {
-                        echo "🔒 Vault is SEALED. Initiating unseal sequence..."
-                        env.VAULT_STATUS = "SEALED"
-                    }
+                    unsealVault()
                 }
             }
         }
 
-        // --- STAGE 2: INJECT KEYS (ONLY IF SEALED) ---
-        stage('🗝️ Inject Keys') {
-            when {
-                environment name: 'VAULT_STATUS', value: 'SEALED'
-            }
-            steps {
-                withCredentials([
-                    string(credentialsId: 'VAULT_UNSEAL_KEY_1', variable: 'KEY1'),
-                    string(credentialsId: 'VAULT_UNSEAL_KEY_2', variable: 'KEY2'),
-                    string(credentialsId: 'VAULT_UNSEAL_KEY_3', variable: 'KEY3')
-                ]) {
-                    script {
-                        for (int i = 1; i <= 3; i++) {
-                            echo "🚀 Injecting Key #${i}..."
-                            def currentKeyVar = "\$KEY${i}"
-                            
-                            def output = sh(script: """
-                                if command -v curl >/dev/null 2>&1; then
-                                    curl -s -X POST -H "Content-Type: application/json" -d "{\\"key\\": \\"${currentKeyVar}\\"}" ${VAULT_ADDR}/v1/sys/unseal
-                                else
-                                    wget -qO- --post-data "{\\"key\\": \\"${currentKeyVar}\\"}" --header="Content-Type: application/json" ${VAULT_ADDR}/v1/sys/unseal
-                                fi
-                            """, returnStdout: true).trim()
-                            
-                            if (output.contains('"sealed":false')) {
-                                echo "🎉 SUCCESS: Vault has been UNSEALED!"
-                                return
-                            } else {
-                                echo "⚠️ Key accepted. Still sealed. Waiting for next key..."
-                            }
-                        }
-                        error("⛔ All keys used but Vault is still sealed.")
-                    }
-                }
-            }
-        }
-
-        // --- DEPLOY STAGE ---
         stage('Deploy Configuration') {
             steps {
                 checkout scm
 
-                // A. Fetch App Secrets from Vault
-                withVault(configuration: [vaultUrl: "${VAULT_ADDR}", vaultCredentialId: "${VAULT_CRED_ID}", engineVersion: 2], 
+                withVault(configuration: [vaultUrl: "http://vault:8200", vaultCredentialId: "${VAULT_CRED_ID}", engineVersion: 2], 
                 vaultSecrets: [[path: 'secret/prop-ferry-prod', secretValues: [
                     [envVar: 'DJANGO_SECRET_KEY', vaultKey: 'DJANGO_SECRET_KEY'],
                     [envVar: 'ALLOWED_HOSTS', vaultKey: 'ALLOWED_HOSTS'],
@@ -108,51 +54,39 @@ pipeline {
                     [envVar: 'DISCORD_WEBHOOK_URL', vaultKey: 'DISCORD_WEBHOOK_URL'],
                     [envVar: 'DUFFEL_ACCESS_TOKEN', vaultKey: 'DUFFEL_ACCESS_TOKEN'],
                 ]]]) {
-                    
                     withCredentials([usernamePassword(credentialsId: REGISTRY_CRED_ID, usernameVariable: 'REGISTRY_USER', passwordVariable: 'REGISTRY_PASS')]) {
                         script {
-                            // C. Generate .env file LOCALLY
-                            def envContent = """
-                                IMAGE_TAG='${params.TAG_TO_DEPLOY}'
-                                DJANGO_SECRET_KEY='${DJANGO_SECRET_KEY}'
-                                ALLOWED_HOSTS='${ALLOWED_HOSTS}'
-                                CSRF_TRUSTED_ORIGINS='${CSRF_TRUSTED_ORIGINS}'
-                                POSTGRES_HOST='${POSTGRES_HOST}'
-                                POSTGRES_PORT='${POSTGRES_PORT}'
-                                POSTGRES_USER='${POSTGRES_USER}'
-                                POSTGRES_PASSWORD='${POSTGRES_PASSWORD}'
-                                POSTGRES_DB='${POSTGRES_DB}'
-                                ADMIN_URL='${ADMIN_URL}'
-                                DISCORD_WEBHOOK_URL='${DISCORD_WEBHOOK_URL}'
-                                DUFFEL_ACCESS_TOKEN='${DUFFEL_ACCESS_TOKEN}'
-                            """.stripIndent()
-                            
-                            writeFile file: '.env.prod', text: envContent
+                            env.CURRENT_TAG = params.TAG_TO_DEPLOY
+
+                            sh '''
+                                echo "IMAGE_TAG='${CURRENT_TAG}'" > .env.prod
+                                echo "DJANGO_SECRET_KEY='${DJANGO_SECRET_KEY}'" >> .env.prod
+                                echo "ALLOWED_HOSTS='${ALLOWED_HOSTS}'" >> .env.prod
+                                echo "CSRF_TRUSTED_ORIGINS='${CSRF_TRUSTED_ORIGINS}'" >> .env.prod
+                                echo "POSTGRES_HOST='${POSTGRES_HOST}'" >> .env.prod
+                                echo "POSTGRES_PORT='${POSTGRES_PORT}'" >> .env.prod
+                                echo "POSTGRES_USER='${POSTGRES_USER}'" >> .env.prod
+                                echo "POSTGRES_PASSWORD='${POSTGRES_PASSWORD}'" >> .env.prod
+                                echo "POSTGRES_DB='${POSTGRES_DB}'" >> .env.prod
+                                echo "ADMIN_URL='${ADMIN_URL}'" >> .env.prod
+                                echo "DISCORD_WEBHOOK_URL='${DISCORD_WEBHOOK_URL}'" >> .env.prod
+                                echo "DUFFEL_ACCESS_TOKEN='${DUFFEL_ACCESS_TOKEN}'" >> .env.prod
+                            '''
 
                             sshagent([SSH_CRED_ID]) {
-                                // D. Pre-flight Security
                                 sh """
                                     mkdir -p ~/.ssh
                                     ssh-keyscan -H ${DEPLOY_HOST} >> ~/.ssh/known_hosts || true
-                                """
-
-                                // E. Transfer files
-                                sh """
                                     echo "📦 Syncing files to ${DEPLOY_HOST}..."
                                     scp docker-compose.yml ${DEPLOY_USER}@${DEPLOY_HOST}:${DEPLOY_DIR}/docker-compose.yml
                                     scp .env.prod ${DEPLOY_USER}@${DEPLOY_HOST}:${DEPLOY_DIR}/.env
                                 """
 
-                                // F. Remote Execution
-                                
-                                // STEP A: Secure Login
                                 sh "echo \$REGISTRY_PASS | ssh ${DEPLOY_USER}@${DEPLOY_HOST} 'docker login ghcr.io -u ${REGISTRY_USER} --password-stdin'"
 
-                                // STEP B: Check for Updates
                                 def isManualDeploy = params.TAG_TO_DEPLOY != 'latest'
                                 def localCommit = sh(returnStdout: true, script: 'git rev-parse --short HEAD').trim()
                                 
-                                // Get Remote Running Commit
                                 def remoteCommit = sh(script: """
                                     ssh ${DEPLOY_USER}@${DEPLOY_HOST} "
                                         cd ${DEPLOY_DIR}
@@ -162,32 +96,18 @@ pipeline {
                                         fi
                                     "
                                 """, returnStdout: true).trim()
-
-                                echo "🔎 Version Check: Local [${localCommit}] vs Remote [${remoteCommit}]"
                                 
                                 def shouldDeploy = false
                                 if (isManualDeploy) {
-                                    echo "⚠️ Manual Deployment requested."
                                     shouldDeploy = true
                                 } else if (localCommit == remoteCommit) {
-                                    echo "✅ Code hashes match. Skipping unnecessary pull/deploy."
-                                    shouldDeploy = false
+                                    env.DEPLOY_STATUS = "SKIPPED"
                                 } else {
-                                    echo "🚀 Code Change detected. Pulling images..."
-                                    
-                                    def pullOutput = sh(script: """
-                                        ssh ${DEPLOY_USER}@${DEPLOY_HOST} "
-                                            cd ${DEPLOY_DIR}
-                                            IMAGE_TAG=${params.TAG_TO_DEPLOY} docker compose pull 2>&1
-                                        "
-                                    """, returnStdout: true).trim()
-                                    echo "🔍 Pull Status: \n${pullOutput}"
+                                    sh "ssh ${DEPLOY_USER}@${DEPLOY_HOST} 'cd ${DEPLOY_DIR} && IMAGE_TAG=${params.TAG_TO_DEPLOY} docker compose pull'"
                                     shouldDeploy = true
                                 }
 
-                                // STEP C: Conditional Deploy
                                 if (shouldDeploy) {
-                                    echo "🚀 Deploying..."
                                     sh """
                                         ssh ${DEPLOY_USER}@${DEPLOY_HOST} "
                                             cd ${DEPLOY_DIR}
@@ -196,18 +116,10 @@ pipeline {
                                             docker image prune -f
                                         "
                                     """
-                                    currentBuild.result = 'SUCCESS'
                                     env.DEPLOY_STATUS = "UPDATED"
-                                } else {
-                                    echo "💤 No changes found. Skipping deploy."
-                                    currentBuild.result = 'SUCCESS'
-                                    env.DEPLOY_STATUS = "SKIPPED"
                                 }
                                 
-                                // STEP D: Always Logout
                                 sh "ssh ${DEPLOY_USER}@${DEPLOY_HOST} 'docker logout ghcr.io'"
-
-                                // G. Cleanup Local Secrets
                                 sh "rm .env.prod"
                             }
                         }
@@ -217,50 +129,26 @@ pipeline {
         }
     }
 
-    // 3. Discord Notifications
     post {
         success {
             script {
                 def timestamp = sh(returnStdout: true, script: "TZ='America/New_York' date +'%a, %d %b %Y at %H:%M %Z'").trim()
 
                 if (env.DEPLOY_STATUS == "UPDATED") {
-                    def deployMessage = """
-:unicorn: **Prop & Ferry Web App Update Deployed**
-**:new: New Version Live:**
-• **Tag:** ${params.TAG_TO_DEPLOY}
-• **Backend:** ${IMAGE_BACKEND}
-• **Frontend:** ${IMAGE_FRONTEND}
-• **Nginx:** ${IMAGE_NGINX}
-
-:bar_chart: **Status:** Healthy
-:clock4: **Time:** ${timestamp}
-"""
-                    discordSend description: deployMessage, result: 'SUCCESS', title: "🚀 Deployment Successful", webhookURL: env.JENKINS_DISCORD_WEBHOOK
+                    def msg = ":unicorn: **${env.APP_NAME} Update Deployed**\n**:new: New Version Live:**\n• **Tag:** ${params.TAG_TO_DEPLOY}\n• **Backend:** ${IMAGE_BACKEND}\n• **Frontend:** ${IMAGE_FRONTEND}\n• **Nginx:** ${IMAGE_NGINX}\n\n:bar_chart: **Status:** Healthy\n:clock4: **Time:** ${timestamp}"
+                    notifyDiscord("🚀 Deployment Successful", msg, 3066993)
                 } 
                 else if (env.DEPLOY_STATUS == "SKIPPED") {
-                    def skipMessage = """
-:shield: **Prop & Ferry Web App Up to Date**
-No new code changes found for tag: **${params.TAG_TO_DEPLOY}**.
-Running services remain unchanged.
-
-:clock4: **Time:** ${timestamp}
-"""
-                    discordSend description: skipMessage, result: 'SUCCESS', title: "✅ Check Complete: No Changes", webhookURL: env.JENKINS_DISCORD_WEBHOOK
+                    def msg = ":shield: **${env.APP_NAME} Up to Date**\nNo new code changes found for tag: **${params.TAG_TO_DEPLOY}**.\nRunning services remain unchanged.\n\n:clock4: **Time:** ${timestamp}"
+                    notifyDiscord("✅ Check Complete: No Changes", msg, 3447003)
                 }
             }
         }
         failure {
             script {
                 def failTime = sh(returnStdout: true, script: "TZ='America/New_York' date +'%a, %d %b %Y at %H:%M %Z'").trim()
-                def failMessage = """
-:x: **Prop & Ferry Web App Deployment Failed**
-**:warning: Error Details:**
-Check Jenkins logs for build #${BUILD_NUMBER}.
-:wrench: **Action Required:** Manual intervention needed.
-
-:clock4: **Time:** ${failTime}
-"""
-                discordSend description: failMessage, result: 'FAILURE', title: "🚨 Deployment Alert", webhookURL: env.JENKINS_DISCORD_WEBHOOK
+                def msg = ":x: **${env.APP_NAME} Deployment Failed**\n**:warning: Error Details:**\nCheck Jenkins logs for build #${BUILD_NUMBER}.\n:wrench: **Action Required:** Manual intervention needed.\n\n:clock4: **Time:** ${failTime}"
+                notifyDiscord("🚨 Deployment Alert", msg, 15158332)
             }
         }
     }
