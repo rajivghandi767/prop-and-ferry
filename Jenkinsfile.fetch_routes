@@ -1,28 +1,31 @@
+@Library('homelab-library') _
+
 pipeline {
     agent any
 
     triggers {
-        // Runs on the Sunday and Wednesday at 4:30
         cron('30 4 * * 0,3')
     }
 
     environment {
-        SSH_CRED_ID = "raspberry-pi-ssh"
-        DEPLOY_USER = "dietpi"
-        DEPLOY_HOST = "10.100.10.5"
-        DEPLOY_DIR  = "/opt/homelab-iac/services/apps/prop-and-ferry"
+        APP_NAME         = "Prop & Ferry"
+        SSH_CRED_ID      = "raspberry-pi-ssh"
+        DEPLOY_USER      = "dietpi"
+        DEPLOY_HOST      = "10.100.10.5"
+        DEPLOY_DIR       = "/opt/homelab-iac/services/apps/prop-and-ferry"
     }
 
     stages {
-        stage('Fetch Routes Data') {
+        stage('Fetch Routes Data & Notify') {
             steps {
                 sshagent([SSH_CRED_ID]) {
-                    sh """
-                        ssh -o StrictHostKeyChecking=no ${DEPLOY_USER}@${DEPLOY_HOST} "
-                            cd ${DEPLOY_DIR}
-                            docker compose exec -T prop-ferry-backend python manage.py fetch_duffel_routes
-                        "
-                    """
+                    script {
+                        echo "✈️ Fetching Duffel Routes..."
+                        sh "ssh -o StrictHostKeyChecking=no ${DEPLOY_USER}@${DEPLOY_HOST} 'cd ${DEPLOY_DIR} && docker compose exec -T prop-ferry-backend python manage.py fetch_duffel_routes'"
+                        
+                        echo "🔎 Checking for unenriched stubs..."
+                        sh "ssh -o StrictHostKeyChecking=no ${DEPLOY_USER}@${DEPLOY_HOST} 'cd ${DEPLOY_DIR} && docker compose exec -T prop-ferry-backend python manage.py notify_unenriched'"
+                    }
                 }
             }
         }
@@ -30,18 +33,18 @@ pipeline {
     
     post {
         success {
-            echo "Successfully populated 3-day flight window. Checking for unenriched stubs..."
-            sshagent([SSH_CRED_ID]) {
-                sh """
-                    ssh -o StrictHostKeyChecking=no ${DEPLOY_USER}@${DEPLOY_HOST} "
-                        cd ${DEPLOY_DIR}
-                        docker compose exec -T prop-ferry-backend python manage.py notify_unenriched
-                    "
-                """
+            script {
+                def timestamp = sh(returnStdout: true, script: "TZ='America/New_York' date +'%a, %d %b %Y at %H:%M %Z'").trim()
+                def msg = ":airplane: **${env.APP_NAME} Routes Fetched**\nSuccessfully populated 3-day flight window and checked for unenriched stubs.\n\n:clock4: **Time:** ${timestamp}"
+                notifyDiscord("✅ Routes Data Updated", msg, 3066993)
             }
         }
         failure {
-            echo "Failed to fetch routes. Check API limits and container status."
+            script {
+                def failTime = sh(returnStdout: true, script: "TZ='America/New_York' date +'%a, %d %b %Y at %H:%M %Z'").trim()
+                def msg = ":x: **${env.APP_NAME} Route Fetch Failed**\n**:warning: Error Details:**\nCheck API limits and container status. (Build #${BUILD_NUMBER})\n\n:clock4: **Time:** ${failTime}"
+                notifyDiscord("🚨 Route Fetch Alert", msg, 15158332)
+            }
         }
     }
 }

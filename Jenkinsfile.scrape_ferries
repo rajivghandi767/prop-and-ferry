@@ -1,29 +1,25 @@
+@Library('homelab-library') _
+
 pipeline {
     agent any
 
     triggers {
-        // Runs at 04:45 AM every Sunday
         cron('45 4 * * 0')
     }
 
     environment {
-        SSH_CRED_ID = "raspberry-pi-ssh"
-        DEPLOY_USER = "dietpi"
-        DEPLOY_HOST = "10.100.10.5"
-        DEPLOY_DIR  = "/opt/homelab-iac/services/apps/prop-and-ferry"
+        APP_NAME         = "Prop & Ferry"
+        SSH_CRED_ID      = "raspberry-pi-ssh"
+        DEPLOY_USER      = "dietpi"
+        DEPLOY_HOST      = "10.100.10.5"
+        DEPLOY_DIR       = "/opt/homelab-iac/services/apps/prop-and-ferry"
     }
 
     stages {
         stage('Scrape Ferry Data') {
             steps {
                 sshagent([SSH_CRED_ID]) {
-                    sh """
-                        ssh -o StrictHostKeyChecking=no ${DEPLOY_USER}@${DEPLOY_HOST} "
-                            cd ${DEPLOY_DIR}
-                            # Execute the ferry scraper inside the running backend container
-                            docker compose exec -T prop-ferry-backend python manage.py scrape_ferries
-                        "
-                    """
+                    sh "ssh -o StrictHostKeyChecking=no ${DEPLOY_USER}@${DEPLOY_HOST} 'cd ${DEPLOY_DIR} && docker compose exec -T prop-ferry-backend python manage.py scrape_ferries'"
                 }
             }
         }
@@ -31,10 +27,18 @@ pipeline {
     
     post {
         success {
-            echo "Successfully updated ferry schedules."
+            script {
+                def timestamp = sh(returnStdout: true, script: "TZ='America/New_York' date +'%a, %d %b %Y at %H:%M %Z'").trim()
+                def msg = ":ship: **${env.APP_NAME} Ferries Scraped**\nSuccessfully updated ferry schedules.\n\n:clock4: **Time:** ${timestamp}"
+                notifyDiscord("✅ Ferry Data Updated", msg, 3066993)
+            }
         }
         failure {
-            echo "Failed to scrape ferries. Check website structure and container status."
+            script {
+                def failTime = sh(returnStdout: true, script: "TZ='America/New_York' date +'%a, %d %b %Y at %H:%M %Z'").trim()
+                def msg = ":x: **${env.APP_NAME} Ferry Scrape Failed**\n**:warning: Error Details:**\nCheck website structure and container status. (Build #${BUILD_NUMBER})\n\n:clock4: **Time:** ${failTime}"
+                notifyDiscord("🚨 Ferry Scrape Alert", msg, 15158332)
+            }
         }
     }
 }
