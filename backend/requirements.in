@@ -1,0 +1,13 @@
+# Production Requirements
+
+-r common.in
+
+# Database
+psycopg
+
+# Web Server
+gunicorn
+
+#Test 
+pytest
+pytest-django

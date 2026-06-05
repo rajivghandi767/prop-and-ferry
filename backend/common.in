@@ -1,0 +1,14 @@
+# Common Packages for Dev & Prod Environments
+
+# Core Framework
+django
+djangorestframework
+
+# Django Apps
+django-prometheus
+
+# Utilities
+pillow
+requests
+beautifulsoup4
+django-redis
