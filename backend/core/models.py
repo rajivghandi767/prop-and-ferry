@@ -123,3 +123,18 @@ class ReportedIssue(models.Model):
 
     def __str__(self):
         return f"{self.get_issue_type_display()} - {self.created_at.strftime('%m/%d/%Y')}"
+
+    def send_notifications(self):
+        import requests
+        from django.conf import settings
+        webhook_url = getattr(settings, 'DISCORD_WEBHOOK_URL', None)
+        if webhook_url:
+            try:
+                payload = {
+                    "content": f"🚨 **New Prop & Ferry Issue Reported** 🚨\n**Type:** {self.get_issue_type_display()}\n**Note:** {self.user_note}"
+                }
+                requests.post(webhook_url, json=payload, timeout=5)
+                return True
+            except Exception:
+                pass
+        return False
