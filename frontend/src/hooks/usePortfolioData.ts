@@ -5,6 +5,8 @@ export interface PortfolioProject {
   deployed_url: string;
   description: string;
   technology: string;
+  emoji?: string;
+  color?: string;
 }
 
 export interface PortfolioInfo {
