@@ -36,17 +36,7 @@ class ReportedIssueViewSet(viewsets.ModelViewSet):
 
     def perform_create(self, serializer):
         issue = serializer.save()
-        webhook_url = getattr(settings, 'DISCORD_WEBHOOK_URL', None)
-
-        if webhook_url:
-            try:
-                payload = {
-                    "content": f"🚨 **New Prop & Ferry Issue Reported** 🚨\n**Type:** {issue.get_issue_type_display()}\n**Note:** {issue.user_note}"
-                }
-                requests.post(webhook_url, json=payload, timeout=5)
-            except Exception:
-                # Fail silently so the user still gets a success message in the UI
-                pass
+        issue.send_notifications()
 
 
 class RouteViewSet(viewsets.ReadOnlyModelViewSet):

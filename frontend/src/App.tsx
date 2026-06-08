@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef } from "react";
 import type { Itinerary, ApiLeg, ApiResponse } from "./types";
 import { useThemeContext } from "./context/ThemeContext";
-import { Sun, Moon, Plane, Ship, Users } from "lucide-react";
+import { Sun, Moon, Plane, Ship, Users } from "./components/Icons";
 
 // --- IMPORTED COMPONENTS ---
 import { AirportSelect } from "./components/AirportSelect";
