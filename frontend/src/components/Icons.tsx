@@ -58,19 +58,20 @@ export const Moon = (props: IconProps) => (
 );
 
 // ─── Plane ────────────────────────────────────────────────────────────────────
-// Clean, readable plane facing right — simple, bold, legible at 20-24px.
+// Top-down silhouette — most recognisable airplane shape at 20–24px.
 export const Plane = (props: IconProps) => (
   <BaseIcon {...props}>
-    {/* Fuselage */}
-    <path d="M22 12 L2 6 L6 12 L2 18 Z" />
-    {/* Left wing */}
-    <path d="M6 12 L14 8" />
-    {/* Right wing lower  */}
-    <path d="M6 12 L14 16" />
-    {/* Tail fin */}
-    <path d="M2 6 L4 12 L2 18" />
+    {/* Fuselage — narrow vertical body */}
+    <ellipse cx="12" cy="11" rx="1.5" ry="8" />
+    {/* Main wings — swept back */}
+    <path d="M10.5 11 L2 16 L10.5 14" />
+    <path d="M13.5 11 L22 16 L13.5 14" />
+    {/* Tail stabilisers */}
+    <path d="M10.5 18 L7 21 L10.5 20" />
+    <path d="M13.5 18 L17 21 L13.5 20" />
   </BaseIcon>
 );
+
 
 // ─── Ship / Ferry ─────────────────────────────────────────────────────────────
 // A clear, recognisable ferry silhouette. Hull, deck, funnel, wave.
