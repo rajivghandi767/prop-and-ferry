@@ -53,6 +53,7 @@ pipeline {
                     [envVar: 'ADMIN_URL', vaultKey: 'ADMIN_URL'],
                     [envVar: 'DISCORD_WEBHOOK_URL', vaultKey: 'DISCORD_WEBHOOK_URL'],
                     [envVar: 'DUFFEL_ACCESS_TOKEN', vaultKey: 'DUFFEL_ACCESS_TOKEN'],
+                    [envVar: 'REDIS_URL', vaultKey: 'REDIS_URL'],
                 ]]]) {
                     withCredentials([usernamePassword(credentialsId: REGISTRY_CRED_ID, usernameVariable: 'REGISTRY_USER', passwordVariable: 'REGISTRY_PASS')]) {
                         script {
@@ -71,15 +72,24 @@ pipeline {
                                 echo "ADMIN_URL='${ADMIN_URL}'" >> .env.prod
                                 echo "DISCORD_WEBHOOK_URL='${DISCORD_WEBHOOK_URL}'" >> .env.prod
                                 echo "DUFFEL_ACCESS_TOKEN='${DUFFEL_ACCESS_TOKEN}'" >> .env.prod
+                                echo "REDIS_URL='${REDIS_URL}'" >> .env.prod
                             '''
 
                             sshagent([SSH_CRED_ID]) {
                                 sh """
                                     mkdir -p ~/.ssh
                                     ssh-keyscan -H ${DEPLOY_HOST} >> ~/.ssh/known_hosts || true
+                                    
+                                    echo "📂 Ensuring remote directory exists & backing up existing env..."
+                                    ssh ${DEPLOY_USER}@${DEPLOY_HOST} "
+                                        mkdir -p ${DEPLOY_DIR} && \
+                                        cd ${DEPLOY_DIR} && \
+                                        cp .env .env.bak 2>/dev/null || true
+                                    "
+                                    
                                     echo "📦 Syncing files to ${DEPLOY_HOST}..."
-                                    scp docker-compose.yml ${DEPLOY_USER}@${DEPLOY_HOST}:${DEPLOY_DIR}/docker-compose.yml
-                                    scp .env.prod ${DEPLOY_USER}@${DEPLOY_HOST}:${DEPLOY_DIR}/.env
+                                    scp docker-compose.prod.yml ${DEPLOY_USER}@${DEPLOY_HOST}:${DEPLOY_DIR}/docker-compose.yml
+                                    scp .env.prod ${DEPLOY_USER}@${env.DEPLOY_HOST}:${env.DEPLOY_DIR}/.env
                                 """
 
                                 sh "echo \$REGISTRY_PASS | ssh ${DEPLOY_USER}@${DEPLOY_HOST} 'docker login ghcr.io -u ${REGISTRY_USER} --password-stdin'"
@@ -108,15 +118,34 @@ pipeline {
                                 }
 
                                 if (shouldDeploy) {
-                                    sh """
-                                        ssh ${DEPLOY_USER}@${DEPLOY_HOST} "
-                                            cd ${DEPLOY_DIR}
-                                            chmod 600 .env
-                                            IMAGE_TAG=${params.TAG_TO_DEPLOY} docker compose up -d --remove-orphans
-                                            docker image prune -f
-                                        "
-                                    """
-                                    env.DEPLOY_STATUS = "UPDATED"
+                                    echo "🚀 Deploying and checking container health..."
+                                    try {
+                                        sh """
+                                            ssh ${DEPLOY_USER}@${DEPLOY_HOST} "
+                                                cd ${DEPLOY_DIR}
+                                                chmod 600 .env
+                                                
+                                                # Run compose and wait for healthchecks to pass
+                                                if ! IMAGE_TAG=${params.TAG_TO_DEPLOY} docker compose up -d --wait --remove-orphans; then
+                                                    echo '🚨 Healthchecks failed! Reverting to last stable tag...'
+                                                    if [ -f .env.bak ]; then
+                                                        mv .env.bak .env
+                                                        # Re-deploy the last working version
+                                                        docker compose up -d --remove-orphans
+                                                    fi
+                                                    exit 1
+                                                fi
+                                                
+                                                # Deployment succeeded, clean up backup config
+                                                rm -f .env.bak
+                                                docker image prune -f
+                                            "
+                                        """
+                                        env.DEPLOY_STATUS = "UPDATED"
+                                    } catch (Exception e) {
+                                        echo "❌ Deployment failed and rollback was initiated."
+                                        throw e
+                                    }
                                 }
                                 
                                 sh "ssh ${DEPLOY_USER}@${DEPLOY_HOST} 'docker logout ghcr.io'"

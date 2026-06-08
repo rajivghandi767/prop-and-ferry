@@ -1,96 +1,82 @@
 services:
-  # DB Migration & Static Files Collection
-  prop-ferry-backend-init:
-    image: ghcr.io/rajivghandi767/prop-ferry-backend:${IMAGE_TAG:-latest}
-    container_name: prop-ferry-backend-init
-    user: root
+  # -----------------------------------------
+  # Database Layer
+  # -----------------------------------------
+  prop-ferry-local-db:
+    image: postgres:18-alpine
+    container_name: prop-ferry-local-db
+    restart: unless-stopped
+    env_file: .env.example
     networks:
-      - prop-ferry
-      - database
-    env_file: .env
+      - prop-ferry-local
+    ports:
+      - "5432:5432"
     volumes:
-      - prop-ferry_static:/home/backend/django/staticfiles
+      - prop-ferry-local-db-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U prop-ferry-dev -d prop-ferry-dev"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  # -----------------------------------------
+  # Caching Layer
+  # -----------------------------------------
+  prop-ferry-local-redis:
+    image: redis:7-alpine
+    container_name: prop-ferry-local-redis
+    restart: unless-stopped
+    networks:
+      - prop-ferry-local
+    ports:
+      - "6379:6379"
+
+  # -----------------------------------------
+  # Django Backend (Smart Server)
+  # -----------------------------------------
+  prop-ferry-local-backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: prop-ferry-local-backend
+    env_file: .env.example
+    networks:
+      - prop-ferry-local
+    ports:
+      - "8000:8000"
+    volumes:
+      - ./backend:/app
+    depends_on:
+      prop-ferry-local-db:
+        condition: service_healthy
+      prop-ferry-local-redis:
+        condition: service_started
     command: >
-      sh -c "
-        echo 'Waiting for database to be ready...' &&
-        until python -c 'import socket,os; s=socket.socket(socket.AF_INET, socket.SOCK_STREAM); s.settimeout(2); s.connect((os.environ[\"POSTGRES_HOST\"], 5432)); s.close()'; do
-          echo 'Database not ready... waiting 2s';
-          sleep 2;
-        done &&
-        echo 'Database is ready!' &&
-        python manage.py migrate --noinput &&
-        python manage.py enrich_locations && 
-        python manage.py enrich_carriers &&
-        python manage.py collectstatic --noinput"
+      sh -c "python manage.py migrate && 
+             python manage.py seed_data && 
+             python manage.py runserver 0.0.0.0:8000"
 
-  # Portfolio Backend - Django
-  prop-ferry-backend:
-    image: ghcr.io/rajivghandi767/prop-ferry-backend:${IMAGE_TAG:-latest}
-    container_name: prop-ferry-backend
-    restart: unless-stopped
+  # -----------------------------------------
+  # React Frontend (Dumb Client)
+  # -----------------------------------------
+  prop-ferry-local-frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    container_name: prop-ferry-local-frontend
+    env_file: .env.example
     networks:
-      - prop-ferry
-      - database
-    depends_on:
-      prop-ferry-backend-init:
-        condition: service_completed_successfully
-    env_file: .env
+      - prop-ferry-local
+    ports:
+      - "5173:5173"
     volumes:
-      - prop-ferry_static:/home/backend/django/staticfiles
-      - prop-ferry_logs:/home/backend/django/logs
-    user: "backend:backend_group"
-    healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:8000/health/"]
-      interval: 30s
-      timeout: 10s
-      retries: 3
-      start_period: 60s
-
-  prop-ferry-frontend:
-    image: ghcr.io/rajivghandi767/prop-ferry-frontend:${IMAGE_TAG:-latest}
-    container_name: prop-ferry-frontend
-    restart: unless-stopped
-    networks:
-      - core
-      - prop-ferry
+      - ./frontend:/app
+      - /app/node_modules
     depends_on:
-      prop-ferry-backend:
-        condition: service_healthy
-    healthcheck:
-      test: ["CMD", "wget", "-q", "--spider", "http://localhost/"]
-      interval: 30s
-      timeout: 10s
-      retries: 3
-
-  # Single unified nginx service
-  prop-ferry-nginx:
-    image: ghcr.io/rajivghandi767/prop-ferry-nginx:${IMAGE_TAG:-latest}
-    container_name: prop-ferry-nginx
-    restart: unless-stopped
-    networks:
-      - core
-      - prop-ferry
-    depends_on:
-      prop-ferry-backend:
-        condition: service_healthy
-      prop-ferry-frontend:
-        condition: service_healthy
-    volumes:
-      - prop-ferry_static:/usr/share/nginx/html/static:ro
-      - prop-ferry_logs:/var/log/nginx
-    healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost/nginx-status/"]
-      interval: 30s
-      timeout: 10s
-      retries: 3
+      - prop-ferry-local-backend
 
 volumes:
-  prop-ferry_static:
-  prop-ferry_logs:
+  prop-ferry-local-db-data:
 
 networks:
-  core:
-    external: true
-  database:
-    external: true
-  prop-ferry:
+  prop-ferry-local:

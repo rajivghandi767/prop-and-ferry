@@ -30,6 +30,7 @@ class SailingViewSet(viewsets.ReadOnlyModelViewSet):
 
 
 class ReportedIssueViewSet(viewsets.ModelViewSet):
+    http_method_names = ['get', 'post', 'head', 'options']
     queryset = ReportedIssue.objects.all()
     serializer_class = ReportedIssueSerializer
 

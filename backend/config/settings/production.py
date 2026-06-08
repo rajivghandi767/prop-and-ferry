@@ -1,12 +1,5 @@
 from .base import *
 import os
-from dotenv import load_dotenv
-
-# ============================================================================
-# LOAD ENV VARIABLES
-# ============================================================================
-env_path = BASE_DIR / '.env'
-load_dotenv(dotenv_path=env_path, override=True)
 
 # ============================================================================
 # PRODUCTION SECURITY SETTINGS
@@ -23,6 +16,16 @@ CSRF_TRUSTED_ORIGINS = [origin.strip() for origin in os.getenv(
     'CSRF_TRUSTED_ORIGINS', '').split(',') if origin.strip()]
 CSRF_COOKIE_HTTPONLY = False
 CSRF_COOKIE_SAMESITE = 'Lax'
+
+# ============================================================================
+# CACHING CONFIGURATION FOR PRODUCTION
+# ============================================================================
+CACHES = {
+    "default": {
+        "BACKEND": "django.core.cache.backends.redis.RedisCache",
+        "LOCATION": os.getenv("REDIS_URL"),
+    }
+}
 
 # ============================================================================
 # SESSION CONFIGURATION
@@ -101,7 +104,7 @@ LOGGING = {
         'file': {
             'level': 'INFO',
             'class': 'logging.FileHandler',
-            'filename': '/home/backend/django/logs/prop-ferry.log',
+            'filename': os.getenv('DJANGO_LOG_FILE', '/home/backend/django/logs/prop-ferry.log'),
             'formatter': 'simple',
         },
         'error_file': {
@@ -160,6 +163,5 @@ HEALTH_CHECK_ENABLED = True
 # ============================================================================
 PROMETHEUS_EXPORT_MIGRATIONS = False
 PROMETHEUS_LATENCY_BUCKETS = (
-    0.008, 0.016, 0.032, 0.064, 0.128, 0.256, 0.512, 1.024, 2.048, 4.096, 8.192, 16.384, float(
-        'inf')
+    0.008, 0.016, 0.032, 0.064, 0.128, 0.256, 0.512, 1.024, 2.048, 4.096, 8.192, 16.384, float('inf')
 )
