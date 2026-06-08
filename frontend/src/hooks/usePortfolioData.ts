@@ -6,7 +6,6 @@ export interface PortfolioProject {
   description: string;
   technology: string;
   emoji?: string;
-  color?: string;
 }
 
 export interface PortfolioInfo {
