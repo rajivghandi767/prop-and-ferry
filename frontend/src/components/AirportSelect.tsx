@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from "react";
 import type { Location } from "../types";
-import { API_URL } from "../config";
+import { fetchLocations } from "../utils/api";
 
 interface AirportSelectProps {
   label: string;
@@ -25,8 +25,7 @@ export function AirportSelect({
   useEffect(() => {
     const controller = new AbortController();
 
-    fetch(`${API_URL}/api/locations/`, { signal: controller.signal })
-      .then((res) => res.json())
+    fetchLocations(controller.signal)
       .then((data) => {
         if (Array.isArray(data)) {
           setLocations(data);
