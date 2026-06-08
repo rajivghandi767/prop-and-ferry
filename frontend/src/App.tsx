@@ -9,7 +9,7 @@ import { ProjectSwitcher } from "./components/ProjectSwitcher";
 import { ReportModal } from "./components/ReportModal";
 import { DateCarousel } from "./components/DateCarousel";
 import { LeanCalendar } from "./components/LeanCalendar";
-import { API_URL } from "./config";
+import { fetchAvailableDates, searchRoutes } from "./utils/api";
 
 const getTodayString = () => {
   const pad = (n: number) => n.toString().padStart(2, "0");
@@ -71,10 +71,7 @@ function App() {
 
   useEffect(() => {
     if (origin.length >= 3 && destination.length >= 3) {
-      fetch(
-        `${API_URL}/api/routes/available-dates/?origin=${origin}&destination=${destination}`,
-      )
-        .then((res) => res.json())
+      fetchAvailableDates(origin, destination)
         .then((data) => {
           if (data.available_dates) setAvailableDates(data.available_dates);
         })
@@ -112,19 +109,7 @@ function App() {
     setFilter("all"); // Reset filter on new search
 
     try {
-      const params = new URLSearchParams({
-        origin,
-        destination,
-        date: searchDate,
-      });
-      const response = await fetch(`${API_URL}/api/routes/search/?${params}`);
-
-      if (!response.ok) {
-        const errorData = await response.json();
-        throw new Error(errorData.error || "Failed to fetch routes");
-      }
-
-      const data: ApiResponse = await response.json();
+      const data: ApiResponse = await searchRoutes(origin, destination, searchDate);
 
       if (data.date_was_changed) {
         setDateChanged(true);

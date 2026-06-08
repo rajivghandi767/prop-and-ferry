@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { API_URL } from "../config";
+import { submitReport } from "../utils/api";
 
 export function ReportModal() {
   const [isOpen, setIsOpen] = useState(false);
@@ -13,14 +13,7 @@ export function ReportModal() {
     setIsSubmitting(true);
 
     try {
-      const response = await fetch(`${API_URL}/api/reports/`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          issue_type: issueType,
-          user_note: userNote,
-        }),
-      });
+      const response = await submitReport(issueType, userNote);
 
       if (response.ok) {
         setSuccess(true);
