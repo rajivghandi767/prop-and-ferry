@@ -10,6 +10,7 @@ import { ReportModal } from "./components/ReportModal";
 import { DateCarousel } from "./components/DateCarousel";
 import { LeanCalendar } from "./components/LeanCalendar";
 import { fetchAvailableDates, searchRoutes } from "./utils/api";
+import { usePortfolioData } from "./hooks/usePortfolioData";
 
 const getTodayString = () => {
   const pad = (n: number) => n.toString().padStart(2, "0");
@@ -51,6 +52,7 @@ const formatDuration = (minutes: number | null) => {
 type FilterType = "all" | "ferry" | "flight";
 
 function App() {
+  const { info } = usePortfolioData();
   const { theme, toggleTheme } = useThemeContext();
 
   const [origin, setOrigin] = useState("");
@@ -497,10 +499,10 @@ function App() {
           </div>
           <div className="mb-4">
             <a
-              href="mailto:dev@rajivwallace.com"
+              href={`mailto:${info?.email || "dev@rajivwallace.com"}`}
               className="text-brand-light dark:text-brand-dark hover:underline text-sm font-medium transition-colors"
             >
-              dev@rajivwallace.com
+              {info?.email || "dev@rajivwallace.com"}
             </a>
           </div>
           <div className="text-xs text-neutral-600 dark:text-neutral-400">
