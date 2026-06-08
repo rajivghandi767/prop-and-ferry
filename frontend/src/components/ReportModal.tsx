@@ -44,6 +44,7 @@ export function ReportModal() {
     <>
       <button
         onClick={() => setIsOpen(true)}
+        aria-label="Report an issue"
         className="fixed bottom-6 right-6 bg-brand-light dark:bg-brand-dark text-white dark:text-black hover:opacity-90 rounded-full p-4 shadow-lg transition-transform hover:scale-105 z-50 flex items-center justify-center"
       >
         <svg
