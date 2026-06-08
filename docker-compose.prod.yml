@@ -86,7 +86,9 @@ services:
 
 volumes:
   prop-ferry_static:
+    name: prop-ferry_static
   prop-ferry_logs:
+    name: prop-ferry_logs
 
 networks:
   core:

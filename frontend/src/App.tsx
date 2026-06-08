@@ -197,6 +197,7 @@ function App() {
           <div className="flex items-center justify-end w-24">
             <button
               onClick={toggleTheme}
+              aria-label="Toggle dark mode"
               className="p-2 rounded-lg text-neutral-600 dark:text-neutral-400 hover:bg-gray-100 dark:hover:bg-neutral-900 transition-colors"
             >
               {theme === "dark" ? <Sun size={20} /> : <Moon size={20} />}
@@ -248,8 +249,8 @@ function App() {
             </div>
 
             <div className="w-full md:flex-1 relative" ref={calendarRef}>
-              <label className="text-xs font-semibold text-neutral-500 uppercase mb-1 block">
-                Date
+              <label className="text-xs font-semibold text-neutral-600 dark:text-neutral-400 uppercase mb-1 block">
+                DATE
               </label>
               <button
                 onClick={() => setIsCalendarOpen(!isCalendarOpen)}
@@ -517,7 +518,7 @@ function App() {
               dev@rajivwallace.com
             </a>
           </div>
-          <div className="text-xs text-neutral-500">
+          <div className="text-xs text-neutral-600 dark:text-neutral-400">
             &copy; {new Date().getFullYear()} Rajiv Wallace. All rights
             reserved.
           </div>

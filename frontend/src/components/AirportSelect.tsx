@@ -120,7 +120,7 @@ export function AirportSelect({
 
   return (
     <div className="flex flex-col text-left relative w-full" ref={wrapperRef}>
-      <label className="text-xs font-semibold text-neutral-500 uppercase mb-1">
+      <label className="text-xs font-semibold text-neutral-600 dark:text-neutral-400 uppercase mb-1">
         {label}
       </label>
 
