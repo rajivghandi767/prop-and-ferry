@@ -71,9 +71,9 @@ export function ProjectSwitcher({ align = "right" }: ProjectSwitcherProps) {
                 className="flex items-start gap-3 p-3 rounded-lg hover:bg-gray-50 dark:hover:bg-neutral-900 transition-colors group"
               >
                 <div
-                  className={`w-10 h-10 rounded-lg flex items-center justify-center text-sm shadow-sm bg-gray-100 text-gray-700 dark:bg-neutral-800 dark:text-gray-300`}
+                  className={`w-10 h-10 rounded-lg flex items-center justify-center text-xl shadow-sm ${project.color || 'bg-gray-100 text-gray-700 dark:bg-neutral-800 dark:text-gray-300'}`}
                 >
-                  {project.technology || "✨"}
+                  {project.emoji || (project.technology ? project.technology.substring(0, 2).toUpperCase() : "✨")}
                 </div>
                 <div>
                   <div className="font-bold text-brand-light dark:text-brand-dark group-hover:text-brand-light/80 dark:group-hover:text-brand-dark/80 transition-colors">
