@@ -151,5 +151,13 @@ class Command(BaseCommand):
         create_route('BGI', 'DOM', 'JY', '17:00', '18:00', 60, 'JY 712', 'AT7')
         create_route('POS', 'DOM', 'BW', '14:00', '15:30', 90, 'BW 434', 'AT7')
 
+        self.stdout.write("🚢 Building Ferry Network Graph...")
+        create_route('GPPTP', 'DMROS', 'LXI', '08:00', '10:15', 135, 'LXI 101', 'FERRY')
+        create_route('DMROS', 'MQFDF', 'LXI', '10:45', '12:45', 120, 'LXI 102', 'FERRY')
+        create_route('MQFDF', 'LCCAS', 'LXI', '13:15', '14:45', 90, 'LXI 103', 'FERRY')
+        create_route('LCCAS', 'MQFDF', 'LXI', '10:00', '11:30', 90, 'LXI 201', 'FERRY')
+        create_route('MQFDF', 'DMROS', 'LXI', '13:00', '15:00', 120, 'LXI 202', 'FERRY')
+        create_route('DMROS', 'GPPTP', 'LXI', '15:30', '17:45', 135, 'LXI 203', 'FERRY')
+
         self.stdout.write(self.style.SUCCESS(
-            "✨ Flight Network Seed Complete. Scrape ferries using scrape_ferries.py..."))
+            "✨ Network Seed Complete. All flight and ferry topologies have been safely mocked!"))

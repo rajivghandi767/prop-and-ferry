@@ -2,7 +2,7 @@
 
 **Prop & Ferry** is a full-stack Caribbean travel aggregator and proof-of-concept application designed to bridge the gap between major international airline routes and regional airlines (Liat20, Winair, interCaribbean) and island-hopping ferries (like FRS Express).
 
-Many Caribbean destinations (like Dominica) lack direct international flights, requiring complex, unlinked transfers between planes and ferries. This application automatically maps and stitches these disparate transit networks together, surfacing overnight-aware connections and providing a unified booking interface.
+As an aviation nerd born in Dominica and residing in NYC, I built this application to solve a personal pain point: many Caribbean destinations lack direct international flights, requiring complex, unlinked transfers between planes and ferries. This application automatically maps and stitches these disparate transit networks together, surfacing overnight-aware connections and providing a unified booking interface.
 
 **🌍 [View the Live Demo: prop-ferry.rajivwallace.com](https://prop-ferry.rajivwallace.com)**
 
@@ -37,17 +37,18 @@ While the data powering the frontend is sourced **live** via the Duffel REST API
 **Backend:**
 
 - Django & Django REST Framework (DRF)
-- PostgreSQL (Containerized)
+- PostgreSQL & Redis (Isolated container network)
 - BeautifulSoup4 (Ferry Web Scraping)
 - Duffel REST API (Flight Data)
 
 **Infrastructure & CI/CD:**
 
-- Self-hosted on a Raspberry Pi 4B (DietPi OS)
+- Self-hosted on a Raspberry Pi 4B (DietPi OS) within a Ubiquiti UniFi segmented network
 - Docker & Docker Compose
-- Jenkins (Automated ETL Pipelines)
-- Nginx Proxy Manager & Cloudflare
-- Discord Webhook Alerts
+- Jenkins (Automated CI/CD Deployments & ETL Pipelines)
+- HashiCorp Vault (Secrets Management)
+- Nginx Proxy Manager & Cloudflare (Ingress & Reverse Proxy)
+- Prometheus, Grafana, & Discord Webhook Alerts
 
 ---
 
@@ -57,7 +58,10 @@ While the data powering the frontend is sourced **live** via the Duffel REST API
 
 Rather than relying on computationally expensive recursive SQL queries, the backend pulls normalized route data and uses O(1) set lookups to map topologies in memory. The stitcher natively understands overnight delays, dynamically flagging connections that require a hotel stay before an onward ferry transfer.
 
-### 2. Dual-Source ETL Pipeline
+### 2. Aggressive Redis Caching
+To overcome the physical hardware limitations of the Raspberry Pi and ensure the graph traversal algorithm resolves instantly, the application utilizes **Redis** for aggressive caching. All complex multi-node route combinations are cached in-memory. This significantly reduces disk I/O on the PostgreSQL instance and implements enterprise caching best practices on constrained infrastructure.
+
+### 3. Dual-Source ETL Pipeline
 
 The database is actively maintained by two distinct, automated scrapers triggered by Jenkins cron jobs:
 
@@ -85,10 +89,11 @@ A full 14-day rolling window provides an excellent user experience but scales AP
 
 **Risk vs. Reward:** This tradeoff restricts a user's ability to plan vacations weeks in advance. However, the architectural reward is immense: it ensures a 100% live, self-healing database that seamlessly feeds the backend Stitcher (graph traversal) algorithm, proving the core routing logic operates flawlessly under enterprise constraints.
 
-### Raspberry Pi Hardware Protection
+### Raspberry Pi Hardware Protection & Database Provisioning
 
 To protect the host SD card from I/O degradation and database bloat:
 
+- The PostgreSQL instance resides on a dedicated, isolated `database` Docker network preventing any external ingress. Database catalogs and user roles are dynamically provisioned via automated initialization scripts to completely segregate Prop & Ferry's data layer from other homelab applications.
 - The ferry scraper executes within an `atomic` database transaction, cleanly wiping and replacing the current schedule without locking the UI.
 - Both scrapers actively prune historical (past-date) transit records on initialization to keep PostgreSQL queries lightning fast.
 
@@ -110,8 +115,11 @@ _Note: The original Amadeus scraper (`fetch_routes.py`) remains in the repositor
 
 ## ⚙️ CI/CD & Monitoring
 
-Automated Jenkins pipelines handle the data fetching directly within the production Docker containers via SSH:
+Automated Jenkins pipelines handle the full lifecycle of the application:
+- **Deployment:** Commits to `main` trigger tests, build Docker images, and deploy seamlessly via zero-downtime rolling restarts. HashiCorp Vault is dynamically queried to inject runtime secrets, maintaining strict configuration management.
+- **Observability Stack:** Prometheus scrapes metrics across the containers, alerting Discord via Alertmanager if memory limits or service drops are detected.
 
+ETL pipelines manage data fetching directly within the production Docker containers via SSH:
 - **Flights:** Runs at `04:30 AM` every Sunday & Wednesday.
 - **Ferries:** Runs at `04:45 AM` every Sunday.
 - **Alerting:** If Duffel returns an unknown airport code or a new airline carrier, the backend triggers a Discord Webhook, alerting the developer to enrich the database topology manually.
@@ -120,30 +128,53 @@ Automated Jenkins pipelines handle the data fetching directly within the product
 
 ## 💻 Local Development
 
+This section details how to replicate this environment locally. Everything is fully plug-and-play for local development without the need to manually modify `docker-compose.yml` configurations or environment paths.
+
 ### Prerequisites
 
-- Docker & Docker Compose
-- Duffel API Token
+**For Docker Setup (Recommended):**
+- 🐳 Docker & Docker Compose
 
-### Quickstart
+**For Manual Setup:**
+- 🐍 Python 3.x
+- 🟢 Node.js & npm
 
-1. Clone the repository:
-   ```bash
-   git clone [https://github.com/rajivghandi767/prop-and-ferry.git](https://github.com/rajivghandi767/prop-and-ferry.git)
-   cd prop-and-ferry
-   ```
-2. Set up your `.env` files (see `.env.example` in both `/backend` and `/frontend`).
-3. Build and spin up the containers:
-   ```bash
-   docker compose up --build
-   ```
-4. Run migrations and populate the initial dataset:
-   ```bash
-   docker compose exec prop-ferry-backend python manage.py migrate
-   docker compose exec prop-ferry-backend python manage.py fetch_duffel_routes
-   docker compose exec prop-ferry-backend python manage.py scrape_ferries
-   ```
-5. Access the frontend at `http://localhost:5173` and the backend at `http://localhost:8000`.
+### Option 1: Docker (Recommended)
+
+Local `docker-compose.yml` and `Dockerfile` configurations are already set to build directly from the source code folder for local development rather than pulling registry images. The `docker-compose.yml` is hardcoded to use `.env.example`, so absolutely no environment configuration is required.
+
+**Spin up the stack:**
+```bash
+docker compose up -d --build
+```
+*Note: The database migrations and seed data scripts are automatically executed during container startup, securely bypassing any API restrictions!*
+
+**Accessing Local Services:**
+- Frontend: `http://localhost:5173`
+- Backend API: `http://localhost:8000`
+
+### Option 2: Manual Setup (Non-Docker)
+
+If you prefer running the servers manually without Docker:
+
+**1. Start the Backend API:**
+```bash
+cd backend
+python -m venv venv
+source venv/bin/activate
+pip install -r dev-requirements.txt
+cp ../env.example .env
+python manage.py migrate
+python manage.py seed_data
+python manage.py runserver
+```
+
+**2. Start the Frontend SPA:**
+```bash
+cd frontend
+npm install
+npm run dev
+```
 
 ---
 
@@ -151,9 +182,9 @@ Automated Jenkins pipelines handle the data fetching directly within the product
 
 Have questions or want to discuss the architecture behind this project? Feel free to reach out:
 
-- **Email:** [dev@rajivwallace.com](mailto:dev@rajivwallace.com)
-- **GitHub:** [rajivghandi767](https://github.com/rajivghandi767)
+**Rajiv Wallace**  
+Self-taught Software Engineer based in NYC (born in Dominica 🇩🇲). Aviation nerd, credit card points optimizer, and dedicated homelab tinkerer transitioning into tech.
 
----
-
-_Designed & Engineered by Rajiv Wallace_
+- **LinkedIn**: [linkedin.com/in/rajiv-wallace](https://www.linkedin.com/in/rajiv-wallace)
+- **GitHub**: [rajivghandi767](https://github.com/rajivghandi767)
+- **Email**: [dev@rajivwallace.com](mailto:dev@rajivwallace.com)
