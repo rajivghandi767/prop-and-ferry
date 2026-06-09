@@ -30,7 +30,7 @@ CACHES = {
 # ============================================================================
 # SESSION CONFIGURATION
 # ============================================================================
-SESSION_ENGINE = "django.contrib.sessions.backends.db"
+SESSION_ENGINE = "django.contrib.sessions.backends.cache"
 SESSION_COOKIE_SECURE = True
 SESSION_COOKIE_SAMESITE = 'Lax'
 SESSION_COOKIE_HTTPONLY = True
