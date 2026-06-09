@@ -12,7 +12,7 @@ services:
     ports:
       - "5432:5432"
     volumes:
-      - prop-ferry-local-db-data:/var/lib/postgresql/data
+      - prop-ferry-local-db-data:/var/lib/postgresql
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U prop-ferry-dev -d prop-ferry-dev"]
       interval: 5s
