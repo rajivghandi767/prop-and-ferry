@@ -116,12 +116,12 @@ _Note: The original Amadeus scraper (`fetch_routes.py`) remains in the repositor
 ## ⚙️ CI/CD & Monitoring
 
 Automated Jenkins pipelines handle the full lifecycle of the application:
-- **Deployment:** Commits to `main` trigger tests, build Docker images, and deploy seamlessly via zero-downtime rolling restarts. HashiCorp Vault is dynamically queried to inject runtime secrets, maintaining strict configuration management.
+- **Deployment:** Commits to `main` trigger tests, build Docker images, and deploy seamlessly via zero-downtime rolling restarts. Nightly deployments run automatically at `03:00 AM` EST. HashiCorp Vault is dynamically queried to inject runtime secrets, maintaining strict configuration management.
 - **Observability Stack:** Prometheus scrapes metrics across the containers, alerting Discord via Alertmanager if memory limits or service drops are detected.
 
 ETL pipelines manage data fetching directly within the production Docker containers via SSH:
-- **Flights:** Runs at `04:30 AM` every Sunday & Wednesday.
-- **Ferries:** Runs at `04:45 AM` every Sunday.
+- **Flights:** Runs at `03:30 AM` every Sunday & Wednesday.
+- **Ferries:** Runs at `03:45 AM` every Sunday & Wednesday.
 - **Alerting:** If Duffel returns an unknown airport code or a new airline carrier, the backend triggers a Discord Webhook, alerting the developer to enrich the database topology manually.
 
 ---
