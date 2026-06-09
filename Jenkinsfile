@@ -41,7 +41,7 @@ pipeline {
                 stage('Test Frontend (React)') {
                     steps {
                         sh '''
-                            docker build -t prop-ferry-frontend:test -f frontend/Dockerfile.dev ./frontend
+                            docker build -t prop-ferry-frontend:test -f frontend/Dockerfile ./frontend
                             docker run --rm prop-ferry-frontend:test npm run test
                         '''
                     }
