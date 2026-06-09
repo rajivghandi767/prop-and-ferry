@@ -163,7 +163,6 @@ cd backend
 python -m venv venv
 source venv/bin/activate
 pip install -r dev-requirements.txt
-cp ../env.example .env
 python manage.py migrate
 python manage.py seed_data
 python manage.py runserver
