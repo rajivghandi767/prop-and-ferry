@@ -194,7 +194,7 @@ class Command(BaseCommand):
         self.stdout.write(self.style.WARNING(
             "\n--- PHASE 2: TARGETED 3-DAY ROLLING SWEEP ---"))
         rolling_dates = [(today + timedelta(days=i)).strftime('%Y-%m-%d')
-                         for i in range(3)]
+                         for i in range(1, 4)]
 
         for date in rolling_dates:
             for origin, dest in valid_routes:

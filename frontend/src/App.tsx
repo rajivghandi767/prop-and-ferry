@@ -12,9 +12,10 @@ import { LeanCalendar } from "./components/LeanCalendar";
 import { fetchAvailableDates, searchRoutes } from "./utils/api";
 import { usePortfolioData } from "./hooks/usePortfolioData";
 
-const getTodayString = () => {
+const getTomorrowString = () => {
   const pad = (n: number) => n.toString().padStart(2, "0");
   const d = new Date();
+  d.setDate(d.getDate() + 1);
   return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
 };
 
@@ -57,7 +58,7 @@ function App() {
 
   const [origin, setOrigin] = useState("");
   const [destination, setDestination] = useState("");
-  const [date, setDate] = useState(getTodayString());
+  const [date, setDate] = useState(getTomorrowString());
   const [searchedDate, setSearchedDate] = useState("");
 
   const [availableDates, setAvailableDates] = useState<string[]>([]);
