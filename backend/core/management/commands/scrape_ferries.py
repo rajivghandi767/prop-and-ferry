@@ -83,7 +83,7 @@ class Command(BaseCommand):
         )
 
         check_intervals = [0, 7, 14]
-        start_date_base = today
+        start_date_base = today + timedelta(days=1)
 
         for origin_code, dest_code in final_routes:
             logger.info(f"Checking Route: {origin_code} -> {dest_code}")
