@@ -2,8 +2,7 @@ from rest_framework import viewsets
 from rest_framework.decorators import action
 from rest_framework.response import Response
 from datetime import timedelta, datetime
-from django.utils.decorators import method_decorator
-from django.views.decorators.cache import cache_page
+from django.core.cache import cache
 
 from .models import Location, Route, Sailing, FlightInstance, Carrier, ReportedIssue
 from .serializers import (
@@ -12,18 +11,32 @@ from .serializers import (
 )
 
 
-@method_decorator(cache_page(60 * 60), name='dispatch')
 class LocationViewSet(viewsets.ReadOnlyModelViewSet):
     # Prefetch relationships to prevent N+1 queries when evaluating 'has_children'
     queryset = Location.objects.select_related(
         'parent').prefetch_related('sub_locations').all()
     serializer_class = LocationSerializer
 
+    def list(self, request, *args, **kwargs):
+        cached = cache.get('prop_locations_list')
+        if cached:
+            return Response(cached)
+        response = super().list(request, *args, **kwargs)
+        cache.set('prop_locations_list', response.data, 60 * 60)
+        return response
 
-@method_decorator(cache_page(60 * 60), name='dispatch')
+
 class CarrierViewSet(viewsets.ReadOnlyModelViewSet):
     queryset = Carrier.objects.all()
     serializer_class = CarrierSerializer
+
+    def list(self, request, *args, **kwargs):
+        cached = cache.get('prop_carriers_list')
+        if cached:
+            return Response(cached)
+        response = super().list(request, *args, **kwargs)
+        cache.set('prop_carriers_list', response.data, 60 * 60)
+        return response
 
 
 class SailingViewSet(viewsets.ReadOnlyModelViewSet):
@@ -45,7 +58,7 @@ class RouteViewSet(viewsets.ReadOnlyModelViewSet):
     queryset = Route.objects.all()
     serializer_class = RouteSerializer
 
-    @method_decorator(cache_page(60 * 15))
+
     @action(detail=False, methods=['get'], url_path='available-dates')
     def available_dates(self, request):
         origin_query = request.GET.get('origin')
@@ -53,6 +66,11 @@ class RouteViewSet(viewsets.ReadOnlyModelViewSet):
 
         if not origin_query or not dest_query:
             return Response({'error': 'Missing parameters'}, status=400)
+
+        cache_key = f"prop_dates_{origin_query}_{dest_query}"
+        cached = cache.get(cache_key)
+        if cached:
+            return Response(cached)
 
         try:
             origin_loc = Location.objects.select_related('parent').prefetch_related(
@@ -80,9 +98,11 @@ class RouteViewSet(viewsets.ReadOnlyModelViewSet):
         ).values_list('date', flat=True).distinct()
 
         all_dates = sorted(list(set(flight_dates) | set(ferry_dates)))
-        return Response({'available_dates': [d.strftime('%Y-%m-%d') for d in all_dates]})
+        resp_data = {'available_dates': [d.strftime('%Y-%m-%d') for d in all_dates]}
+        cache.set(cache_key, resp_data, 60 * 15)
+        return Response(resp_data)
 
-    @method_decorator(cache_page(60 * 5))
+
     @action(detail=False, methods=['get'])
     def search(self, request):
         origin_query = request.GET.get('origin')
@@ -91,6 +111,11 @@ class RouteViewSet(viewsets.ReadOnlyModelViewSet):
 
         if not origin_query or not dest_query or not target_date_str:
             return Response({'error': 'Missing parameters'}, status=400)
+
+        cache_key = f"prop_search_{origin_query}_{dest_query}_{target_date_str}"
+        cached = cache.get(cache_key)
+        if cached:
+            return Response(cached)
 
         try:
             origin_loc = Location.objects.select_related('parent').prefetch_related(
@@ -267,4 +292,5 @@ class RouteViewSet(viewsets.ReadOnlyModelViewSet):
             "results": results
         }
 
+        cache.set(cache_key, response_data, 60 * 5)
         return Response(response_data)
