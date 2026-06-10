@@ -29,7 +29,7 @@ class LocationViewSet(viewsets.ReadOnlyModelViewSet):
         if cached:
             return Response(cached)
         response = super().list(request, *args, **kwargs)
-        cache.set('prop_locations_list', response.data, 60 * 60)
+        cache.set('prop_locations_list', list(response.data), 60 * 60)
         return response
 
 
@@ -48,7 +48,7 @@ class CarrierViewSet(viewsets.ReadOnlyModelViewSet):
         if cached:
             return Response(cached)
         response = super().list(request, *args, **kwargs)
-        cache.set('prop_carriers_list', response.data, 60 * 60)
+        cache.set('prop_carriers_list', list(response.data), 60 * 60)
         return response
 
 
