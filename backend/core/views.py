@@ -1,9 +1,9 @@
-import requests
-from django.conf import settings
 from rest_framework import viewsets
 from rest_framework.decorators import action
 from rest_framework.response import Response
 from datetime import timedelta, datetime
+from django.utils.decorators import method_decorator
+from django.views.decorators.cache import cache_page
 
 from .models import Location, Route, Sailing, FlightInstance, Carrier, ReportedIssue
 from .serializers import (
@@ -12,6 +12,7 @@ from .serializers import (
 )
 
 
+@method_decorator(cache_page(60 * 60), name='dispatch')
 class LocationViewSet(viewsets.ReadOnlyModelViewSet):
     # Prefetch relationships to prevent N+1 queries when evaluating 'has_children'
     queryset = Location.objects.select_related(
@@ -19,6 +20,7 @@ class LocationViewSet(viewsets.ReadOnlyModelViewSet):
     serializer_class = LocationSerializer
 
 
+@method_decorator(cache_page(60 * 60), name='dispatch')
 class CarrierViewSet(viewsets.ReadOnlyModelViewSet):
     queryset = Carrier.objects.all()
     serializer_class = CarrierSerializer
@@ -43,6 +45,7 @@ class RouteViewSet(viewsets.ReadOnlyModelViewSet):
     queryset = Route.objects.all()
     serializer_class = RouteSerializer
 
+    @method_decorator(cache_page(60 * 15))
     @action(detail=False, methods=['get'], url_path='available-dates')
     def available_dates(self, request):
         origin_query = request.GET.get('origin')
@@ -79,6 +82,7 @@ class RouteViewSet(viewsets.ReadOnlyModelViewSet):
         all_dates = sorted(list(set(flight_dates) | set(ferry_dates)))
         return Response({'available_dates': [d.strftime('%Y-%m-%d') for d in all_dates]})
 
+    @method_decorator(cache_page(60 * 5))
     @action(detail=False, methods=['get'])
     def search(self, request):
         origin_query = request.GET.get('origin')
