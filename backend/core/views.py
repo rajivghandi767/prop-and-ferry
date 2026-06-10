@@ -18,6 +18,13 @@ class LocationViewSet(viewsets.ReadOnlyModelViewSet):
     serializer_class = LocationSerializer
 
     def list(self, request, *args, **kwargs):
+        """
+        Retrieves the complete list of locations.
+        
+        This endpoint is heavily accessed during frontend initialization. We utilize 
+        Redis caching to prevent repeated identical database hits, drastically reducing
+        query load since the underlying location data rarely changes.
+        """
         cached = cache.get('prop_locations_list')
         if cached:
             return Response(cached)
@@ -31,6 +38,12 @@ class CarrierViewSet(viewsets.ReadOnlyModelViewSet):
     serializer_class = CarrierSerializer
 
     def list(self, request, *args, **kwargs):
+        """
+        Retrieves the complete list of carriers.
+        
+        Similar to locations, carrier reference data is relatively static. 
+        Redis caching is applied to bypass the ORM and serve the payload directly from memory.
+        """
         cached = cache.get('prop_carriers_list')
         if cached:
             return Response(cached)
@@ -61,6 +74,13 @@ class RouteViewSet(viewsets.ReadOnlyModelViewSet):
 
     @action(detail=False, methods=['get'], url_path='available-dates')
     def available_dates(self, request):
+        """
+        Determines active travel dates for a specific origin-to-destination route.
+        
+        By caching the available dates for an origin/destination pair, we avoid
+        expensive distinct() recalculations across the FlightInstance and Sailing tables on every
+        frontend calendar render.
+        """
         origin_query = request.GET.get('origin')
         dest_query = request.GET.get('destination')
 
@@ -105,6 +125,13 @@ class RouteViewSet(viewsets.ReadOnlyModelViewSet):
 
     @action(detail=False, methods=['get'])
     def search(self, request):
+        """
+        Executes a comprehensive, graph-traversal search to find direct and connecting itineraries.
+        
+        Evaluating multiple flight and ferry permutations (including complex overnight layovers) is computationally
+        heavy. We cache the final serialized graph payload per origin/destination/date tuple to dramatically
+        improve subsequent search performance.
+        """
         origin_query = request.GET.get('origin')
         dest_query = request.GET.get('destination')
         target_date_str = request.GET.get('date')
