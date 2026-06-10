@@ -58,8 +58,13 @@ While the data powering the frontend is sourced **live** via the Duffel REST API
 
 Rather than relying on computationally expensive recursive SQL queries, the backend pulls normalized route data and uses O(1) set lookups to map topologies in memory. The stitcher natively understands overnight delays, dynamically flagging connections that require a hotel stay before an onward ferry transfer.
 
-### 2. Aggressive Redis Caching
-To overcome the physical hardware limitations of the Raspberry Pi and ensure the graph traversal algorithm resolves instantly, the application utilizes **Redis** for aggressive caching. All complex multi-node route combinations are cached in-memory. This significantly reduces disk I/O on the PostgreSQL instance and implements enterprise caching best practices on constrained infrastructure.
+### 2. Backend API & Aggressive Redis Caching
+
+Prop & Ferry calculates multi-leg travel itineraries by stitching together intersecting flights and marine sailings. Because computing dynamic routing with overnight layover logic is computationally expensive, the Backend API is heavily optimized:
+
+- **Pre-Serialization Caching:** Instead of caching raw Django HTTP responses (which breaks Django REST Framework serialization and CORS), the app intercepts requests at the view level and caches raw Python dictionary payloads in Redis. 
+- **Idempotent Search Results:** Complex route calculations are cached dynamically using a combined `{origin}_{destination}_{date}` cache key. This guarantees that duplicate searches from users exploring the same routes result in instantaneous, memory-served responses.
+- **Static Reference Caching:** High-volume initialization endpoints (like the complete lists of Locations and Carriers) are cached for extended periods, reducing the initial frontend load time to mere milliseconds and preventing database I/O bloat.
 
 ### 3. Dual-Source ETL Pipeline
 
