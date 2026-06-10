@@ -11,4 +11,4 @@ django-prometheus
 pillow
 requests
 beautifulsoup4
-django-redis
+redis
