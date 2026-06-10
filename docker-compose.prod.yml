@@ -96,3 +96,4 @@ networks:
   database:
     external: true
   prop-ferry:
+    name: prop-ferry
