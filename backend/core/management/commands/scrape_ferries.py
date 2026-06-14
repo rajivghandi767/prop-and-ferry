@@ -226,7 +226,12 @@ class Command(BaseCommand):
             if not day or month_idx >= len(parts):
                 return None
 
-            month = FRENCH_MONTHS.get(parts[month_idx][0:3], 1)
+            month_str = parts[month_idx]
+            month = 1
+            for k in sorted(FRENCH_MONTHS.keys(), key=len, reverse=True):
+                if month_str.startswith(k):
+                    month = FRENCH_MONTHS[k]
+                    break
             today = datetime.now().date()
             year = today.year + 1 if month < today.month - 2 else today.year
             return datetime(year, month, day).date()
