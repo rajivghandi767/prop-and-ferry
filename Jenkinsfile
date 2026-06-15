@@ -3,6 +3,10 @@
 pipeline {
     agent any
 
+    options {
+        buildDiscarder(logRotator(numToKeepStr: '5', artifactNumToKeepStr: '5'))
+    }
+
     environment {
         APP_NAME         = "Prop & Ferry"
         PROJECT_NAME     = "prop-ferry" 
@@ -81,6 +85,9 @@ pipeline {
     }
 
     post {
+        always {
+            cleanWorkspace()
+        }
         success {
             script {
                 def msg = "Build **#${env.BUILD_NUMBER}** completed successfully.\n[View Jenkins Logs](${env.BUILD_URL})"
