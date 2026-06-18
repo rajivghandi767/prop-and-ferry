@@ -4,20 +4,19 @@ from django.db import migrations, models
 
 
 class Migration(migrations.Migration):
-
     dependencies = [
-        ('core', '0009_alter_route_unique_together'),
+        ("core", "0009_alter_route_unique_together"),
     ]
 
     operations = [
         migrations.AddField(
-            model_name='route',
-            name='aircraft_type',
+            model_name="route",
+            name="aircraft_type",
             field=models.CharField(blank=True, max_length=20, null=True),
         ),
         migrations.AddField(
-            model_name='route',
-            name='flight_number',
+            model_name="route",
+            name="flight_number",
             field=models.CharField(blank=True, max_length=20, null=True),
         ),
     ]

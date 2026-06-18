@@ -5,30 +5,31 @@ from core.models import Location, Carrier
 
 
 class Command(BaseCommand):
-    help = 'Scans for stubbed locations/carriers and triggers a Discord webhook.'
+    help = "Scans for stubbed locations/carriers and triggers a Discord webhook."
 
     def handle(self, *args, **kwargs):
-        webhook_url = getattr(settings, 'DISCORD_WEBHOOK_URL', None)
+        webhook_url = getattr(settings, "DISCORD_WEBHOOK_URL", None)
         if not webhook_url:
-            self.stdout.write(self.style.ERROR(
-                "No DISCORD_WEBHOOK_URL configured."))
+            self.stdout.write(self.style.ERROR("No DISCORD_WEBHOOK_URL configured."))
             return
 
         # Identify stubs: Locations with no city, Carriers with the default fetch_routes name
-        unenriched_locs = Location.objects.filter(city__exact='')
-        unenriched_carriers = Carrier.objects.filter(
-            name__startswith='Airline ')
+        unenriched_locs = Location.objects.filter(city__exact="")
+        unenriched_carriers = Carrier.objects.filter(name__startswith="Airline ")
 
         if not unenriched_locs.exists() and not unenriched_carriers.exists():
-            self.stdout.write(self.style.SUCCESS(
-                "All data is fully enriched!"))
+            self.stdout.write(self.style.SUCCESS("All data is fully enriched!"))
             return
 
         # Format lists
-        loc_text = "\n".join(
-            [f"• **{loc.code}**" for loc in unenriched_locs]) or "All locations enriched."
-        carrier_text = "\n".join(
-            [f"• **{c.code}**" for c in unenriched_carriers]) or "All carriers enriched."
+        loc_text = (
+            "\n".join([f"• **{loc.code}**" for loc in unenriched_locs])
+            or "All locations enriched."
+        )
+        carrier_text = (
+            "\n".join([f"• **{c.code}**" for c in unenriched_carriers])
+            or "All carriers enriched."
+        )
 
         # Discord Embed Payload
         payload = {
@@ -37,14 +38,14 @@ class Command(BaseCommand):
                 {
                     "title": "📍 Unenriched Locations",
                     "description": f"The following airports/ports were discovered by the scraper but lack metadata (City, Country):\n\n{loc_text}",
-                    "color": 16711680  # Red
+                    "color": 16711680,  # Red
                 },
                 {
                     "title": "✈️ Unenriched Carriers",
                     "description": f"The following carrier codes need proper names in enrich_carriers.py:\n\n{carrier_text}",
-                    "color": 16753920  # Orange
-                }
-            ]
+                    "color": 16753920,  # Orange
+                },
+            ],
         }
 
         try:

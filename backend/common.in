@@ -8,7 +8,6 @@ djangorestframework
 django-prometheus
 
 # Utilities
-pillow
 requests
 beautifulsoup4
 redis

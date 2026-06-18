@@ -1,18 +1,26 @@
 from rest_framework import serializers
 from .models import Location, Carrier, Route, FlightInstance, Sailing, ReportedIssue
 
-# --- STANDARD CRUD SERIALIZERS ---
 
 
 class LocationSerializer(serializers.ModelSerializer):
     parent_code = serializers.CharField(
-        source='parent.code', read_only=True, default=None)
+        source="parent.code", read_only=True, default=None
+    )
     has_children = serializers.SerializerMethodField()
 
     class Meta:
         model = Location
-        fields = ['id', 'code', 'name', 'city', 'country',
-                  'location_type', 'parent_code', 'has_children']
+        fields = [
+            "id",
+            "code",
+            "name",
+            "city",
+            "country",
+            "location_type",
+            "parent_code",
+            "has_children",
+        ]
 
     def get_has_children(self, obj):
         # Prevent N+1 query by checking the prefetched cache
@@ -22,7 +30,7 @@ class LocationSerializer(serializers.ModelSerializer):
 class CarrierSerializer(serializers.ModelSerializer):
     class Meta:
         model = Carrier
-        fields = ['code', 'name', 'carrier_type', 'website']
+        fields = ["code", "name", "carrier_type", "website"]
 
 
 class RouteSerializer(serializers.ModelSerializer):
@@ -33,21 +41,18 @@ class RouteSerializer(serializers.ModelSerializer):
     class Meta:
         model = Route
         fields = [
-            'id', 'origin', 'destination', 'carrier',
-            'flight_number', 'aircraft_type',
-            'duration_minutes', 'departure_time', 'arrival_time'
+            "id",
+            "origin",
+            "destination",
+            "carrier",
+            "flight_number",
+            "aircraft_type",
+            "duration_minutes",
+            "departure_time",
+            "arrival_time",
         ]
 
 
-class FlightInstanceSerializer(serializers.ModelSerializer):
-    route = RouteSerializer(read_only=True)
-
-    class Meta:
-        model = FlightInstance
-        fields = [
-            'id', 'route', 'date', 'price_amount',
-            'currency', 'available_seats', 'cabin_class', 'last_seen_at'
-        ]
 
 
 class SailingSerializer(serializers.ModelSerializer):
@@ -56,15 +61,20 @@ class SailingSerializer(serializers.ModelSerializer):
     class Meta:
         model = Sailing
         fields = [
-            'id', 'route', 'date', 'departure_time',
-            'arrival_time', 'duration_minutes', 'price_text'
+            "id",
+            "route",
+            "date",
+            "departure_time",
+            "arrival_time",
+            "duration_minutes",
+            "price_text",
         ]
 
 
-# --- NEW: CUSTOM SEARCH SERIALIZERS ---
+
 
 class ItineraryLegSerializer(serializers.Serializer):
-    """Dynamically shapes either a FlightInstance or a Sailing into the frontend ApiLeg contract"""
+
     is_ferry = serializers.SerializerMethodField()
     origin = serializers.SerializerMethodField()
     destination = serializers.SerializerMethodField()
@@ -85,32 +95,48 @@ class ItineraryLegSerializer(serializers.Serializer):
         return isinstance(obj, Sailing)
 
     def get_origin(self, obj):
-        return {"code": obj.route.origin.code, "name": obj.route.origin.name, "city": obj.route.origin.city}
+        return {
+            "code": obj.route.origin.code,
+            "name": obj.route.origin.name,
+            "city": obj.route.origin.city,
+        }
 
     def get_destination(self, obj):
-        return {"code": obj.route.destination.code, "name": obj.route.destination.name, "city": obj.route.destination.city}
+        return {
+            "code": obj.route.destination.code,
+            "name": obj.route.destination.name,
+            "city": obj.route.destination.city,
+        }
 
     def get_carrier(self, obj):
-        return {"code": obj.route.carrier.code, "name": obj.route.carrier.name, "website": obj.route.carrier.website}
+        return {
+            "code": obj.route.carrier.code,
+            "name": obj.route.carrier.name,
+            "website": obj.route.carrier.website,
+        }
 
     def get_departure_date(self, obj):
-        return obj.date.strftime('%Y-%m-%d')
+        return obj.date.strftime("%Y-%m-%d")
 
     def get_arrival_date(self, obj):
-        return obj.date.strftime('%Y-%m-%d')
+        return obj.date.strftime("%Y-%m-%d")
 
     def get_departure_time(self, obj):
-        time = obj.departure_time if isinstance(
-            obj, Sailing) else obj.route.departure_time
-        return time.strftime('%H:%M') if time else "00:00"
+        time = (
+            obj.departure_time if isinstance(obj, Sailing) else obj.route.departure_time
+        )
+        return time.strftime("%H:%M") if time else "00:00"
 
     def get_arrival_time(self, obj):
-        time = obj.arrival_time if isinstance(
-            obj, Sailing) else obj.route.arrival_time
-        return time.strftime('%H:%M') if time else "00:00"
+        time = obj.arrival_time if isinstance(obj, Sailing) else obj.route.arrival_time
+        return time.strftime("%H:%M") if time else "00:00"
 
     def get_duration_minutes(self, obj):
-        return obj.duration_minutes if isinstance(obj, Sailing) else obj.route.duration_minutes
+        return (
+            obj.duration_minutes
+            if isinstance(obj, Sailing)
+            else obj.route.duration_minutes
+        )
 
     def get_flight_number(self, obj):
         return obj.route.flight_number
@@ -124,33 +150,24 @@ class ItineraryLegSerializer(serializers.Serializer):
     def get_price_text(self, obj):
         if isinstance(obj, Sailing):
             return obj.price_text
-        if getattr(obj, 'price_amount', None):
+        if getattr(obj, "price_amount", None):
             return f"{obj.currency} {obj.price_amount}"
         return None
 
     def get_available_seats(self, obj):
         if isinstance(obj, Sailing):
             return None
-        return getattr(obj, 'available_seats', None)
+        return getattr(obj, "available_seats", None)
 
     def get_last_seen_at(self, obj):
-        if hasattr(obj, 'last_seen_at') and obj.last_seen_at:
-            return obj.last_seen_at.strftime('%b %d, %H:%M')
+        if hasattr(obj, "last_seen_at") and obj.last_seen_at:
+            return obj.last_seen_at.strftime("%b %d, %H:%M")
         return None
 
 
-class ItinerarySerializer(serializers.Serializer):
-    id = serializers.CharField()
-    legs = ItineraryLegSerializer(many=True)
-
-
-class SearchResponseSerializer(serializers.Serializer):
-    date_was_changed = serializers.BooleanField()
-    found_date = serializers.CharField()
-    results = ItinerarySerializer(many=True)
 
 
 class ReportedIssueSerializer(serializers.ModelSerializer):
     class Meta:
         model = ReportedIssue
-        fields = '__all__'
+        fields = "__all__"
