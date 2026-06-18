@@ -4,20 +4,38 @@ from django.db import migrations, models
 
 
 class Migration(migrations.Migration):
-
     dependencies = [
-        ('core', '0010_route_aircraft_type_route_flight_number'),
+        ("core", "0010_route_aircraft_type_route_flight_number"),
     ]
 
     operations = [
         migrations.CreateModel(
-            name='ReportedIssue',
+            name="ReportedIssue",
             fields=[
-                ('id', models.BigAutoField(auto_created=True, primary_key=True, serialize=False, verbose_name='ID')),
-                ('issue_type', models.CharField(choices=[('routing_error', 'Bad Route or Connection'), ('missing_data', 'Missing Airport or Ferry'), ('ui_bug', 'UI or Visual Bug'), ('other', 'Other')], max_length=20)),
-                ('user_note', models.TextField()),
-                ('resolved', models.BooleanField(default=False)),
-                ('created_at', models.DateTimeField(auto_now_add=True)),
+                (
+                    "id",
+                    models.BigAutoField(
+                        auto_created=True,
+                        primary_key=True,
+                        serialize=False,
+                        verbose_name="ID",
+                    ),
+                ),
+                (
+                    "issue_type",
+                    models.CharField(
+                        choices=[
+                            ("routing_error", "Bad Route or Connection"),
+                            ("missing_data", "Missing Airport or Ferry"),
+                            ("ui_bug", "UI or Visual Bug"),
+                            ("other", "Other"),
+                        ],
+                        max_length=20,
+                    ),
+                ),
+                ("user_note", models.TextField()),
+                ("resolved", models.BooleanField(default=False)),
+                ("created_at", models.DateTimeField(auto_now_add=True)),
             ],
         ),
     ]

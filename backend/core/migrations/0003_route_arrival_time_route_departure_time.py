@@ -4,20 +4,19 @@ from django.db import migrations, models
 
 
 class Migration(migrations.Migration):
-
     dependencies = [
-        ('core', '0002_route_days_of_operation'),
+        ("core", "0002_route_days_of_operation"),
     ]
 
     operations = [
         migrations.AddField(
-            model_name='route',
-            name='arrival_time',
+            model_name="route",
+            name="arrival_time",
             field=models.TimeField(blank=True, null=True),
         ),
         migrations.AddField(
-            model_name='route',
-            name='departure_time',
+            model_name="route",
+            name="departure_time",
             field=models.TimeField(blank=True, null=True),
         ),
     ]

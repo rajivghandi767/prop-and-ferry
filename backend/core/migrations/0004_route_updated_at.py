@@ -4,15 +4,14 @@ from django.db import migrations, models
 
 
 class Migration(migrations.Migration):
-
     dependencies = [
-        ('core', '0003_route_arrival_time_route_departure_time'),
+        ("core", "0003_route_arrival_time_route_departure_time"),
     ]
 
     operations = [
         migrations.AddField(
-            model_name='route',
-            name='updated_at',
+            model_name="route",
+            name="updated_at",
             field=models.DateTimeField(auto_now=True),
         ),
     ]

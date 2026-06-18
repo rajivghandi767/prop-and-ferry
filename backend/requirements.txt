@@ -31,8 +31,6 @@ packaging==26.0
     # via
     #   gunicorn
     #   pytest
-pillow==12.1.0
-    # via -r common.in
 pluggy==1.6.0
     # via pytest
 prometheus-client==0.24.1

@@ -4,35 +4,38 @@ from django.db import migrations, models
 
 
 class Migration(migrations.Migration):
-
     dependencies = [
-        ('core', '0004_route_updated_at'),
+        ("core", "0004_route_updated_at"),
     ]
 
     operations = [
         migrations.AlterField(
-            model_name='carrier',
-            name='website',
+            model_name="carrier",
+            name="website",
             field=models.URLField(blank=True, null=True),
         ),
         migrations.AlterField(
-            model_name='location',
-            name='city',
+            model_name="location",
+            name="city",
             field=models.CharField(blank=True, max_length=100),
         ),
         migrations.AlterField(
-            model_name='location',
-            name='country',
+            model_name="location",
+            name="country",
             field=models.CharField(blank=True, max_length=100),
         ),
         migrations.AlterField(
-            model_name='route',
-            name='days_of_operation',
-            field=models.CharField(default='1234567', help_text='Days this route runs (1=Monday, 7=Sunday)', max_length=7),
+            model_name="route",
+            name="days_of_operation",
+            field=models.CharField(
+                default="1234567",
+                help_text="Days this route runs (1=Monday, 7=Sunday)",
+                max_length=7,
+            ),
         ),
         migrations.AlterField(
-            model_name='route',
-            name='updated_at',
+            model_name="route",
+            name="updated_at",
             field=models.DateTimeField(auto_now=True, db_index=True),
         ),
     ]

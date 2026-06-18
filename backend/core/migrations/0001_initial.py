@@ -5,48 +5,105 @@ from django.db import migrations, models
 
 
 class Migration(migrations.Migration):
-
     initial = True
 
-    dependencies = [
-    ]
+    dependencies = []
 
     operations = [
         migrations.CreateModel(
-            name='Carrier',
+            name="Carrier",
             fields=[
-                ('id', models.BigAutoField(auto_created=True, primary_key=True, serialize=False, verbose_name='ID')),
-                ('code', models.CharField(max_length=3, unique=True)),
-                ('name', models.CharField(max_length=100)),
-                ('carrier_type', models.CharField(choices=[('AIR', 'Airline'), ('SEA', 'Ferry')], default='AIR', max_length=3)),
-                ('website', models.URLField(blank=True)),
+                (
+                    "id",
+                    models.BigAutoField(
+                        auto_created=True,
+                        primary_key=True,
+                        serialize=False,
+                        verbose_name="ID",
+                    ),
+                ),
+                ("code", models.CharField(max_length=3, unique=True)),
+                ("name", models.CharField(max_length=100)),
+                (
+                    "carrier_type",
+                    models.CharField(
+                        choices=[("AIR", "Airline"), ("SEA", "Ferry")],
+                        default="AIR",
+                        max_length=3,
+                    ),
+                ),
+                ("website", models.URLField(blank=True)),
             ],
         ),
         migrations.CreateModel(
-            name='Location',
+            name="Location",
             fields=[
-                ('id', models.BigAutoField(auto_created=True, primary_key=True, serialize=False, verbose_name='ID')),
-                ('code', models.CharField(max_length=5, unique=True)),
-                ('name', models.CharField(max_length=100)),
-                ('city', models.CharField(max_length=100)),
-                ('country', models.CharField(max_length=100)),
-                ('location_type', models.CharField(choices=[('APT', 'Airport'), ('PRT', 'Ferry Port')], default='APT', max_length=3)),
-                ('latitude', models.FloatField(blank=True, null=True)),
-                ('longitude', models.FloatField(blank=True, null=True)),
+                (
+                    "id",
+                    models.BigAutoField(
+                        auto_created=True,
+                        primary_key=True,
+                        serialize=False,
+                        verbose_name="ID",
+                    ),
+                ),
+                ("code", models.CharField(max_length=5, unique=True)),
+                ("name", models.CharField(max_length=100)),
+                ("city", models.CharField(max_length=100)),
+                ("country", models.CharField(max_length=100)),
+                (
+                    "location_type",
+                    models.CharField(
+                        choices=[("APT", "Airport"), ("PRT", "Ferry Port")],
+                        default="APT",
+                        max_length=3,
+                    ),
+                ),
+                ("latitude", models.FloatField(blank=True, null=True)),
+                ("longitude", models.FloatField(blank=True, null=True)),
             ],
         ),
         migrations.CreateModel(
-            name='Route',
+            name="Route",
             fields=[
-                ('id', models.BigAutoField(auto_created=True, primary_key=True, serialize=False, verbose_name='ID')),
-                ('is_active', models.BooleanField(default=True)),
-                ('duration_minutes', models.IntegerField(blank=True, null=True)),
-                ('carrier', models.ForeignKey(on_delete=django.db.models.deletion.CASCADE, related_name='routes', to='core.carrier')),
-                ('destination', models.ForeignKey(on_delete=django.db.models.deletion.CASCADE, related_name='arrivals', to='core.location')),
-                ('origin', models.ForeignKey(on_delete=django.db.models.deletion.CASCADE, related_name='departures', to='core.location')),
+                (
+                    "id",
+                    models.BigAutoField(
+                        auto_created=True,
+                        primary_key=True,
+                        serialize=False,
+                        verbose_name="ID",
+                    ),
+                ),
+                ("is_active", models.BooleanField(default=True)),
+                ("duration_minutes", models.IntegerField(blank=True, null=True)),
+                (
+                    "carrier",
+                    models.ForeignKey(
+                        on_delete=django.db.models.deletion.CASCADE,
+                        related_name="routes",
+                        to="core.carrier",
+                    ),
+                ),
+                (
+                    "destination",
+                    models.ForeignKey(
+                        on_delete=django.db.models.deletion.CASCADE,
+                        related_name="arrivals",
+                        to="core.location",
+                    ),
+                ),
+                (
+                    "origin",
+                    models.ForeignKey(
+                        on_delete=django.db.models.deletion.CASCADE,
+                        related_name="departures",
+                        to="core.location",
+                    ),
+                ),
             ],
             options={
-                'unique_together': {('origin', 'destination', 'carrier')},
+                "unique_together": {("origin", "destination", "carrier")},
             },
         ),
     ]

@@ -4,34 +4,36 @@ from django.db import migrations, models
 
 
 class Migration(migrations.Migration):
-
     dependencies = [
-        ('core', '0007_alter_route_days_of_operation_alter_route_updated_at_and_more'),
+        ("core", "0007_alter_route_days_of_operation_alter_route_updated_at_and_more"),
     ]
 
     operations = [
         migrations.AlterField(
-            model_name='carrier',
-            name='code',
+            model_name="carrier",
+            name="code",
             field=models.CharField(db_index=True, max_length=3, unique=True),
         ),
         migrations.AlterField(
-            model_name='location',
-            name='code',
+            model_name="location",
+            name="code",
             field=models.CharField(db_index=True, max_length=5, unique=True),
         ),
         migrations.AlterField(
-            model_name='route',
-            name='days_of_operation',
-            field=models.CharField(default='1234567', max_length=7),
+            model_name="route",
+            name="days_of_operation",
+            field=models.CharField(default="1234567", max_length=7),
         ),
         migrations.AlterField(
-            model_name='route',
-            name='is_active',
+            model_name="route",
+            name="is_active",
             field=models.BooleanField(db_index=True, default=True),
         ),
         migrations.AddIndex(
-            model_name='route',
-            index=models.Index(fields=['origin', 'destination', 'is_active'], name='core_route_origin__65c43e_idx'),
+            model_name="route",
+            index=models.Index(
+                fields=["origin", "destination", "is_active"],
+                name="core_route_origin__65c43e_idx",
+            ),
         ),
     ]

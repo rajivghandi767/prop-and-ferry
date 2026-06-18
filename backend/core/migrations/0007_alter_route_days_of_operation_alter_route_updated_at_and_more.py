@@ -5,36 +5,52 @@ from django.db import migrations, models
 
 
 class Migration(migrations.Migration):
-
     dependencies = [
-        ('core', '0006_location_parent'),
+        ("core", "0006_location_parent"),
     ]
 
     operations = [
         migrations.AlterField(
-            model_name='route',
-            name='days_of_operation',
-            field=models.CharField(default='1234567', help_text='1=Mon, 7=Sun', max_length=7),
+            model_name="route",
+            name="days_of_operation",
+            field=models.CharField(
+                default="1234567", help_text="1=Mon, 7=Sun", max_length=7
+            ),
         ),
         migrations.AlterField(
-            model_name='route',
-            name='updated_at',
+            model_name="route",
+            name="updated_at",
             field=models.DateTimeField(auto_now=True),
         ),
         migrations.CreateModel(
-            name='Sailing',
+            name="Sailing",
             fields=[
-                ('id', models.BigAutoField(auto_created=True, primary_key=True, serialize=False, verbose_name='ID')),
-                ('date', models.DateField(db_index=True)),
-                ('departure_time', models.TimeField()),
-                ('arrival_time', models.TimeField()),
-                ('duration_minutes', models.IntegerField(default=120)),
-                ('price_text', models.CharField(blank=True, max_length=50)),
-                ('route', models.ForeignKey(on_delete=django.db.models.deletion.CASCADE, related_name='sailings', to='core.route')),
+                (
+                    "id",
+                    models.BigAutoField(
+                        auto_created=True,
+                        primary_key=True,
+                        serialize=False,
+                        verbose_name="ID",
+                    ),
+                ),
+                ("date", models.DateField(db_index=True)),
+                ("departure_time", models.TimeField()),
+                ("arrival_time", models.TimeField()),
+                ("duration_minutes", models.IntegerField(default=120)),
+                ("price_text", models.CharField(blank=True, max_length=50)),
+                (
+                    "route",
+                    models.ForeignKey(
+                        on_delete=django.db.models.deletion.CASCADE,
+                        related_name="sailings",
+                        to="core.route",
+                    ),
+                ),
             ],
             options={
-                'ordering': ['date', 'departure_time'],
-                'unique_together': {('route', 'date', 'departure_time')},
+                "ordering": ["date", "departure_time"],
+                "unique_together": {("route", "date", "departure_time")},
             },
         ),
     ]

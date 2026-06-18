@@ -5,15 +5,20 @@ from django.db import migrations, models
 
 
 class Migration(migrations.Migration):
-
     dependencies = [
-        ('core', '0005_alter_carrier_website_alter_location_city_and_more'),
+        ("core", "0005_alter_carrier_website_alter_location_city_and_more"),
     ]
 
     operations = [
         migrations.AddField(
-            model_name='location',
-            name='parent',
-            field=models.ForeignKey(blank=True, null=True, on_delete=django.db.models.deletion.SET_NULL, related_name='sub_locations', to='core.location'),
+            model_name="location",
+            name="parent",
+            field=models.ForeignKey(
+                blank=True,
+                null=True,
+                on_delete=django.db.models.deletion.SET_NULL,
+                related_name="sub_locations",
+                to="core.location",
+            ),
         ),
     ]
