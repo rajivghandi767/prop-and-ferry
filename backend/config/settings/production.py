@@ -155,7 +155,6 @@ REST_FRAMEWORK.update({
 # OPTIONAL SETTINGS
 # ============================================================================
 DISCORD_WEBHOOK_URL = os.getenv('DISCORD_WEBHOOK_URL')
-ADMIN_URL = os.getenv('ADMIN_URL')
 HEALTH_CHECK_ENABLED = True
 
 # ============================================================================

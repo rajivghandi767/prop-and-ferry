@@ -1,4 +1,3 @@
-from django.contrib import admin
 from django.urls import path, include
 from django.conf.urls.static import static
 from django.conf import settings
@@ -28,7 +27,6 @@ def api_root(request):
         "version": "1.0",
         "api_url": f"{base_url}api/",
         "endpoints": {
-            "admin": f"{base_url}admin/",
             "api": f"{base_url}api/",
             "health": f"{base_url}health/",
         }
@@ -53,11 +51,7 @@ urlpatterns = [
     # API Routes (Router now handles 'api/routes/search/')
     path('api/', include(router.urls)),
 
-    # Admin Interface
-    path('admin/', admin.site.urls),
-
-    # DRF Authentication
-    path('api-auth/', include('rest_framework.urls', namespace='rest_framework')),
+    # DRF Authentication removed as it is unnecessary for this project
 
     # Health Check Endpoints
     path('health/', health_simple, name='health_simple'),

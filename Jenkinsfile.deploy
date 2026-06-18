@@ -54,7 +54,6 @@ pipeline {
                     [envVar: 'POSTGRES_USER', vaultKey: 'POSTGRES_USER'],
                     [envVar: 'POSTGRES_PASSWORD', vaultKey: 'POSTGRES_PASSWORD'],
                     [envVar: 'POSTGRES_DB', vaultKey: 'POSTGRES_DB'],
-                    [envVar: 'ADMIN_URL', vaultKey: 'ADMIN_URL'],
                     [envVar: 'DISCORD_WEBHOOK_URL', vaultKey: 'DISCORD_WEBHOOK_URL'],
                     [envVar: 'DUFFEL_ACCESS_TOKEN', vaultKey: 'DUFFEL_ACCESS_TOKEN'],
                     [envVar: 'REDIS_URL', vaultKey: 'REDIS_URL'],
@@ -73,7 +72,6 @@ pipeline {
                                 echo "POSTGRES_USER='${POSTGRES_USER}'" >> .env.prod
                                 echo "POSTGRES_PASSWORD='${POSTGRES_PASSWORD}'" >> .env.prod
                                 echo "POSTGRES_DB='${POSTGRES_DB}'" >> .env.prod
-                                echo "ADMIN_URL='${ADMIN_URL}'" >> .env.prod
                                 echo "DISCORD_WEBHOOK_URL='${DISCORD_WEBHOOK_URL}'" >> .env.prod
                                 echo "DUFFEL_ACCESS_TOKEN='${DUFFEL_ACCESS_TOKEN}'" >> .env.prod
                                 echo "REDIS_URL='${REDIS_URL}'" >> .env.prod
