@@ -9,6 +9,7 @@ import { ProjectSwitcher } from "./components/ProjectSwitcher";
 import { ReportModal } from "./components/ReportModal";
 import { DateCarousel } from "./components/DateCarousel";
 import { LeanCalendar } from "./components/LeanCalendar";
+import { LazySection } from "./components/LazySection";
 import { fetchAvailableDates, searchRoutes } from "./utils/api";
 import { usePortfolioData } from "./hooks/usePortfolioData";
 
@@ -330,13 +331,13 @@ function App() {
           )}
 
           {displayedItineraries.map((itinerary) => (
-            <div
-              key={itinerary.id}
-              className="bg-bg-light dark:bg-bg-dark p-6 rounded-lg shadow-sm border border-gray-200 dark:border-neutral-800 hover:shadow-md transition-all animate-fade-in-up"
-            >
-              {itinerary.legs.map((leg: ApiLeg, i: number) => (
-                <div key={i}>
-                  {i > 0 && (
+            <LazySection key={itinerary.id}>
+              <div
+                className="bg-bg-light dark:bg-bg-dark p-6 rounded-lg shadow-sm border border-gray-200 dark:border-neutral-800 hover:shadow-md transition-all animate-fade-in-up"
+              >
+                {itinerary.legs.map((leg: ApiLeg, i: number) => (
+                  <div key={`${leg.flight_number || leg.carrier.code}-${leg.departure_time}-${i}`}>
+                    {i > 0 && (
                     <div className="my-4 pl-4 border-l-2 border-dashed border-gray-300 dark:border-neutral-700 ml-3">
                       <div className="text-xs font-bold text-neutral-500 uppercase tracking-wide">
                         {itinerary.legs[i - 1].layover_text || "Connection"}
@@ -477,7 +478,8 @@ function App() {
                   </div>
                 </div>
               ))}
-            </div>
+              </div>
+            </LazySection>
           ))}
           {displayedItineraries.length === 0 && itineraries.length > 0 && (
             <div className="text-center py-10 text-neutral-500">
