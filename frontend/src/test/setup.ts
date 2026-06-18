@@ -9,3 +9,14 @@ vi.mock('../utils/api', () => ({
   searchRoutes: vi.fn().mockResolvedValue({ results: [] }),
   submitReport: vi.fn().mockResolvedValue({ ok: true })
 }));
+// Mock IntersectionObserver
+class IntersectionObserverMock {
+  constructor() {}
+  disconnect() {}
+  observe() {}
+  takeRecords() { return []; }
+  unobserve() {}
+}
+import { vi } from 'vitest';
+vi.stubGlobal('IntersectionObserver', IntersectionObserverMock);
+
