@@ -3,6 +3,7 @@ import logging
 import re
 import time
 import requests
+from typing import Any
 from datetime import datetime, timedelta
 
 from django.core.management.base import BaseCommand
@@ -15,7 +16,7 @@ class Command(BaseCommand):
     help = "Fetches strictly DOM-centric flight routes via Duffel API for a rolling 3-Day POC window."
     api_calls = 0
 
-    def get_duffel_headers(self):
+    def get_duffel_headers(self) -> dict[str, str]:
         return {
             "Authorization": f"Bearer {os.getenv('DUFFEL_ACCESS_TOKEN')}",
             "Duffel-Version": "v2",
@@ -23,7 +24,7 @@ class Command(BaseCommand):
             "Content-Type": "application/json",
         }
 
-    def parse_duration(self, iso_str: str) -> int:
+    def parse_duration(self, iso_str: Any) -> int:
         if not iso_str:
             return 0
         hours = int(match.group(1)) if (match := re.search(r"(\d+)H", iso_str)) else 0
@@ -95,13 +96,13 @@ class Command(BaseCommand):
 
     def _process_segment(
         self,
-        segment: dict,
+        segment: dict[str, Any],
         date_str: str,
         price: str,
         currency: str,
         seats: int,
         cabin: str,
-    ):
+    ) -> None:
         # 1. Safely handle null JSON objects by falling back to {}
         op_carrier = segment.get("operating_carrier") or {}
         mkt_carrier = segment.get("marketing_carrier") or {}
@@ -166,7 +167,7 @@ class Command(BaseCommand):
             },
         )
 
-    def handle(self, *args, **kwargs):
+    def handle(self, *args: Any, **kwargs: Any) -> None:
         self.stdout.write("✈️  Initializing Global Micro-Network Duffel Scraper...")
 
         if not os.getenv("DUFFEL_ACCESS_TOKEN"):

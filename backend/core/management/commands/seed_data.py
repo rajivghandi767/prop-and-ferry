@@ -1,4 +1,5 @@
 import logging
+from typing import Any
 from datetime import datetime, timedelta
 from django.core.management.base import BaseCommand
 from core.models import Location, Carrier, Route, FlightInstance
@@ -9,7 +10,7 @@ logger = logging.getLogger(__name__)
 class Command(BaseCommand):
     help = "Populates the database with the flight network and base ferry topology."
 
-    def handle(self, *args, **kwargs):
+    def handle(self, *args: Any, **kwargs: Any) -> None:
         self.stdout.write("🌱 Seeding Global Network Data...")
 
         # 1. CARRIERS
@@ -26,7 +27,7 @@ class Command(BaseCommand):
             ("LXI", "L'Express des Iles", "SEA", "https://www.frs-express.com"),
         ]
 
-        carriers = {}
+        carriers: dict[str, Carrier] = {}
         for code, name, c_type, web in carriers_data:
             obj, _ = Carrier.objects.get_or_create(
                 code=code,
@@ -67,13 +68,13 @@ class Command(BaseCommand):
             ("MQFDF", "Fort-de-France Ferry Terminal", "Fort-de-France", "PRT"),
         ]
 
-        locs = {}
+        locs: dict[str, Location] = {}
         for code, name, city, l_type in locations_data:
-            obj, _ = Location.objects.get_or_create(
+            loc_obj, _ = Location.objects.get_or_create(
                 code=code,
                 defaults={"name": name, "city": city, "location_type": l_type},
             )
-            locs[code] = obj
+            locs[code] = loc_obj
 
         # 3. RELATIONSHIPS
         self.stdout.write("🔗 Linking Parents & Children...")
@@ -96,8 +97,8 @@ class Command(BaseCommand):
 
         # 4. MOCK FLIGHT ROUTES & INSTANCES
         def create_route(
-            origin, dest, carrier, dep_str, arr_str, dur_min, flight_num, aircraft
-        ):
+            origin: str, dest: str, carrier: str, dep_str: str, arr_str: str, dur_min: int, flight_num: str, aircraft: str
+        ) -> None:
             dep_time = datetime.strptime(dep_str, "%H:%M").time()
             arr_time = datetime.strptime(arr_str, "%H:%M").time()
 

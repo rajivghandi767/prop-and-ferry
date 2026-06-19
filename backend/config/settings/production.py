@@ -150,10 +150,10 @@ REST_FRAMEWORK.update(
         "DEFAULT_RENDERER_CLASSES": [
             "rest_framework.renderers.JSONRenderer",
         ],
-        "DEFAULT_THROTTLE_RATES": {
+        "DEFAULT_THROTTLE_RATES": {  # type: ignore
             "contact": "20/hour",
         },
-        "DEFAULT_PAGINATION_CLASS": None,
+        "DEFAULT_PAGINATION_CLASS": None,  # type: ignore
     }
 )
 

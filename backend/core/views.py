@@ -3,7 +3,10 @@ from rest_framework.decorators import action
 from rest_framework.response import Response
 from datetime import timedelta, datetime
 from django.core.cache import cache
+from django.http import HttpRequest
 from django_filters.rest_framework import DjangoFilterBackend
+from typing import Any
+from rest_framework.request import Request
 
 from .models import Location, Route, Sailing, FlightInstance, Carrier, ReportedIssue
 from .serializers import (
@@ -28,7 +31,7 @@ class ItineraryFilterBackend(DjangoFilterBackend):
     - 'flight': Returns itineraries where NO legs are ferries (all flights).
     - 'all': Returns the unmodified queryset.
     """
-    def filter_queryset(self, request, queryset, view):
+    def filter_queryset(self, request: HttpRequest, queryset: Any, view: Any) -> Any:
         filter_val = request.GET.get("filter", "all")
         if filter_val == "ferry":
             return [it for it in queryset if any(leg.get("is_ferry", False) for leg in it["legs"])]
@@ -43,7 +46,7 @@ class ItineraryOrderingFilter(filters.OrderingFilter):
     This improves the user experience by surfacing the generally faster (flight-only) 
     options first, while pushing multi-modal or ferry-heavy itineraries lower down.
     """
-    def filter_queryset(self, request, queryset, view):
+    def filter_queryset(self, request: HttpRequest, queryset: Any, view: Any) -> Any:
         return sorted(queryset, key=lambda x: 1 if any(leg.get("is_ferry", False) for leg in x["legs"]) else 0, reverse=True)
 
 
@@ -64,7 +67,7 @@ class LocationViewSet(viewsets.ReadOnlyModelViewSet):
     )
     serializer_class = LocationSerializer
 
-    def list(self, request, *args, **kwargs):
+    def list(self, request: Request, *args: Any, **kwargs: Any) -> Response:
 
         cached = cache.get("prop_locations_list")
         if cached:
@@ -78,7 +81,7 @@ class CarrierViewSet(viewsets.ReadOnlyModelViewSet):
     queryset = Carrier.objects.all()
     serializer_class = CarrierSerializer
 
-    def list(self, request, *args, **kwargs):
+    def list(self, request: Request, *args: Any, **kwargs: Any) -> Response:
 
         cached = cache.get("prop_carriers_list")
         if cached:
@@ -98,7 +101,7 @@ class ReportedIssueViewSet(viewsets.ModelViewSet):
     queryset = ReportedIssue.objects.all()
     serializer_class = ReportedIssueSerializer
 
-    def perform_create(self, serializer):
+    def perform_create(self, serializer: Any) -> None:
         issue = serializer.save()
         issue.send_notifications()
 
@@ -108,7 +111,7 @@ class RouteViewSet(viewsets.ReadOnlyModelViewSet):
     serializer_class = RouteSerializer
 
     @action(detail=False, methods=["get"], url_path="available-dates")
-    def available_dates(self, request):
+    def available_dates(self, request: Request) -> Response:
 
         origin_query = request.GET.get("origin")
         dest_query = request.GET.get("destination")
@@ -166,7 +169,7 @@ class RouteViewSet(viewsets.ReadOnlyModelViewSet):
         return Response(resp_data)
 
     @action(detail=False, methods=["get"])
-    def search(self, request):
+    def search(self, request: Request) -> Response:
         """
         Main search endpoint for dynamically assembling multi-leg itineraries.
         
@@ -362,23 +365,23 @@ class RouteViewSet(viewsets.ReadOnlyModelViewSet):
                             {"id": f"c_ff_{l1.id}_{l2.id}", "legs": [l1_data, l2_data]}
                         )
 
-                for l2 in l2_candidates_s:
-                    if l2.route.origin.code not in l1_dest_aliases:
+                for l2_s in l2_candidates_s:
+                    if l2_s.route.origin.code not in l1_dest_aliases:
                         continue
-                    if not l2.departure_time:
+                    if not l2_s.departure_time:
                         continue
 
-                    l2_dep_dt = datetime.combine(l2.date, l2.departure_time)
+                    l2_dep_dt = datetime.combine(l2_s.date, l2_s.departure_time)
                     gap = (l2_dep_dt - l1_arr_dt).total_seconds()
 
                     if MIN_CONNECT_FERRY <= gap <= MAX_CONNECT:
                         l1_data = ItineraryLegSerializer(l1).data
-                        l2_data = ItineraryLegSerializer(l2).data
+                        l2_data = ItineraryLegSerializer(l2_s).data
 
                         hours, mins = int(gap // 3600), int((gap % 3600) // 60)
 
                         # Dynamically flag if the layover spills into the next day
-                        if l1.date != l2.date:
+                        if l1.date != l2_s.date:
                             l1_data["layover_text"] = (
                                 f"🌙 Overnight Layover: {hours}h {mins}m in {l1.route.destination.city} • Connect via Ferry"
                             )
@@ -388,7 +391,7 @@ class RouteViewSet(viewsets.ReadOnlyModelViewSet):
                             )
 
                         day_itineraries.append(
-                            {"id": f"c_fs_{l1.id}_{l2.id}", "legs": [l1_data, l2_data]}
+                            {"id": f"c_fs_{l1.id}_{l2_s.id}", "legs": [l1_data, l2_data]}
                         )
 
             if day_itineraries:

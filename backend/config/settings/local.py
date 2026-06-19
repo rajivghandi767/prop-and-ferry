@@ -57,10 +57,10 @@ SESSION_COOKIE_HTTPONLY = True
 # ============================================================================
 # DATABASE FOR DEVELOPMENT
 # ============================================================================
-POSTGRES_HOST = os.getenv("POSTGRES_HOST")
-POSTGRES_PORT = os.getenv("POSTGRES_PORT")
+POSTGRES_HOST = os.getenv("POSTGRES_HOST", "")
+POSTGRES_PORT = os.getenv("POSTGRES_PORT", "5432")
 
-if is_service_available(POSTGRES_HOST, POSTGRES_PORT):
+if is_service_available(POSTGRES_HOST, int(POSTGRES_PORT)):
     print(f"✅ Connected to Postgres at {POSTGRES_HOST}:{POSTGRES_PORT}")
     DATABASES = {
         "default": {
@@ -74,10 +74,10 @@ if is_service_available(POSTGRES_HOST, POSTGRES_PORT):
     }
 else:
     print("⚠️ Postgres unreachable. Falling back to SQLite.")
-    DATABASES = {
+    DATABASES = {  # type: ignore
         "default": {
             "ENGINE": "django.db.backends.sqlite3",
-            "NAME": BASE_DIR / "db.sqlite3",
+            "NAME": BASE_DIR / "db.sqlite3",  # type: ignore
         }
     }
 
@@ -159,7 +159,7 @@ REST_FRAMEWORK.update(
             "rest_framework.renderers.BrowsableAPIRenderer",
         ],
         "DEFAULT_THROTTLE_CLASSES": [],
-        "DEFAULT_THROTTLE_RATES": {},
+        "DEFAULT_THROTTLE_RATES": {},  # type: ignore
     }
 )
 

@@ -3,7 +3,8 @@ import logging
 import requests
 import re
 from bs4 import BeautifulSoup
-from datetime import datetime, timedelta
+from typing import Any, Optional
+from datetime import datetime, timedelta, date
 from django.db import transaction
 from django.core.management.base import BaseCommand
 from core.models import Location, Route, Carrier, Sailing
@@ -41,11 +42,11 @@ class Command(BaseCommand):
         "FRS - Express Ferry Schedule Scraper: Extracts Exact Times, Durations & Prices"
     )
 
-    def __init__(self):
+    def __init__(self) -> None:
         super().__init__()
-        self.sailings_to_create = []
+        self.sailings_to_create: list[Sailing] = []
 
-    def bootstrap_locations(self):
+    def bootstrap_locations(self) -> None:
         """
         Removes dependency on seed_data.py or fetch_routes.py.
         Ensures ferry terminals exist and are correctly linked to their parent airports.
@@ -92,7 +93,7 @@ class Command(BaseCommand):
                 port_loc.parent = parent_loc
                 port_loc.save()
 
-    def handle(self, *args, **kwargs):
+    def handle(self, *args: Any, **kwargs: Any) -> None:
         self.stdout.write("🚢 Initializing FRS-Express Ferry Schedule Scraper...")
 
         # 1. Guarantee DB Dependencies Exist
@@ -165,7 +166,7 @@ class Command(BaseCommand):
                         continue
                     soup = BeautifulSoup(resp.content, "html.parser")
 
-                    valid_dates_in_week = []
+                    valid_dates_in_week: list[tuple[date, str]] = []
                     for btn in soup.find_all("button"):
                         if "à partir de" in btn.get_text():
                             p_tags = btn.find_all("p")
@@ -237,7 +238,7 @@ class Command(BaseCommand):
                 self.style.WARNING("⚠️ No sailings found. Database was left untouched.")
             )
 
-    def parse_daily_schedule(self, soup, route_obj, date_obj, price_text):
+    def parse_daily_schedule(self, soup: Any, route_obj: Any, date_obj: Any, price_text: str) -> None:
         """
         Parses the daily ferry schedule from the BeautifulSoup DOM.
         
@@ -285,7 +286,7 @@ class Command(BaseCommand):
         except Exception as e:
             logger.error(f"Parse Error on {date_obj}: {e}")
 
-    def fallback_parse_times(self, soup, route_obj, date_obj, price_text):
+    def fallback_parse_times(self, soup: Any, route_obj: Any, date_obj: Any, price_text: str) -> None:
         times = soup.find_all("time")
         for i in range(0, len(times), 2):
             if i + 1 < len(times):
@@ -300,7 +301,7 @@ class Command(BaseCommand):
                     )
                 )
 
-    def parse_french_date(self, date_str):
+    def parse_french_date(self, date_str: Any) -> Optional[date]:
         if not date_str:
             return None
         try:

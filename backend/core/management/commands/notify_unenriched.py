@@ -1,4 +1,5 @@
 import requests
+from typing import Any
 from django.conf import settings
 from django.core.management.base import BaseCommand
 from core.models import Location, Carrier
@@ -7,7 +8,7 @@ from core.models import Location, Carrier
 class Command(BaseCommand):
     help = "Scans for stubbed locations/carriers and triggers a Discord webhook."
 
-    def handle(self, *args, **kwargs):
+    def handle(self, *args: Any, **kwargs: Any) -> None:
         webhook_url = getattr(settings, "DISCORD_WEBHOOK_URL", None)
         if not webhook_url:
             self.stdout.write(self.style.ERROR("No DISCORD_WEBHOOK_URL configured."))

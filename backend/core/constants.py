@@ -3,9 +3,9 @@ Global Constants for Route Discovery.
 """
 
 # --- FLIGHT CONFIGURATION (IATA) ---
-TARGETS = ["DOM"]
-REGIONAL_HUBS = ["ANU", "BGI", "UVF", "PTP", "FDF"]
-GATEWAYS = ["NYC", "LON", "PAR"]
+TARGETS: list[str] = ["DOM"]
+REGIONAL_HUBS: list[str] = ["ANU", "BGI", "UVF", "PTP", "FDF"]
+GATEWAYS: list[str] = ["NYC", "LON", "PAR"]
 
 # --- FERRY CONFIGURATION (UN/LOCODE) ---
 
@@ -19,7 +19,7 @@ PORT_CASTRIES = "LCCAS"  # Castries, St. Lucia
 # 2. DB -> Website Input (What we type/select)
 # When we want to check 'DMROS', we try these values in the dropdown.
 # The scraper will try them in order until one works.
-DB_TO_SITE_OPTS = {
+DB_TO_SITE_OPTS: dict[str, list[str]] = {
     PORT_ROSEAU: ["DOM", "Dominique - Roseau", "Roseau", "Dominique", "Dominica"],
     PORT_PTP: [
         "PTP",
@@ -47,7 +47,7 @@ DB_TO_SITE_OPTS = {
 
 # 3. Website Output -> DB (What we save)
 # If the website result says "Depart: Pointe-à-Pitre", we map it back to 'GPPTP'.
-SITE_TO_DB_MAP = {
+SITE_TO_DB_MAP: dict[str, str] = {
     # DOMINICA
     "DOM": PORT_ROSEAU,
     "Dominique - Roseau": PORT_ROSEAU,

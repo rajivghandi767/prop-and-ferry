@@ -1,7 +1,7 @@
 from django.urls import path, include
 from django.conf.urls.static import static
 from django.conf import settings
-from django.http import JsonResponse
+from django.http import JsonResponse, HttpRequest
 from django.views.decorators.http import require_http_methods
 from django.views.decorators.cache import cache_control
 from rest_framework.routers import DefaultRouter
@@ -21,7 +21,7 @@ from health_check.views import health_detailed, health_simple
 
 @require_http_methods(["GET"])
 @cache_control(max_age=300)
-def api_root(request):
+def api_root(request: HttpRequest) -> JsonResponse:
     """
     API Endpoint List
     """

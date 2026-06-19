@@ -1,4 +1,5 @@
 import logging
+from typing import Any
 from django.core.management.base import BaseCommand
 from core.models import Location
 
@@ -8,7 +9,7 @@ logger = logging.getLogger(__name__)
 class Command(BaseCommand):
     help = "Updates airport metadata and bootstraps ferry terminals and topologies."
 
-    def handle(self, *args, **kwargs):
+    def handle(self, *args: Any, **kwargs: Any) -> None:
         self.stdout.write("🌍 Enriching Location Data...")
 
         # FORMAT: (Code, City, Name, Country)

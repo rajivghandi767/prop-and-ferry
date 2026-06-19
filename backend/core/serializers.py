@@ -1,4 +1,5 @@
 from rest_framework import serializers
+from typing import Any, Optional, Union
 from .models import Location, Carrier, Route, FlightInstance, Sailing, ReportedIssue
 
 
@@ -22,7 +23,7 @@ class LocationSerializer(serializers.ModelSerializer):
             "has_children",
         ]
 
-    def get_has_children(self, obj):
+    def get_has_children(self, obj: Location) -> bool:
         # Prevent N+1 query by checking the prefetched cache
         return len(obj.sub_locations.all()) > 0
 
@@ -91,75 +92,75 @@ class ItineraryLegSerializer(serializers.Serializer):
     available_seats = serializers.SerializerMethodField()
     last_seen_at = serializers.SerializerMethodField()
 
-    def get_is_ferry(self, obj):
+    def get_is_ferry(self, obj: Union[FlightInstance, Sailing]) -> bool:
         return isinstance(obj, Sailing)
 
-    def get_origin(self, obj):
+    def get_origin(self, obj: Union[FlightInstance, Sailing]) -> dict[str, Any]:
         return {
             "code": obj.route.origin.code,
             "name": obj.route.origin.name,
             "city": obj.route.origin.city,
         }
 
-    def get_destination(self, obj):
+    def get_destination(self, obj: Union[FlightInstance, Sailing]) -> dict[str, Any]:
         return {
             "code": obj.route.destination.code,
             "name": obj.route.destination.name,
             "city": obj.route.destination.city,
         }
 
-    def get_carrier(self, obj):
+    def get_carrier(self, obj: Union[FlightInstance, Sailing]) -> dict[str, Any]:
         return {
             "code": obj.route.carrier.code,
             "name": obj.route.carrier.name,
             "website": obj.route.carrier.website,
         }
 
-    def get_departure_date(self, obj):
+    def get_departure_date(self, obj: Union[FlightInstance, Sailing]) -> str:
         return obj.date.strftime("%Y-%m-%d")
 
-    def get_arrival_date(self, obj):
+    def get_arrival_date(self, obj: Union[FlightInstance, Sailing]) -> str:
         return obj.date.strftime("%Y-%m-%d")
 
-    def get_departure_time(self, obj):
+    def get_departure_time(self, obj: Union[FlightInstance, Sailing]) -> str:
         time = (
             obj.departure_time if isinstance(obj, Sailing) else obj.route.departure_time
         )
         return time.strftime("%H:%M") if time else "00:00"
 
-    def get_arrival_time(self, obj):
+    def get_arrival_time(self, obj: Union[FlightInstance, Sailing]) -> str:
         time = obj.arrival_time if isinstance(obj, Sailing) else obj.route.arrival_time
         return time.strftime("%H:%M") if time else "00:00"
 
-    def get_duration_minutes(self, obj):
+    def get_duration_minutes(self, obj: Union[FlightInstance, Sailing]) -> Optional[int]:
         return (
             obj.duration_minutes
             if isinstance(obj, Sailing)
             else obj.route.duration_minutes
         )
 
-    def get_flight_number(self, obj):
+    def get_flight_number(self, obj: Union[FlightInstance, Sailing]) -> Optional[str]:
         return obj.route.flight_number
 
-    def get_aircraft_type(self, obj):
+    def get_aircraft_type(self, obj: Union[FlightInstance, Sailing]) -> Optional[str]:
         return obj.route.aircraft_type
 
-    def get_days_of_operation(self, obj):
+    def get_days_of_operation(self, obj: Union[FlightInstance, Sailing]) -> Optional[str]:
         return None if isinstance(obj, Sailing) else obj.route.days_of_operation
 
-    def get_price_text(self, obj):
+    def get_price_text(self, obj: Union[FlightInstance, Sailing]) -> Optional[str]:
         if isinstance(obj, Sailing):
             return obj.price_text
         if getattr(obj, "price_amount", None):
             return f"{obj.currency} {obj.price_amount}"
         return None
 
-    def get_available_seats(self, obj):
+    def get_available_seats(self, obj: Union[FlightInstance, Sailing]) -> Optional[int]:
         if isinstance(obj, Sailing):
             return None
         return getattr(obj, "available_seats", None)
 
-    def get_last_seen_at(self, obj):
+    def get_last_seen_at(self, obj: Union[FlightInstance, Sailing]) -> Optional[str]:
         if hasattr(obj, "last_seen_at") and obj.last_seen_at:
             return obj.last_seen_at.strftime("%b %d, %H:%M")
         return None

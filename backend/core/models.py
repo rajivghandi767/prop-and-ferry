@@ -15,7 +15,7 @@ class Carrier(models.Model):
     carrier_type = models.CharField(max_length=3, choices=TYPE_CHOICES, default="AIR")
     website = models.URLField(blank=True, null=True)
 
-    def __str__(self):
+    def __str__(self) -> str:
         return f"{self.name} ({self.code})"
 
 
@@ -46,7 +46,7 @@ class Location(models.Model):
         related_name="sub_locations",
     )
 
-    def resolve_aliases(self):
+    def resolve_aliases(self) -> list[str]:
         """
         Resolves all related location codes for a given location.
 
@@ -70,7 +70,7 @@ class Location(models.Model):
                 codes.add(sibling.code)
         return list(codes)
 
-    def __str__(self):
+    def __str__(self) -> str:
         return f"{self.code} - {self.name}"
 
 
@@ -110,7 +110,7 @@ class Route(models.Model):
             models.Index(fields=["origin", "destination", "is_active"]),
         ]
 
-    def __str__(self):
+    def __str__(self) -> str:
         return f"{self.carrier.code}: {self.origin.code} -> {self.destination.code}"
 
 
@@ -131,7 +131,7 @@ class FlightInstance(models.Model):
         unique_together = ("route", "date")
         ordering = ["date"]
 
-    def __str__(self):
+    def __str__(self) -> str:
         return f"{self.route.flight_number} on {self.date} - {self.price_amount} {self.currency}"
 
 
@@ -147,7 +147,7 @@ class Sailing(models.Model):
         unique_together = ("route", "date", "departure_time")
         ordering = ["date", "departure_time"]
 
-    def __str__(self):
+    def __str__(self) -> str:
         return f"{self.route} on {self.date}"
 
 
@@ -163,12 +163,12 @@ class ReportedIssue(models.Model):
     resolved = models.BooleanField(default=False)
     created_at = models.DateTimeField(auto_now_add=True)
 
-    def __str__(self):
+    def __str__(self) -> str:
         return (
             f"{self.get_issue_type_display()} - {self.created_at.strftime('%m/%d/%Y')}"
         )
 
-    def send_notifications(self):
+    def send_notifications(self) -> bool:
         import requests
         from django.conf import settings
 

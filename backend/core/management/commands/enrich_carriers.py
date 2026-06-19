@@ -1,4 +1,5 @@
 import logging
+from typing import Any
 from django.core.management.base import BaseCommand
 from core.models import Carrier
 
@@ -8,7 +9,7 @@ logger = logging.getLogger(__name__)
 class Command(BaseCommand):
     help = "Updates airline codes with User-Preferred Names and Official Websites"
 
-    def handle(self, *args, **kwargs):
+    def handle(self, *args: Any, **kwargs: Any) -> None:
         self.stdout.write("✈️  Enriching Carrier Data...")
 
         carrier_data = [

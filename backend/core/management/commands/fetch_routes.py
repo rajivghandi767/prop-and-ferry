@@ -2,7 +2,7 @@ import os
 import logging
 import re
 import time
-from typing import Set
+from typing import Set, Any
 from datetime import datetime, timedelta
 
 from django.core.management.base import BaseCommand
@@ -18,7 +18,7 @@ class Command(BaseCommand):
     help = "Fetches flight routes for a continuous 14-Day Free-Tier Proof of Concept window."
     api_calls = 0
 
-    def parse_duration(self, iso_str: str) -> int:
+    def parse_duration(self, iso_str: Any) -> int:
         if not iso_str:
             return 0
         hours = int(match.group(1)) if (match := re.search(r"(\d+)H", iso_str)) else 0
@@ -37,7 +37,7 @@ class Command(BaseCommand):
         except ResponseError:
             return set()
 
-    def fetch_and_save(self, amadeus: Client, origin: str, dest: str, date_str: str):
+    def fetch_and_save(self, amadeus: Client, origin: str, dest: str, date_str: str) -> None:
         target_date = datetime.strptime(date_str, "%Y-%m-%d").date()
         self.stdout.write(
             f"[API Calls: {self.api_calls + 1}] 🔎 Checking {origin}->{dest} on {date_str}",
@@ -87,13 +87,13 @@ class Command(BaseCommand):
 
     def _process_segment(
         self,
-        segment: dict,
+        segment: dict[str, Any],
         date_str: str,
         price: str,
         currency: str,
         seats: int,
         cabin: str,
-    ):
+    ) -> None:
         carrier_code = segment["carrierCode"]
         dep_code = segment["departure"]["iataCode"]
         arr_code = segment["arrival"]["iataCode"]
@@ -144,7 +144,7 @@ class Command(BaseCommand):
             },
         )
 
-    def handle(self, *args, **kwargs):
+    def handle(self, *args: Any, **kwargs: Any) -> None:
         self.stdout.write(
             self.style.ERROR(
                 "\n" + "=" * 60 + "\n"
