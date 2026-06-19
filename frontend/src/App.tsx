@@ -113,17 +113,17 @@ function App() {
    *
    * @param searchDate - The ISO formatted date string (YYYY-MM-DD) to search
    */
-  const performSearch = async (searchDate: string) => {
+  const performSearch = async (searchDate: string, currentFilter: string = "all") => {
     setLoading(true);
     setError("");
     setItineraries([]);
     setDateChanged(false);
     setDisplayDate(searchDate);
     setSearchedDate(searchDate);
-    setFilter("all"); // Reset filter on new search
+    setFilter(currentFilter);
 
     try {
-      const data: ApiResponse = await searchRoutes(origin, destination, searchDate);
+      const data: ApiResponse = await searchRoutes(origin, destination, searchDate, currentFilter);
 
       if (data.date_was_changed) {
         setDateChanged(true);
@@ -149,7 +149,7 @@ function App() {
   const handleSearchSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     setIsCalendarOpen(false);
-    performSearch(date);
+    performSearch(date, "all");
   };
 
   const handleDateSelect = (selectedDate: Date) => {
@@ -159,28 +159,17 @@ function App() {
     setDate(dateStr);
     setIsCalendarOpen(false);
 
-    if (origin && destination) performSearch(dateStr);
+    if (origin && destination) performSearch(dateStr, filter);
   };
 
-  // --- FILTER & SORT LOGIC ---
-  // The application allows users to filter itineraries by mode of transport.
-  // We compute the 'displayedItineraries' on the fly rather than storing them in state
-  // to maintain a single source of truth (the 'itineraries' array).
-  const displayedItineraries = itineraries
-    .filter((itinerary) => {
-      // Check if any leg in the itinerary uses a ferry
-      const hasFerry = itinerary.legs.some((leg) => leg.is_ferry);
-      if (filter === "ferry") return hasFerry;
-      if (filter === "flight") return !hasFerry;
-      return true;
-    })
-    .sort((a, b) => {
-      // Sort to prioritize itineraries that include a ferry connection.
-      // This highlights the unique value proposition of the app (multi-modal transport).
-      const aHasFerry = a.legs.some((leg) => leg.is_ferry) ? 1 : 0;
-      const bHasFerry = b.legs.some((leg) => leg.is_ferry) ? 1 : 0;
-      return bHasFerry - aHasFerry;
-    });
+  const handleFilterChange = (newFilter: FilterType) => {
+    setFilter(newFilter);
+    if (origin && destination) {
+      performSearch(searchedDate || date, newFilter);
+    }
+  };
+
+
 
   return (
     <div className="min-h-screen bg-bg-light dark:bg-bg-dark flex flex-col font-sans text-neutral-900 dark:text-white transition-colors duration-200">
@@ -316,7 +305,7 @@ function App() {
               {(["all", "ferry", "flight"] as FilterType[]).map((type) => (
                 <button
                   key={type}
-                  onClick={() => setFilter(type)}
+                  onClick={() => handleFilterChange(type)}
                   className={`px-4 py-2 rounded-full text-xs sm:text-sm font-semibold transition-colors ${
                     filter === type
                       ? "bg-brand-light dark:bg-brand-dark text-white dark:text-black shadow-sm"
@@ -345,7 +334,7 @@ function App() {
             </div>
           )}
 
-          {displayedItineraries.map((itinerary) => (
+          {itineraries.map((itinerary) => (
             <LazySection key={itinerary.id}>
               <div
                 className="bg-bg-light dark:bg-bg-dark p-6 rounded-lg shadow-sm border border-gray-200 dark:border-neutral-800 hover:shadow-md transition-all animate-fade-in-up"
@@ -496,11 +485,7 @@ function App() {
               </div>
             </LazySection>
           ))}
-          {displayedItineraries.length === 0 && itineraries.length > 0 && (
-            <div className="text-center py-10 text-neutral-500">
-              No routes match the selected filter.
-            </div>
-          )}
+
         </div>
       </main>
 

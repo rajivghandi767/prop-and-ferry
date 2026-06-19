@@ -6,6 +6,7 @@ djangorestframework
 
 # Django Apps
 django-prometheus
+django-filter
 
 # Utilities
 requests

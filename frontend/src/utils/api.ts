@@ -10,11 +10,12 @@ export const fetchAvailableDates = async (origin: string, destination: string) =
   return response.json();
 };
 
-export const searchRoutes = async (origin: string, destination: string, date: string) => {
+export const searchRoutes = async (origin: string, destination: string, date: string, filter: string = 'all') => {
   const params = new URLSearchParams({
     origin,
     destination,
     date,
+    filter,
   });
   const response = await fetch(`${API_URL}/api/routes/search/?${params}`);
   if (!response.ok) {

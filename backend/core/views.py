@@ -1,8 +1,9 @@
-from rest_framework import viewsets
+from rest_framework import viewsets, filters
 from rest_framework.decorators import action
 from rest_framework.response import Response
 from datetime import timedelta, datetime
 from django.core.cache import cache
+from django_filters.rest_framework import DjangoFilterBackend
 
 from .models import Location, Route, Sailing, FlightInstance, Carrier, ReportedIssue
 from .serializers import (
@@ -13,6 +14,19 @@ from .serializers import (
     ReportedIssueSerializer,
     ItineraryLegSerializer,
 )
+
+class ItineraryFilterBackend(DjangoFilterBackend):
+    def filter_queryset(self, request, queryset, view):
+        filter_val = request.GET.get("filter", "all")
+        if filter_val == "ferry":
+            return [it for it in queryset if any(leg.get("is_ferry", False) for leg in it["legs"])]
+        if filter_val == "flight":
+            return [it for it in queryset if not any(leg.get("is_ferry", False) for leg in it["legs"])]
+        return queryset
+
+class ItineraryOrderingFilter(filters.OrderingFilter):
+    def filter_queryset(self, request, queryset, view):
+        return sorted(queryset, key=lambda x: 1 if any(leg.get("is_ferry", False) for leg in x["legs"]) else 0, reverse=True)
 
 
 class LocationViewSet(viewsets.ReadOnlyModelViewSet):
@@ -142,11 +156,12 @@ class RouteViewSet(viewsets.ReadOnlyModelViewSet):
         origin_query = request.GET.get("origin")
         dest_query = request.GET.get("destination")
         target_date_str = request.GET.get("date")
+        transport_filter = request.GET.get("filter", "all")
 
         if not origin_query or not dest_query or not target_date_str:
             return Response({"error": "Missing parameters"}, status=400)
 
-        cache_key = f"prop_search_{origin_query}_{dest_query}_{target_date_str}"
+        cache_key = f"prop_search_{origin_query}_{dest_query}_{target_date_str}_{transport_filter}"
         cached = cache.get(cache_key)
         if cached:
             return Response(cached)
@@ -347,6 +362,9 @@ class RouteViewSet(viewsets.ReadOnlyModelViewSet):
                     date_was_changed = True
                     found_date = check_date
                 break
+
+        results = ItineraryFilterBackend().filter_queryset(request, results, self)
+        results = ItineraryOrderingFilter().filter_queryset(request, results, self)
 
         response_data = {
             "date_was_changed": date_was_changed,
