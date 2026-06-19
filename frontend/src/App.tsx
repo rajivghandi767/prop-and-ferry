@@ -54,12 +54,15 @@ const formatDuration = (minutes: number | null) => {
 type FilterType = "all" | "ferry" | "flight";
 
 function App() {
+  // Contexts for global theme and portfolio info
   const { info } = usePortfolioData();
   const { theme, toggleTheme } = useThemeContext();
 
+  // Search Parameter State: Represents the user's current query
   const [origin, setOrigin] = useState("");
   const [destination, setDestination] = useState("");
   const [date, setDate] = useState(getTomorrowString());
+  // Tracks the originally requested date before any API auto-correction
   const [searchedDate, setSearchedDate] = useState("");
 
   const [availableDates, setAvailableDates] = useState<string[]>([]);
@@ -73,6 +76,13 @@ function App() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
 
+  /**
+   * Effect: Fetch Available Dates
+   * 
+   * As soon as both origin and destination have valid selections (length >= 3),
+   * we pre-fetch the available dates for this route. This prevents users from
+   * selecting dates on the calendar where no routes exist.
+   */
   useEffect(() => {
     if (origin.length >= 3 && destination.length >= 3) {
       fetchAvailableDates(origin, destination)

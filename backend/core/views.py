@@ -16,6 +16,18 @@ from .serializers import (
 )
 
 class ItineraryFilterBackend(DjangoFilterBackend):
+    """
+    Custom filter backend for itineraries.
+    
+    This backend filters the generated itineraries based on the 'filter' query parameter.
+    Since itineraries are assembled dynamically (potentially containing multiple legs),
+    we iterate through the legs to determine the transport type.
+    
+    Filters:
+    - 'ferry': Returns itineraries where at least one leg is a ferry.
+    - 'flight': Returns itineraries where NO legs are ferries (all flights).
+    - 'all': Returns the unmodified queryset.
+    """
     def filter_queryset(self, request, queryset, view):
         filter_val = request.GET.get("filter", "all")
         if filter_val == "ferry":
@@ -25,11 +37,25 @@ class ItineraryFilterBackend(DjangoFilterBackend):
         return queryset
 
 class ItineraryOrderingFilter(filters.OrderingFilter):
+    """
+    Custom ordering filter to prioritize flight-only itineraries over those containing ferries.
+    
+    This improves the user experience by surfacing the generally faster (flight-only) 
+    options first, while pushing multi-modal or ferry-heavy itineraries lower down.
+    """
     def filter_queryset(self, request, queryset, view):
         return sorted(queryset, key=lambda x: 1 if any(leg.get("is_ferry", False) for leg in x["legs"]) else 0, reverse=True)
 
 
 class LocationViewSet(viewsets.ReadOnlyModelViewSet):
+    """
+    ViewSet for listing available Locations (Airports and Ferry Ports).
+    
+    To optimize database performance and prevent N+1 query problems, 
+    we use `select_related` for the 'parent' relationship and `prefetch_related` 
+    for 'sub_locations'. This is crucial because our routing algorithm heavily 
+    relies on resolving location aliases (parent/child relationships).
+    """
     # Prefetch relationships to prevent N+1 queries when evaluating 'has_children'
     queryset = (
         Location.objects.select_related("parent")
@@ -142,16 +168,25 @@ class RouteViewSet(viewsets.ReadOnlyModelViewSet):
     @action(detail=False, methods=["get"])
     def search(self, request):
         """
-        Main search endpoint for itineraries.
+        Main search endpoint for dynamically assembling multi-leg itineraries.
         
+        Algorithm Overview:
         Given an origin, destination, and target date, this method constructs
         potential travel itineraries. Because travel within the Caribbean often 
         requires multi-leg journeys, the algorithm checks for both:
+        
         1. Direct routes (single leg, flight or ferry)
         2. Connected routes (two legs: Flight -> Flight, or Flight -> Ferry)
-
-        It uses a 4-day sliding window to ensure overnight connections are caught.
-        Responses are cached to minimize heavy database computation.
+        
+        Sliding Window Mechanism:
+        It uses a 4-day sliding window. This is essential to catch overnight connections 
+        where a late flight on Day 1 connects to an early ferry on Day 2. If no valid 
+        itineraries are found on the requested date, it automatically scans subsequent 
+        days and returns the first date with availability.
+        
+        Performance Optimization:
+        Responses are cached in Redis for 5 minutes based on the query parameters to 
+        minimize heavy database computation for popular routes.
         """
         origin_query = request.GET.get("origin")
         dest_query = request.GET.get("destination")

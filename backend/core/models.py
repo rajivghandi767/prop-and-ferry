@@ -2,6 +2,13 @@ from django.db import models
 
 
 class Carrier(models.Model):
+    """
+    Represents a transportation company (e.g., an Airline or a Ferry Operator).
+    
+    Fields:
+    - code: The unique 2 or 3 letter designator (e.g., 'AA' for American Airlines).
+    - carrier_type: Differentiates between air and sea operators.
+    """
     TYPE_CHOICES = (("AIR", "Airline"), ("SEA", "Ferry"))
     code = models.CharField(max_length=3, unique=True, db_index=True)
     name = models.CharField(max_length=100)
@@ -13,6 +20,14 @@ class Carrier(models.Model):
 
 
 class Location(models.Model):
+    """
+    Represents a geographic transit hub, such as an Airport or Ferry Port.
+    
+    Self-Referencing Relationship:
+    The `parent` ForeignKey allows creating a hierarchical structure. For example, 
+    a Ferry Port might be a child of a larger Airport on the same island. This 
+    is critical for resolving aliases when users search for a general destination.
+    """
     TYPE_CHOICES = (("APT", "Airport"), ("PRT", "Ferry Port"))
     code = models.CharField(max_length=5, unique=True, db_index=True)
     name = models.CharField(max_length=100)
@@ -60,6 +75,13 @@ class Location(models.Model):
 
 
 class Route(models.Model):
+    """
+    Defines a generic path between an origin and destination serviced by a specific carrier.
+    
+    A Route serves as a template. It does not represent a specific trip on a specific date;
+    instead, it defines the schedule, aircraft/vessel, and standard times. Concrete trips 
+    are instantiated as FlightInstance or Sailing models.
+    """
     origin = models.ForeignKey(
         Location, on_delete=models.CASCADE, related_name="departures"
     )
