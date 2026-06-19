@@ -123,7 +123,7 @@ function App() {
    *
    * @param searchDate - The ISO formatted date string (YYYY-MM-DD) to search
    */
-  const performSearch = async (searchDate: string, currentFilter: string = "all") => {
+  const performSearch = async (searchDate: string, currentFilter: FilterType = "all") => {
     setLoading(true);
     setError("");
     setItineraries([]);
