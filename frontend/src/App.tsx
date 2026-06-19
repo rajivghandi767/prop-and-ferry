@@ -103,6 +103,16 @@ function App() {
     setDestination(origin);
   };
 
+  /**
+   * Orchestrates the search process.
+   * 
+   * This function resets the UI state, makes the API call to searchRoutes,
+   * and handles the response. It notably manages a "date_was_changed" 
+   * scenario where the API might automatically bump the search date forward 
+   * if no itineraries exist on the initially requested date.
+   *
+   * @param searchDate - The ISO formatted date string (YYYY-MM-DD) to search
+   */
   const performSearch = async (searchDate: string) => {
     setLoading(true);
     setError("");
@@ -153,15 +163,20 @@ function App() {
   };
 
   // --- FILTER & SORT LOGIC ---
+  // The application allows users to filter itineraries by mode of transport.
+  // We compute the 'displayedItineraries' on the fly rather than storing them in state
+  // to maintain a single source of truth (the 'itineraries' array).
   const displayedItineraries = itineraries
     .filter((itinerary) => {
+      // Check if any leg in the itinerary uses a ferry
       const hasFerry = itinerary.legs.some((leg) => leg.is_ferry);
       if (filter === "ferry") return hasFerry;
       if (filter === "flight") return !hasFerry;
       return true;
     })
     .sort((a, b) => {
-      // Prioritize itineraries that include a ferry connection
+      // Sort to prioritize itineraries that include a ferry connection.
+      // This highlights the unique value proposition of the app (multi-modal transport).
       const aHasFerry = a.legs.some((leg) => leg.is_ferry) ? 1 : 0;
       const bHasFerry = b.legs.some((leg) => leg.is_ferry) ? 1 : 0;
       return bHasFerry - aHasFerry;

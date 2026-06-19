@@ -45,7 +45,17 @@ export function AirportSelect({
     setQuery(value);
   }, [value]);
 
-  // Filter Logic (Fixed to show parent airports)
+  /**
+   * Filter Logic for Airport Selection
+   *
+   * As users type, we filter the fetched locations by code, city, or name.
+   * Crucially, we must hide sub-terminals (like specific ferry docks that are logically 
+   * grouped under a parent island airport code) from the main search results.
+   * 
+   * Example: If 'DMROS' (Roseau Ferry) is a child of 'DOM' (Dominica Airport), 
+   * we only want the user to select 'DOM'. Our backend routing logic handles 
+   * expanding 'DOM' into ['DOM', 'DMROS'] automatically under the hood.
+   */
   useEffect(() => {
     if (query.length > 0) {
       const lowerQuery = query.toLowerCase();
@@ -55,7 +65,7 @@ export function AirportSelect({
           (loc.city || "").toLowerCase().includes(lowerQuery) ||
           (loc.name || "").toLowerCase().includes(lowerQuery);
 
-        // Hide ONLY internal sub-terminals (like DMROS), keep airports like JFK/ORY visible
+        // Identify internal sub-terminals (e.g. Ferry ports with a parent airport assigned)
         const isHidden =
           loc.location_type === "PRT" && loc.parent_code !== null;
 

@@ -55,6 +55,12 @@ pipeline {
 
         stage('Build & Push Images') {
             steps {
+                // Secure Secret Injection via HashiCorp Vault
+                // Instead of storing sensitive information (like the Production API URL) 
+                // in the git repository or as plain text in Jenkins, we fetch them dynamically 
+                // from a Vault server at build time. The 'withVault' block temporarily exposes 
+                // the secret as an environment variable (VITE_API_URL) specifically for this stage, 
+                // ensuring it is baked into the React production build without leaking to logs.
                 withVault(configuration: [vaultUrl: "http://vault:8200", vaultCredentialId: "${VAULT_CRED_ID}", engineVersion: 2], 
                 vaultSecrets: [[path: "secret/${PROJECT_NAME}-prod", secretValues: [
                     [envVar: 'VITE_API_URL', vaultKey: 'VITE_API_URL']

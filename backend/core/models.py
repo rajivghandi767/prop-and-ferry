@@ -32,6 +32,20 @@ class Location(models.Model):
     )
 
     def resolve_aliases(self):
+        """
+        Resolves all related location codes for a given location.
+
+        In the Caribbean, airports and ferry ports often serve the same island 
+        and are treated interchangeably for routing purposes. This method returns 
+        a list of location codes that includes:
+        1. The location's own code
+        2. Its children (e.g., Ferry ports attached to an Airport)
+        3. Its parent (if it is a child)
+        4. Its siblings (other children of the same parent)
+        
+        This enables flexible routing where a flight might land at DOM (Airport) 
+        and a ferry might depart from PTP (Port) on a neighboring island.
+        """
         codes = {self.code}
         for child in self.sub_locations.all():
             codes.add(child.code)

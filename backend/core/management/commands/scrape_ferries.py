@@ -211,6 +211,10 @@ class Command(BaseCommand):
                     logger.error(f"Scrape Error: {e}")
 
         # Atomic commit logic for safety
+        # We use transaction.atomic() to ensure that clearing out old sailings 
+        # and inserting the newly scraped ones happens as a single unit of work.
+        # If the bulk_create fails, the delete is rolled back, preventing the 
+        # database from ending up in an empty, inconsistent state.
         if self.sailings_to_create:
             try:
                 with transaction.atomic():
@@ -234,6 +238,16 @@ class Command(BaseCommand):
             )
 
     def parse_daily_schedule(self, soup, route_obj, date_obj, price_text):
+        """
+        Parses the daily ferry schedule from the BeautifulSoup DOM.
+        
+        The target website's HTML is heavily nested and lacks semantic class names 
+        for departure and arrival times. To reliably find the times associated with a 
+        specific trip, we first locate the node containing the text 'Durée du voyage' 
+        (Trip Duration). We then traverse up the DOM tree (parent by parent, up to 8 levels deep) 
+        until we find a container that holds at least two <time> tags. The first tag is assumed 
+        to be the departure time, and the second is the arrival time.
+        """
         try:
             duration_nodes = soup.find_all(text=re.compile("Durée du voyage"))
             if not duration_nodes:
