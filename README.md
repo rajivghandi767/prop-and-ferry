@@ -114,7 +114,7 @@ This migration was executed for three critical engineering reasons:
 2. **SDK Dependency Risk:** Rather than relying on an abandoned or poorly maintained third-party SDK, the new Duffel integration utilizes standard Python `requests`. This removes a fragile dependency from the project and ensures the ETL pipeline communicates directly with the modern REST endpoints.
 3. **Distribution Networks:** Amadeus's free tier aggressively sandboxes real-world data and frequently fails to capture major US carriers (like American Airlines). Duffel's Direct Connect (NDC) integration and Hahn Air partnerships natively surface the exact flights required to make Caribbean island-hopping functional.
 
-_Note: The original Amadeus scraper (`fetch_routes.py`) remains in the repository's `/commands` directory for historical context and rollback capabilities, but is flagged with a deprecation warning and is no longer executed by Jenkins._
+_Note: The original Amadeus scraper (`fetch_routes.py`) remains in the repository's `backend/core/management/commands/` directory for historical context and rollback capabilities, but is flagged with a deprecation warning and is no longer executed by Jenkins._
 
 ---
 
