@@ -11,7 +11,14 @@ class Command(BaseCommand):
     help = "Populates the database with the flight network and base ferry topology."
 
     def handle(self, *args: Any, **kwargs: Any) -> None:
-        self.stdout.write("🌱 Seeding Global Network Data...")
+        self.stdout.write(
+            "🧹 Wiping existing network data to ensure a fresh state...")
+        FlightInstance.objects.all().delete()
+        Route.objects.all().delete()
+        Location.objects.all().delete()
+        Carrier.objects.all().delete()
+
+        self.stdout.write("🌱 Seeding Global Network Graph...")
 
         # 1. CARRIERS
         carriers_data = [
@@ -23,7 +30,8 @@ class Command(BaseCommand):
             ("TX", "Air Caraibes", "AIR", "https://www.aircaraibes.com"),
             ("WM", "Winair", "AIR", "https://www.winair.sx"),
             ("JY", "interCaribbean", "AIR", "https://www.intercaribbean.com"),
-            ("BW", "Caribbean Airlines", "AIR", "https://www.caribbean-airlines.com"),
+            ("BW", "Caribbean Airlines", "AIR",
+             "https://www.caribbean-airlines.com"),
             ("LXI", "L'Express des Iles", "SEA", "https://www.frs-express.com"),
         ]
 
@@ -31,7 +39,8 @@ class Command(BaseCommand):
         for code, name, c_type, web in carriers_data:
             obj, _ = Carrier.objects.get_or_create(
                 code=code,
-                defaults={"name": name, "carrier_type": c_type, "website": web},
+                defaults={"name": name,
+                          "carrier_type": c_type, "website": web},
             )
             carriers[code] = obj
 
@@ -61,7 +70,8 @@ class Command(BaseCommand):
             ("SKB", "Robert L. Bradshaw", "Basseterre", "APT"),
             ("SXM", "Princess Juliana", "St. Maarten", "APT"),
             ("DOM", "Douglas-Charles", "Dominica", "APT"),
-            # Ferry Terminals (Must be seeded so scrape_ferries.py can find them in dev)
+
+            # Ferry Terminals
             ("DMROS", "Roseau Ferry Terminal", "Roseau", "PRT"),
             ("GPPTP", "Bergevin Ferry Terminal", "Guadeloupe", "PRT"),
             ("LCCAS", "Castries Ferry Terminal", "St. Lucia", "PRT"),
@@ -131,31 +141,57 @@ class Command(BaseCommand):
                 )
 
         self.stdout.write("✈️ Building Flight Network Graph...")
-        create_route("CDG", "SXM", "AF", "10:30", "14:20", 530, "AF 498", "A330")
-        create_route("ORY", "FDF", "TX", "10:45", "14:00", 530, "TX 510", "A350")
-        create_route("ORY", "PTP", "TX", "11:00", "13:35", 530, "TX 540", "A350")
-        create_route("LHR", "BGI", "BA", "10:00", "14:55", 510, "BA 255", "777")
-        create_route("LGW", "ANU", "BA", "09:30", "14:15", 510, "BA 2157", "777")
-        create_route("JFK", "ANU", "B6", "08:30", "13:00", 270, "B6 1234", "A321")
-        create_route("ATL", "SXM", "DL", "09:45", "14:10", 230, "DL 1883", "757")
-        create_route("IAH", "MIA", "AA", "06:00", "09:30", 150, "AA 1120", "738")
-        create_route("DFW", "SJU", "AA", "08:00", "13:30", 270, "AA 1324", "738")
-        create_route("MIA", "UVF", "AA", "10:15", "13:45", 210, "AA 888", "738")
-        create_route("SXM", "DOM", "WM", "16:30", "17:30", 60, "WM 311", "DHC6")
-        create_route("SXM", "SKB", "WM", "15:30", "16:00", 30, "WM 112", "DHC6")
-        create_route("SKB", "DOM", "JY", "17:00", "18:00", 60, "JY 415", "E120")
-        create_route("ANU", "DOM", "WM", "15:30", "16:15", 45, "WM 333", "DHC6")
-        create_route("SJU", "DOM", "JY", "15:30", "17:00", 90, "JY 411", "E120")
+        create_route("CDG", "SXM", "AF", "10:30",
+                     "14:20", 530, "AF 498", "A330")
+        create_route("ORY", "FDF", "TX", "10:45",
+                     "14:00", 530, "TX 510", "A350")
+        create_route("ORY", "PTP", "TX", "11:00",
+                     "13:35", 530, "TX 540", "A350")
+        create_route("LHR", "BGI", "BA", "10:00",
+                     "14:55", 510, "BA 255", "777")
+        create_route("LGW", "ANU", "BA", "09:30",
+                     "14:15", 510, "BA 2157", "777")
+        create_route("JFK", "ANU", "B6", "08:30",
+                     "13:00", 270, "B6 1234", "A321")
+        create_route("ATL", "SXM", "DL", "09:45",
+                     "14:10", 230, "DL 1883", "757")
+        create_route("IAH", "MIA", "AA", "06:00",
+                     "09:30", 150, "AA 1120", "738")
+        create_route("DFW", "SJU", "AA", "08:00",
+                     "13:30", 270, "AA 1324", "738")
+        create_route("MIA", "UVF", "AA", "10:15",
+                     "13:45", 210, "AA 888", "738")
+        create_route("SXM", "DOM", "WM", "16:30",
+                     "17:30", 60, "WM 311", "DHC6")
+        create_route("SXM", "SKB", "WM", "15:30",
+                     "16:00", 30, "WM 112", "DHC6")
+        create_route("SKB", "DOM", "JY", "17:00",
+                     "18:00", 60, "JY 415", "E120")
+        create_route("ANU", "DOM", "WM", "15:30",
+                     "16:15", 45, "WM 333", "DHC6")
+        create_route("SJU", "DOM", "JY", "15:30",
+                     "17:00", 90, "JY 411", "E120")
         create_route("BGI", "DOM", "JY", "17:00", "18:00", 60, "JY 712", "AT7")
         create_route("POS", "DOM", "BW", "14:00", "15:30", 90, "BW 434", "AT7")
 
         self.stdout.write("🚢 Building Ferry Network Graph...")
-        create_route("GPPTP", "DMROS", "LXI", "08:00", "10:15", 135, "LXI 101", "FERRY")
-        create_route("DMROS", "MQFDF", "LXI", "10:45", "12:45", 120, "LXI 102", "FERRY")
-        create_route("MQFDF", "LCCAS", "LXI", "13:15", "14:45", 90, "LXI 103", "FERRY")
-        create_route("LCCAS", "MQFDF", "LXI", "10:00", "11:30", 90, "LXI 201", "FERRY")
-        create_route("MQFDF", "DMROS", "LXI", "13:00", "15:00", 120, "LXI 202", "FERRY")
-        create_route("DMROS", "GPPTP", "LXI", "15:30", "17:45", 135, "LXI 203", "FERRY")
+        # L'Express des Iles - Loop 1 (Southbound)
+        # Departs GPPTP at 15:00 to catch the 13:35 flight from ORY
+        create_route("GPPTP", "DMROS", "LXI", "15:00",
+                     "17:15", 135, "LXI 101", "FERRY")
+        create_route("DMROS", "MQFDF", "LXI", "18:00",
+                     "20:00", 120, "LXI 102", "FERRY")
+        create_route("MQFDF", "LCCAS", "LXI", "20:30",
+                     "22:00", 90, "LXI 103", "FERRY")
+
+        # L'Express des Iles - Loop 2 (Northbound)
+        create_route("LCCAS", "MQFDF", "LXI", "10:00",
+                     "11:30", 90, "LXI 201", "FERRY")
+        # Departs MQFDF at 15:30 to catch the 14:00 flight from ORY
+        create_route("MQFDF", "DMROS", "LXI", "15:30",
+                     "17:30", 120, "LXI 202", "FERRY")
+        create_route("DMROS", "GPPTP", "LXI", "18:30",
+                     "20:45", 135, "LXI 203", "FERRY")
 
         self.stdout.write(
             self.style.SUCCESS(

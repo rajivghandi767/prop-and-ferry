@@ -3,8 +3,14 @@ import react from '@vitejs/plugin-react'
 import tailwindcss from '@tailwindcss/vite'
 import path from 'path'
 
-export default defineConfig({
-  plugins: [
+export default defineConfig(({ mode }) => {
+  // Inject local fallback for API URL
+  if (mode === 'development') {
+    process.env.VITE_API_URL = process.env.VITE_API_URL || 'http://localhost:8000';
+  }
+
+  return {
+    plugins: [
     react(),
     tailwindcss(),
   ],
@@ -38,4 +44,5 @@ export default defineConfig({
   css: {
     devSourcemap: true,
   },
+  };
 })
