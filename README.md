@@ -120,6 +120,10 @@ _Note: The original Amadeus scraper (`fetch_routes.py`) remains in the repositor
 
 ## ⚙️ CI/CD & Monitoring
 
+> [!NOTE]
+> **CI/CD Evolution:** This project was recently migrated from a centralized Jenkins/JVM monolith to a decentralized **GitHub Actions** edge runner to optimize compute overhead and security. 
+> The legacy Groovy pipelines have been preserved for historical context in the [`archive/jenkins-pipeline`](https://github.com/rajivghandi767/prop-and-ferry/tree/archive/jenkins-pipeline) branch.
+
 Automated GitHub Actions pipelines handle the full lifecycle of the application:
 - **Deployment:** Commits to `main` trigger tests, build Docker images, and deploy seamlessly via zero-downtime rolling restarts. Nightly deployments run automatically at `03:00 AM` EST. HashiCorp Vault is dynamically queried to inject runtime secrets, maintaining strict configuration management.
 - **Observability Stack:** Prometheus scrapes metrics across the containers, alerting Discord via Alertmanager if memory limits or service drops are detected.
