@@ -37,12 +37,34 @@ jobs:
           method: approle
           roleId: ${{ secrets.VAULT_PROP_FERRY_ROLE_ID }}
           secretId: ${{ secrets.VAULT_PROP_FERRY_SECRET_ID }}
-          secrets: |\n            secret/data/prop-ferry-prod DJANGO_SECRET_KEY | DJANGO_SECRET_KEY ;\n            secret/data/prop-ferry-prod ALLOWED_HOSTS | ALLOWED_HOSTS ;\n            secret/data/prop-ferry-prod CSRF_TRUSTED_ORIGINS | CSRF_TRUSTED_ORIGINS ;\n            secret/data/prop-ferry-prod POSTGRES_HOST | POSTGRES_HOST ;\n            secret/data/prop-ferry-prod POSTGRES_PORT | POSTGRES_PORT ;\n            secret/data/prop-ferry-prod POSTGRES_USER | POSTGRES_USER ;\n            secret/data/prop-ferry-prod POSTGRES_PASSWORD | POSTGRES_PASSWORD ;\n            secret/data/prop-ferry-prod POSTGRES_DB | POSTGRES_DB ;\n            secret/data/prop-ferry-prod DISCORD_WEBHOOK_URL | DISCORD_WEBHOOK_URL ;\n            secret/data/prop-ferry-prod DUFFEL_ACCESS_TOKEN | DUFFEL_ACCESS_TOKEN ;\n            secret/data/prop-ferry-prod REDIS_URL | REDIS_URL ;
+          secrets: |
+            secret/data/prop-ferry-prod DJANGO_SECRET_KEY | DJANGO_SECRET_KEY ;
+            secret/data/prop-ferry-prod ALLOWED_HOSTS | ALLOWED_HOSTS ;
+            secret/data/prop-ferry-prod CSRF_TRUSTED_ORIGINS | CSRF_TRUSTED_ORIGINS ;
+            secret/data/prop-ferry-prod POSTGRES_HOST | POSTGRES_HOST ;
+            secret/data/prop-ferry-prod POSTGRES_PORT | POSTGRES_PORT ;
+            secret/data/prop-ferry-prod POSTGRES_USER | POSTGRES_USER ;
+            secret/data/prop-ferry-prod POSTGRES_PASSWORD | POSTGRES_PASSWORD ;
+            secret/data/prop-ferry-prod POSTGRES_DB | POSTGRES_DB ;
+            secret/data/prop-ferry-prod DISCORD_WEBHOOK_URL | DISCORD_WEBHOOK_URL ;
+            secret/data/prop-ferry-prod DUFFEL_ACCESS_TOKEN | DUFFEL_ACCESS_TOKEN ;
+            secret/data/prop-ferry-prod REDIS_URL | REDIS_URL ;
 
       - name: Generate .env.prod
         run: |
           CURRENT_TAG="${{ github.event.inputs.TAG_TO_DEPLOY || 'latest' }}"
-          echo "IMAGE_TAG='${CURRENT_TAG}'" > .env.prod\n          echo \"DJANGO_SECRET_KEY='${{ env.DJANGO_SECRET_KEY }}'\" >> .env.prod\n          echo \"ALLOWED_HOSTS='${{ env.ALLOWED_HOSTS }}'\" >> .env.prod\n          echo \"CSRF_TRUSTED_ORIGINS='${{ env.CSRF_TRUSTED_ORIGINS }}'\" >> .env.prod\n          echo \"POSTGRES_HOST='${{ env.POSTGRES_HOST }}'\" >> .env.prod\n          echo \"POSTGRES_PORT='${{ env.POSTGRES_PORT }}'\" >> .env.prod\n          echo \"POSTGRES_USER='${{ env.POSTGRES_USER }}'\" >> .env.prod\n          echo \"POSTGRES_PASSWORD='${{ env.POSTGRES_PASSWORD }}'\" >> .env.prod\n          echo \"POSTGRES_DB='${{ env.POSTGRES_DB }}'\" >> .env.prod\n          echo \"DISCORD_WEBHOOK_URL='${{ env.DISCORD_WEBHOOK_URL }}'\" >> .env.prod\n          echo \"DUFFEL_ACCESS_TOKEN='${{ env.DUFFEL_ACCESS_TOKEN }}'\" >> .env.prod\n          echo \"REDIS_URL='${{ env.REDIS_URL }}'\" >> .env.prod
+          echo "IMAGE_TAG='${CURRENT_TAG}'" > .env.prod
+          echo "DJANGO_SECRET_KEY='${{ env.DJANGO_SECRET_KEY }}'" >> .env.prod
+          echo "ALLOWED_HOSTS='${{ env.ALLOWED_HOSTS }}'" >> .env.prod
+          echo "CSRF_TRUSTED_ORIGINS='${{ env.CSRF_TRUSTED_ORIGINS }}'" >> .env.prod
+          echo "POSTGRES_HOST='${{ env.POSTGRES_HOST }}'" >> .env.prod
+          echo "POSTGRES_PORT='${{ env.POSTGRES_PORT }}'" >> .env.prod
+          echo "POSTGRES_USER='${{ env.POSTGRES_USER }}'" >> .env.prod
+          echo "POSTGRES_PASSWORD='${{ env.POSTGRES_PASSWORD }}'" >> .env.prod
+          echo "POSTGRES_DB='${{ env.POSTGRES_DB }}'" >> .env.prod
+          echo "DISCORD_WEBHOOK_URL='${{ env.DISCORD_WEBHOOK_URL }}'" >> .env.prod
+          echo "DUFFEL_ACCESS_TOKEN='${{ env.DUFFEL_ACCESS_TOKEN }}'" >> .env.prod
+          echo "REDIS_URL='${{ env.REDIS_URL }}'" >> .env.prod
 
       - name: Set up SSH
         uses: webfactory/ssh-agent@v0.9.0
