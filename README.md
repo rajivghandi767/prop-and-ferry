@@ -45,7 +45,7 @@ While the data powering the frontend is sourced **live** via the Duffel REST API
 
 - Self-hosted on a Raspberry Pi 4B (DietPi OS) within a Ubiquiti UniFi segmented network
 - Docker & Docker Compose
-- Jenkins (Automated CI/CD Deployments & ETL Pipelines)
+- GitHub Actions (Automated CI/CD Deployments & ETL Pipelines)
 - HashiCorp Vault (Secrets Management)
 - Nginx Proxy Manager & Cloudflare (Ingress & Reverse Proxy)
 - Prometheus, Grafana, & Discord Webhook Alerts
@@ -68,7 +68,7 @@ Prop & Ferry calculates multi-leg travel itineraries by stitching together inter
 
 ### 3. Dual-Source ETL Pipeline
 
-The database is actively maintained by two distinct, automated scrapers triggered by Jenkins cron jobs:
+The database is actively maintained by two distinct, automated scrapers triggered by GitHub Actions cron jobs:
 
 - **The Flight Scraper:** Interfaces with the Duffel REST API to pull active schedules, pricing, and seat availability.
 - **The Ferry Scraper:** Uses `requests` and `BeautifulSoup` to scrape, parse, and normalize ferry schedules (FRS-Express) into the application's standard `ApiLeg` contract.
@@ -87,7 +87,7 @@ To solve this, the ETL pipeline utilizes a **Domain-Driven Waterfall Discovery S
 - **Phase 2 (The Targeted Sweep):** The script executes a highly targeted 3-day rolling sweep on only the confirmed active routes.
 
 **The Math (Why 3 Days?):**
-A full 14-day rolling window provides an excellent user experience but scales API calls linearly (costing over ~$75.00/year for this micro-network alone). By condensing the Jenkins cron job to run bi-weekly and strictly maintain a **3-day rolling window**, the pipeline hits roughly 70 API calls per run.
+A full 14-day rolling window provides an excellent user experience but scales API calls linearly (costing over ~$75.00/year for this micro-network alone). By condensing the GitHub Actions cron job to run bi-weekly and strictly maintain a **3-day rolling window**, the pipeline hits roughly 70 API calls per run.
 
 - `70 calls * 8 runs/month = 560 calls`
 - `560 calls * $0.005 = $2.80 / month`
@@ -114,13 +114,13 @@ This migration was executed for three critical engineering reasons:
 2. **SDK Dependency Risk:** Rather than relying on an abandoned or poorly maintained third-party SDK, the new Duffel integration utilizes standard Python `requests`. This removes a fragile dependency from the project and ensures the ETL pipeline communicates directly with the modern REST endpoints.
 3. **Distribution Networks:** Amadeus's free tier aggressively sandboxes real-world data and frequently fails to capture major US carriers (like American Airlines). Duffel's Direct Connect (NDC) integration and Hahn Air partnerships natively surface the exact flights required to make Caribbean island-hopping functional.
 
-_Note: The original Amadeus scraper (`fetch_routes.py`) remains in the repository's `backend/core/management/commands/` directory for historical context and rollback capabilities, but is flagged with a deprecation warning and is no longer executed by Jenkins._
+_Note: The original Amadeus scraper (`fetch_routes.py`) remains in the repository's `backend/core/management/commands/` directory for historical context and rollback capabilities, but is flagged with a deprecation warning and is no longer executed by GitHub Actions._
 
 ---
 
 ## ⚙️ CI/CD & Monitoring
 
-Automated Jenkins pipelines handle the full lifecycle of the application:
+Automated GitHub Actions pipelines handle the full lifecycle of the application:
 - **Deployment:** Commits to `main` trigger tests, build Docker images, and deploy seamlessly via zero-downtime rolling restarts. Nightly deployments run automatically at `03:00 AM` EST. HashiCorp Vault is dynamically queried to inject runtime secrets, maintaining strict configuration management.
 - **Observability Stack:** Prometheus scrapes metrics across the containers, alerting Discord via Alertmanager if memory limits or service drops are detected.
 
