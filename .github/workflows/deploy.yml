@@ -52,19 +52,21 @@ jobs:
 
       - name: Generate .env.prod
         run: |
-          CURRENT_TAG="${{ github.event.inputs.TAG_TO_DEPLOY || 'latest' }}"
-          echo "IMAGE_TAG='${CURRENT_TAG}'" > .env.prod
-          echo "DJANGO_SECRET_KEY='${{ env.DJANGO_SECRET_KEY }}'" >> .env.prod
-          echo "ALLOWED_HOSTS='${{ env.ALLOWED_HOSTS }}'" >> .env.prod
-          echo "CSRF_TRUSTED_ORIGINS='${{ env.CSRF_TRUSTED_ORIGINS }}'" >> .env.prod
-          echo "POSTGRES_HOST='${{ env.POSTGRES_HOST }}'" >> .env.prod
-          echo "POSTGRES_PORT='${{ env.POSTGRES_PORT }}'" >> .env.prod
-          echo "POSTGRES_USER='${{ env.POSTGRES_USER }}'" >> .env.prod
-          echo "POSTGRES_PASSWORD='${{ env.POSTGRES_PASSWORD }}'" >> .env.prod
-          echo "POSTGRES_DB='${{ env.POSTGRES_DB }}'" >> .env.prod
-          echo "DISCORD_WEBHOOK_URL='${{ env.DISCORD_WEBHOOK_URL }}'" >> .env.prod
-          echo "DUFFEL_ACCESS_TOKEN='${{ env.DUFFEL_ACCESS_TOKEN }}'" >> .env.prod
-          echo "REDIS_URL='${{ env.REDIS_URL }}'" >> .env.prod
+          cat << 'EOF' > .env.prod
+          IMAGE_TAG='${{ github.event.inputs.TAG_TO_DEPLOY || 'latest' }}'
+          DJANGO_SECRET_KEY='${{ env.DJANGO_SECRET_KEY }}'
+          ALLOWED_HOSTS='${{ env.ALLOWED_HOSTS }}'
+          CSRF_TRUSTED_ORIGINS='${{ env.CSRF_TRUSTED_ORIGINS }}'
+          POSTGRES_HOST='${{ env.POSTGRES_HOST }}'
+          POSTGRES_PORT='${{ env.POSTGRES_PORT }}'
+          POSTGRES_USER='${{ env.POSTGRES_USER }}'
+          POSTGRES_PASSWORD='${{ env.POSTGRES_PASSWORD }}'
+          POSTGRES_DB='${{ env.POSTGRES_DB }}'
+          DISCORD_WEBHOOK_URL='${{ env.DISCORD_WEBHOOK_URL }}'
+          DUFFEL_ACCESS_TOKEN='${{ env.DUFFEL_ACCESS_TOKEN }}'
+          REDIS_URL='${{ env.REDIS_URL }}'
+          EOF
+          sed -i 's/^[ \t]*//' .env.prod
 
       - name: Set up SSH
         uses: webfactory/ssh-agent@v0.9.0
