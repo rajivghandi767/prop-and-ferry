@@ -46,17 +46,6 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Import Secrets from Vault
-        id: vault-secrets
-        uses: hashicorp/vault-action@v3
-        with:
-          url: https://vault.rajivwallace.com
-          method: approle
-          roleId: ${{ secrets.VAULT_PROP_FERRY_ROLE_ID }}
-          secretId: ${{ secrets.VAULT_PROP_FERRY_SECRET_ID }}
-          secrets: |
-            secret/data/prop-ferry-prod VITE_API_URL | VITE_API_URL ;
-
       - name: Log in to GHCR
         uses: docker/login-action@v3
         with:
@@ -81,7 +70,7 @@ jobs:
           docker build -t ghcr.io/rajivghandi767/prop-ferry-frontend:${{ github.run_number }} \
                        -t ghcr.io/rajivghandi767/prop-ferry-frontend:latest \
                        --label git-commit=${{ steps.git-commit.outputs.short }} \
-                       --build-arg VITE_API_URL=${{ env.VITE_API_URL }} \
+                       --build-arg VITE_API_URL=/api \
                        -f frontend/Dockerfile.prod ./frontend
           docker push ghcr.io/rajivghandi767/prop-ferry-frontend --all-tags
 
