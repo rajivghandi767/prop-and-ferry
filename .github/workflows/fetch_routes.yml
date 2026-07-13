@@ -1,0 +1,56 @@
+name: Fetch Routes Data
+
+on:
+  schedule:
+    - cron: '30 3 * * 0,3'
+  workflow_dispatch:
+
+env:
+  APP_NAME: "Prop & Ferry"
+  DEPLOY_USER: "dietpi"
+  DEPLOY_HOST: "10.100.10.5"
+  DEPLOY_DIR: "/opt/homelab-iac/services/apps/prop-and-ferry"
+  DISCORD_SUCCESS_COLOR: "3066993"
+  DISCORD_FAIL_COLOR: "15158332"
+
+jobs:
+  run-fetch:
+    runs-on: self-hosted
+    steps:
+      - name: Set up SSH
+        uses: webfactory/ssh-agent@v0.9.0
+        with:
+          ssh-private-key: ${{ secrets.RASPBERRY_PI_SSH_KEY }}
+
+      - name: Add Deploy Host to known_hosts
+        run: |
+          mkdir -p ~/.ssh
+          ssh-keyscan -H ${{ env.DEPLOY_HOST }} >> ~/.ssh/known_hosts || true
+
+      - name: Fetch Duffel Routes
+        run: |
+          ssh ${{ env.DEPLOY_USER }}@${{ env.DEPLOY_HOST }} "cd ${{ env.DEPLOY_DIR }} && docker compose exec -T prop-ferry-backend python manage.py fetch_duffel_routes"
+
+      - name: Notify Unenriched
+        run: |
+          ssh ${{ env.DEPLOY_USER }}@${{ env.DEPLOY_HOST }} "cd ${{ env.DEPLOY_DIR }} && docker compose exec -T prop-ferry-backend python manage.py notify_unenriched"
+
+      - name: Notify Success
+        if: success()
+        run: |
+          TIMESTAMP=$(TZ='America/New_York' date +'%a, %d %b %Y at %H:%M %Z')
+          PAYLOAD=$(jq -n --arg title "✅ Routes Data Updated" \
+                          --arg desc ":airplane: **${{ env.APP_NAME }} Routes Fetched**\nSuccessfully populated 3-day flight window and checked for unenriched stubs.\n\n:clock4: **Time:** $TIMESTAMP" \
+                          --argjson color ${{ env.DISCORD_SUCCESS_COLOR }} \
+                          '{embeds: [{title: $title, description: $desc, color: $color}]}')
+          curl -s --max-time 10 -H "Content-Type: application/json" -X POST -d "$PAYLOAD" ${{ secrets.DISCORD_WEBHOOK_URL_JENKINS }} || true
+
+      - name: Notify Failure
+        if: failure()
+        run: |
+          TIMESTAMP=$(TZ='America/New_York' date +'%a, %d %b %Y at %H:%M %Z')
+          PAYLOAD=$(jq -n --arg title "🚨 Route Fetch Alert" \
+                          --arg desc ":x: **${{ env.APP_NAME }} Route Fetch Failed**\n**:warning: Error Details:**\nCheck GitHub Actions logs for run #${{ github.run_number }}.\n\n:clock4: **Time:** $TIMESTAMP" \
+                          --argjson color ${{ env.DISCORD_FAIL_COLOR }} \
+                          '{embeds: [{title: $title, description: $desc, color: $color}]}')
+          curl -s --max-time 10 -H "Content-Type: application/json" -X POST -d "$PAYLOAD" ${{ secrets.DISCORD_WEBHOOK_URL_JENKINS }} || true
