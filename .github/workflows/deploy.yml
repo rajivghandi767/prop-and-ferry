@@ -1,0 +1,152 @@
+name: Scheduled Deployment
+
+on:
+  schedule:
+    - cron: '15 4 * * *'
+  workflow_dispatch:
+    inputs:
+      TAG_TO_DEPLOY:
+        description: 'Image Version to Deploy'
+        required: true
+        default: 'latest'
+
+env:
+  APP_NAME: "Prop & Ferry"
+  REGISTRY: "ghcr.io"
+  DEPLOY_USER: "dietpi"
+  DEPLOY_HOST: "10.100.10.5"
+  DEPLOY_DIR: "/opt/homelab-iac/services/apps/prop-and-ferry"
+  IMAGE_BACKEND: "rajivghandi767/prop-ferry-backend"
+  IMAGE_FRONTEND: "rajivghandi767/prop-ferry-frontend"
+  IMAGE_NGINX: "rajivghandi767/prop-ferry-nginx"
+  DISCORD_SUCCESS_COLOR: "3066993"
+  DISCORD_SKIP_COLOR: "3447003"
+  DISCORD_FAIL_COLOR: "15158332"
+
+jobs:
+  deploy:
+    runs-on: self-hosted
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Import Secrets from Vault
+        id: vault-secrets
+        uses: hashicorp/vault-action@v3
+        with:
+          url: https://vault.rajivwallace.com
+          method: approle
+          roleId: ${{ secrets.VAULT_PROP_FERRY_ROLE_ID }}
+          secretId: ${{ secrets.VAULT_PROP_FERRY_SECRET_ID }}
+          secrets: |
+            secret/data/prop-ferry-prod DJANGO_SECRET_KEY | DJANGO_SECRET_KEY ;
+            secret/data/prop-ferry-prod ALLOWED_HOSTS | ALLOWED_HOSTS ;
+            secret/data/prop-ferry-prod CSRF_TRUSTED_ORIGINS | CSRF_TRUSTED_ORIGINS ;
+            secret/data/prop-ferry-prod POSTGRES_HOST | POSTGRES_HOST ;
+            secret/data/prop-ferry-prod POSTGRES_PORT | POSTGRES_PORT ;
+            secret/data/prop-ferry-prod POSTGRES_USER | POSTGRES_USER ;
+            secret/data/prop-ferry-prod POSTGRES_PASSWORD | POSTGRES_PASSWORD ;
+            secret/data/prop-ferry-prod POSTGRES_DB | POSTGRES_DB ;
+            secret/data/prop-ferry-prod DISCORD_WEBHOOK_URL | DISCORD_WEBHOOK_URL ;
+            secret/data/prop-ferry-prod DUFFEL_ACCESS_TOKEN | DUFFEL_ACCESS_TOKEN ;
+            secret/data/prop-ferry-prod REDIS_URL | REDIS_URL ;
+
+      - name: Generate .env.prod
+        run: |
+          CURRENT_TAG="${{ github.event.inputs.TAG_TO_DEPLOY || 'latest' }}"
+          echo "IMAGE_TAG='${CURRENT_TAG}'" > .env.prod
+          echo "DJANGO_SECRET_KEY='${{ env.DJANGO_SECRET_KEY }}'" >> .env.prod
+          echo "ALLOWED_HOSTS='${{ env.ALLOWED_HOSTS }}'" >> .env.prod
+          echo "CSRF_TRUSTED_ORIGINS='${{ env.CSRF_TRUSTED_ORIGINS }}'" >> .env.prod
+          echo "POSTGRES_HOST='${{ env.POSTGRES_HOST }}'" >> .env.prod
+          echo "POSTGRES_PORT='${{ env.POSTGRES_PORT }}'" >> .env.prod
+          echo "POSTGRES_USER='${{ env.POSTGRES_USER }}'" >> .env.prod
+          echo "POSTGRES_PASSWORD='${{ env.POSTGRES_PASSWORD }}'" >> .env.prod
+          echo "POSTGRES_DB='${{ env.POSTGRES_DB }}'" >> .env.prod
+          echo "DISCORD_WEBHOOK_URL='${{ env.DISCORD_WEBHOOK_URL }}'" >> .env.prod
+          echo "DUFFEL_ACCESS_TOKEN='${{ env.DUFFEL_ACCESS_TOKEN }}'" >> .env.prod
+          echo "REDIS_URL='${{ env.REDIS_URL }}'" >> .env.prod
+
+      - name: Set up SSH
+        uses: webfactory/ssh-agent@v0.9.0
+        with:
+          ssh-private-key: ${{ secrets.RASPBERRY_PI_SSH_KEY }}
+
+      - name: Add Deploy Host to known_hosts
+        run: |
+          mkdir -p ~/.ssh
+          ssh-keyscan -H ${{ env.DEPLOY_HOST }} >> ~/.ssh/known_hosts || true
+
+      - name: Sync Files to Deploy Host
+        run: |
+          ssh ${{ env.DEPLOY_USER }}@${{ env.DEPLOY_HOST }} "mkdir -p ${{ env.DEPLOY_DIR }} && cd ${{ env.DEPLOY_DIR }} && cp .env .env.bak 2>/dev/null || true"
+          scp docker-compose.prod.yml ${{ env.DEPLOY_USER }}@${{ env.DEPLOY_HOST }}:${{ env.DEPLOY_DIR }}/docker-compose.yml
+          scp .env.prod ${{ env.DEPLOY_USER }}@${{ env.DEPLOY_HOST }}:${{ env.DEPLOY_DIR }}/.env
+
+      - name: Login to GHCR on Target
+        run: |
+          echo "${{ secrets.GITHUB_TOKEN }}" | ssh ${{ env.DEPLOY_USER }}@${{ env.DEPLOY_HOST }} "docker login ${{ env.REGISTRY }} -u ${{ github.actor }} --password-stdin"
+
+      - name: Check Versions and Deploy
+        id: deploy
+        run: |
+          CURRENT_TAG="${{ github.event.inputs.TAG_TO_DEPLOY || 'latest' }}"
+          IS_MANUAL_DEPLOY="${{ github.event_name == 'workflow_dispatch' }}"
+          LOCAL_COMMIT=$(git rev-parse --short HEAD)
+          
+          REMOTE_COMMIT=$(ssh ${{ env.DEPLOY_USER }}@${{ env.DEPLOY_HOST }} "cd ${{ env.DEPLOY_DIR }}; CID=\$(docker compose ps -q prop-ferry-backend 2>/dev/null); if [ ! -z \"\$CID\" ]; then docker inspect --format '{{ index .Config.Labels \"git-commit\" }}' \$CID; fi")
+          
+          echo "🔎 Version Check: Local [$LOCAL_COMMIT] vs Remote [$REMOTE_COMMIT]"
+          
+          SHOULD_DEPLOY=false
+          if [ "$IS_MANUAL_DEPLOY" = "true" ]; then
+              echo "⚠️ Manual Deployment requested."
+              SHOULD_DEPLOY=true
+          elif [ "$LOCAL_COMMIT" = "$REMOTE_COMMIT" ]; then
+              echo "✅ Code hashes match. Skipping unnecessary pull/deploy."
+              echo "status=SKIPPED" >> $GITHUB_OUTPUT
+          else
+              echo "🚀 Code Change detected. Pulling images..."
+              ssh ${{ env.DEPLOY_USER }}@${{ env.DEPLOY_HOST }} "cd ${{ env.DEPLOY_DIR }} && IMAGE_TAG=$CURRENT_TAG docker compose pull"
+              SHOULD_DEPLOY=true
+          fi
+          
+          if [ "$SHOULD_DEPLOY" = "true" ]; then
+              echo "🚀 Deploying and checking container health..."
+              if ! ssh ${{ env.DEPLOY_USER }}@${{ env.DEPLOY_HOST }} "cd ${{ env.DEPLOY_DIR }} && chmod 600 .env && IMAGE_TAG=$CURRENT_TAG docker compose up -d --wait --remove-orphans"; then
+                  echo "🚨 Healthchecks failed! Reverting to last stable tag..."
+                  ssh ${{ env.DEPLOY_USER }}@${{ env.DEPLOY_HOST }} "cd ${{ env.DEPLOY_DIR }} && if [ -f .env.bak ]; then mv .env.bak .env; docker compose up -d --remove-orphans; fi"
+                  exit 1
+              fi
+              ssh ${{ env.DEPLOY_USER }}@${{ env.DEPLOY_HOST }} "cd ${{ env.DEPLOY_DIR }} && rm -f .env.bak && docker image prune -f"
+              echo "status=UPDATED" >> $GITHUB_OUTPUT
+          fi
+          
+          ssh ${{ env.DEPLOY_USER }}@${{ env.DEPLOY_HOST }} "docker logout ${{ env.REGISTRY }}"
+          rm .env.prod
+
+      - name: Notify Success
+        if: success()
+        run: |
+          TIMESTAMP=$(TZ='America/New_York' date +'%a, %d %b %Y at %H:%M %Z')
+          if [ "${{ steps.deploy.outputs.status }}" == "UPDATED" ]; then
+              PAYLOAD=$(jq -n --arg title "🚀 Deployment Successful" \
+                              --arg desc ":unicorn: **${{ env.APP_NAME }} Update Deployed**\n**:new: New Version Live:**\n• **Tag:** ${{ github.event.inputs.TAG_TO_DEPLOY || 'latest' }}\n• **Backend:** ${{ env.IMAGE_BACKEND }}\n• **Frontend:** ${{ env.IMAGE_FRONTEND }}\n• **Nginx:** ${{ env.IMAGE_NGINX }}\n\n:bar_chart: **Status:** Healthy\n:clock4: **Time:** $TIMESTAMP" \
+                              --argjson color ${{ env.DISCORD_SUCCESS_COLOR }} \
+                              '{embeds: [{title: $title, description: $desc, color: $color}]}')
+          else
+              PAYLOAD=$(jq -n --arg title "✅ Check Complete: No Changes" \
+                              --arg desc ":shield: **${{ env.APP_NAME }} Up to Date**\nNo new code changes found for tag: **${{ github.event.inputs.TAG_TO_DEPLOY || 'latest' }}**.\nRunning services remain unchanged.\n\n:clock4: **Time:** $TIMESTAMP" \
+                              --argjson color ${{ env.DISCORD_SKIP_COLOR }} \
+                              '{embeds: [{title: $title, description: $desc, color: $color}]}')
+          fi
+          curl -s --max-time 10 -H "Content-Type: application/json" -X POST -d "$PAYLOAD" ${{ secrets.DISCORD_WEBHOOK_URL_GITHUB }} || true
+
+      - name: Notify Failure
+        if: failure()
+        run: |
+          TIMESTAMP=$(TZ='America/New_York' date +'%a, %d %b %Y at %H:%M %Z')
+          PAYLOAD=$(jq -n --arg title "🚨 Deployment Alert" \
+                          --arg desc ":x: **${{ env.APP_NAME }} Deployment Failed**\n**:warning: Error Details:**\nCheck GitHub Actions logs for run #${{ github.run_number }}.\n:wrench: **Action Required:** Manual intervention needed.\n\n:clock4: **Time:** $TIMESTAMP" \
+                          --argjson color ${{ env.DISCORD_FAIL_COLOR }} \
+                          '{embeds: [{title: $title, description: $desc, color: $color}]}')
+          curl -s --max-time 10 -H "Content-Type: application/json" -X POST -d "$PAYLOAD" ${{ secrets.DISCORD_WEBHOOK_URL_GITHUB }} || true
