@@ -39,8 +39,9 @@ jobs:
         if: success()
         run: |
           TIMESTAMP=$(TZ='America/New_York' date +'%a, %d %b %Y at %H:%M %Z')
+          printf -v DESC ":airplane: **${{ env.APP_NAME }} Routes Fetched**\nSuccessfully populated 3-day flight window and checked for unenriched stubs.\n\n:clock4: **Time:** $TIMESTAMP"
           PAYLOAD=$(jq -n --arg title "✅ Routes Data Updated" \
-                          --arg desc ":airplane: **${{ env.APP_NAME }} Routes Fetched**\nSuccessfully populated 3-day flight window and checked for unenriched stubs.\n\n:clock4: **Time:** $TIMESTAMP" \
+                          --arg desc "$DESC" \
                           --argjson color ${{ env.DISCORD_SUCCESS_COLOR }} \
                           '{embeds: [{title: $title, description: $desc, color: $color}]}')
           curl -s --max-time 10 -H "Content-Type: application/json" -X POST -d "$PAYLOAD" ${{ secrets.DISCORD_WEBHOOK_URL_JENKINS }} || true
@@ -49,8 +50,9 @@ jobs:
         if: failure()
         run: |
           TIMESTAMP=$(TZ='America/New_York' date +'%a, %d %b %Y at %H:%M %Z')
+          printf -v DESC ":x: **${{ env.APP_NAME }} Route Fetch Failed**\n**:warning: Error Details:**\nCheck GitHub Actions logs for run #${{ github.run_number }}.\n\n:clock4: **Time:** $TIMESTAMP"
           PAYLOAD=$(jq -n --arg title "🚨 Route Fetch Alert" \
-                          --arg desc ":x: **${{ env.APP_NAME }} Route Fetch Failed**\n**:warning: Error Details:**\nCheck GitHub Actions logs for run #${{ github.run_number }}.\n\n:clock4: **Time:** $TIMESTAMP" \
+                          --arg desc "$DESC" \
                           --argjson color ${{ env.DISCORD_FAIL_COLOR }} \
                           '{embeds: [{title: $title, description: $desc, color: $color}]}')
           curl -s --max-time 10 -H "Content-Type: application/json" -X POST -d "$PAYLOAD" ${{ secrets.DISCORD_WEBHOOK_URL_JENKINS }} || true

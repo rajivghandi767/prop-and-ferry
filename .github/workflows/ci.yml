@@ -92,8 +92,9 @@ jobs:
       - name: Notify Success
         if: ${{ needs.test.result == 'success' && (needs.build-and-push.result == 'success' || needs.build-and-push.result == 'skipped') }}
         run: |
+          printf -v DESC "Build **#${{ github.run_number }}** completed successfully.\n[View GitHub Actions Logs](${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }})"
           PAYLOAD=$(jq -n --arg title "✅ ${{ env.APP_NAME }} Build Success" \
-                          --arg desc "Build **#${{ github.run_number }}** completed successfully.\n[View GitHub Actions Logs](${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }})" \
+                          --arg desc "$DESC" \
                           --argjson color ${{ env.DISCORD_SUCCESS_COLOR }} \
                           '{embeds: [{title: $title, description: $desc, color: $color}]}')
           curl -s --max-time 10 -H "Content-Type: application/json" -X POST -d "$PAYLOAD" ${{ secrets.DISCORD_WEBHOOK_URL_GITHUB }} || true
@@ -101,8 +102,9 @@ jobs:
       - name: Notify Failure
         if: ${{ contains(needs.*.result, 'failure') }}
         run: |
+          printf -v DESC "Check GitHub Actions logs for build **#${{ github.run_number }}**.\n[View GitHub Actions Logs](${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }})"
           PAYLOAD=$(jq -n --arg title "🚨 ${{ env.APP_NAME }} Build Failed" \
-                          --arg desc "Check GitHub Actions logs for build **#${{ github.run_number }}**.\n[View GitHub Actions Logs](${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }})" \
+                          --arg desc "$DESC" \
                           --argjson color ${{ env.DISCORD_FAIL_COLOR }} \
                           '{embeds: [{title: $title, description: $desc, color: $color}]}')
           curl -s --max-time 10 -H "Content-Type: application/json" -X POST -d "$PAYLOAD" ${{ secrets.DISCORD_WEBHOOK_URL_GITHUB }} || true
