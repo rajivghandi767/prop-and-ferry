@@ -157,19 +157,6 @@ docker compose up -d --build
 
 ---
 
-## 📫 Contact
-
-Have questions or want to discuss the architecture behind this project? Feel free to reach out:
-
-**Rajiv Wallace**  
-Self-taught Software Engineer based in NYC (born in Dominica 🇩🇲). Aviation nerd, credit card points optimizer, and dedicated homelab tinkerer transitioning into tech.
-
-- **LinkedIn**: [linkedin.com/in/rajiv-wallace](https://www.linkedin.com/in/rajiv-wallace)
-- **GitHub**: [rajivghandi767](https://github.com/rajivghandi767)
-- **Email**: [dev@rajivwallace.com](mailto:dev@rajivwallace.com)
-
----
-
 ## 📬 Let's Connect
 
 **Rajiv Wallace**  
