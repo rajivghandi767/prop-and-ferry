@@ -93,22 +93,28 @@ jobs:
         run: |
           CURRENT_TAG="${{ github.event.inputs.TAG_TO_DEPLOY || 'latest' }}"
           IS_MANUAL_DEPLOY="${{ github.event_name == 'workflow_dispatch' }}"
-          LOCAL_COMMIT=$(git rev-parse --short HEAD)
           
-          REMOTE_COMMIT=$(ssh ${{ env.DEPLOY_USER }}@${{ env.DEPLOY_HOST }} "cd ${{ env.DEPLOY_DIR }}; CID=\$(docker compose ps -q prop-ferry-backend 2>/dev/null); if [ ! -z \"\$CID\" ]; then docker inspect --format '{{ index .Config.Labels \"git-commit\" }}' \$CID; fi")
+          echo "🔎 Pulling latest images..."
+          ssh ${{ env.DEPLOY_USER }}@${{ env.DEPLOY_HOST }} "cd ${{ env.DEPLOY_DIR }} && IMAGE_TAG=$CURRENT_TAG docker compose pull -q"
           
-          echo "🔎 Version Check: Local [$LOCAL_COMMIT] vs Remote [$REMOTE_COMMIT]"
+          # Check if the pulled image ID matches the currently running image ID
+          IMAGE_ID=$(ssh ${{ env.DEPLOY_USER }}@${{ env.DEPLOY_HOST }} "docker image inspect ${{ env.REGISTRY }}/${{ env.IMAGE_BACKEND }}:$CURRENT_TAG --format '{{.Id}}' 2>/dev/null || echo 'missing'")
+          RUNNING_ID=$(ssh ${{ env.DEPLOY_USER }}@${{ env.DEPLOY_HOST }} "cd ${{ env.DEPLOY_DIR }}; CID=\$(docker compose ps -q prop-ferry-backend 2>/dev/null); if [ ! -z \"\$CID\" ]; then docker inspect --format '{{.Image}}' \$CID; else echo 'none'; fi")
+          
+          echo "🔎 Version Check: Running [$RUNNING_ID] vs Pulled [$IMAGE_ID]"
           
           SHOULD_DEPLOY=false
           if [ "$IS_MANUAL_DEPLOY" = "true" ]; then
               echo "⚠️ Manual Deployment requested."
               SHOULD_DEPLOY=true
-          elif [ "$LOCAL_COMMIT" = "$REMOTE_COMMIT" ]; then
-              echo "✅ Code hashes match. Skipping unnecessary pull/deploy."
+          elif [ "$IMAGE_ID" = "missing" ]; then
+              echo "⚠️ Failed to inspect pulled image. Forcing deploy to be safe."
+              SHOULD_DEPLOY=true
+          elif [ "$IMAGE_ID" = "$RUNNING_ID" ]; then
+              echo "✅ Running image matches the latest remote image. Skipping unnecessary deploy."
               echo "status=SKIPPED" >> $GITHUB_OUTPUT
           else
-              echo "🚀 Code Change detected. Pulling images..."
-              ssh ${{ env.DEPLOY_USER }}@${{ env.DEPLOY_HOST }} "cd ${{ env.DEPLOY_DIR }} && IMAGE_TAG=$CURRENT_TAG docker compose pull"
+              echo "🚀 Image Change detected. Proceeding with deploy..."
               SHOULD_DEPLOY=true
           fi
           
