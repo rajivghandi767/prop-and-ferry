@@ -71,7 +71,7 @@ jobs:
           docker build -t ghcr.io/rajivghandi767/prop-ferry-frontend:${{ github.run_number }} \
                        -t ghcr.io/rajivghandi767/prop-ferry-frontend:latest \
                        --label git-commit=${{ steps.git-commit.outputs.short }} \
-                       --build-arg VITE_API_URL=/api \
+                       --build-arg VITE_API_URL=https://prop-ferry-api.rajivwallace.com \
                        -f frontend/Dockerfile.prod ./frontend
           docker push ghcr.io/rajivghandi767/prop-ferry-frontend --all-tags
 
