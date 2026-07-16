@@ -2,7 +2,7 @@ name: Scheduled Deployment
 
 on:
   schedule:
-    - cron: '15 4 * * *'
+    - cron: '0 3 * * *'
   workflow_dispatch:
     inputs:
       TAG_TO_DEPLOY:
@@ -84,18 +84,16 @@ jobs:
           scp docker-compose.prod.yml ${{ env.DEPLOY_USER }}@${{ env.DEPLOY_HOST }}:${{ env.DEPLOY_DIR }}/docker-compose.yml
           scp .env.prod ${{ env.DEPLOY_USER }}@${{ env.DEPLOY_HOST }}:${{ env.DEPLOY_DIR }}/.env
 
-      - name: Login to GHCR on Target
+      - name: Pull Latest Images (Locked)
         run: |
-          echo "${{ secrets.GITHUB_TOKEN }}" | ssh ${{ env.DEPLOY_USER }}@${{ env.DEPLOY_HOST }} "docker login ${{ env.REGISTRY }} -u ${{ github.actor }} --password-stdin"
+          CURRENT_TAG="${{ github.event.inputs.TAG_TO_DEPLOY || 'latest' }}"
+          ssh ${{ env.DEPLOY_USER }}@${{ env.DEPLOY_HOST }} "exec 9>/tmp/ghcr_pull.lock; flock -w 300 9; echo \"${{ secrets.GITHUB_TOKEN }}\" | docker login ${{ env.REGISTRY }} -u ${{ github.actor }} --password-stdin && cd ${{ env.DEPLOY_DIR }} && IMAGE_TAG=$CURRENT_TAG docker compose pull -q"
 
       - name: Check Versions and Deploy
         id: deploy
         run: |
           CURRENT_TAG="${{ github.event.inputs.TAG_TO_DEPLOY || 'latest' }}"
           IS_MANUAL_DEPLOY="${{ github.event_name == 'workflow_dispatch' }}"
-          
-          echo "🔎 Pulling latest images..."
-          ssh ${{ env.DEPLOY_USER }}@${{ env.DEPLOY_HOST }} "cd ${{ env.DEPLOY_DIR }} && IMAGE_TAG=$CURRENT_TAG docker compose pull -q"
           
           # Check if the pulled image ID matches the currently running image ID
           IMAGE_ID=$(ssh ${{ env.DEPLOY_USER }}@${{ env.DEPLOY_HOST }} "docker image inspect ${{ env.REGISTRY }}/${{ env.IMAGE_BACKEND }}:$CURRENT_TAG --format '{{.Id}}' 2>/dev/null || echo 'missing'")
