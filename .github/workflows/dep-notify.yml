@@ -1,0 +1,105 @@
+name: Dependency Update Notifier
+
+on:
+  pull_request_target:
+    types: [opened]
+  pull_request_review:
+    types: [submitted]
+  push:
+    branches: [main]
+    paths:
+      - 'frontend/package.json'
+      - 'frontend/package-lock.json'
+
+env:
+  APP_NAME: ""
+  DISCORD_SUCCESS_COLOR: "3066993"   # Green
+  DISCORD_WARN_COLOR: "16098851"     # Orange
+  DISCORD_FAIL_COLOR: "15158332"     # Red
+
+jobs:
+  # ── Fires when Dependabot opens any PR ──────────────────────────────────────
+  notify-pr-opened:
+    name: Notify PR Opened
+    runs-on: ubuntu-24.04-arm
+    if: github.actor == 'dependabot[bot]' && github.event_name == 'pull_request_target' && github.event.action == 'opened'
+    steps:
+      - name: Fetch Dependabot metadata
+        id: meta
+        uses: dependabot/fetch-metadata@21025c705c08248db411dc16f3619e6b5f9ea21a # v2
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Notify — Patch/Minor PR Opened
+        if: |
+          steps.meta.outputs.update-type == 'version-update:semver-patch' ||
+          steps.meta.outputs.update-type == 'version-update:semver-minor'
+        run: |
+          TIMESTAMP=$(TZ='America/New_York' date +'%a, %d %b %Y at %H:%M %Z')
+          printf -v DESC ":package: **${{ env.APP_NAME }} — Dependency PR Opened**\n**:new: Updates Queued (Patch/Minor):**\n> ${{ github.event.pull_request.title }}\n\n:robot: **CI will run automatically. Will auto-merge once all checks pass.**\n:link: **PR:** [#${{ github.event.pull_request.number }}](${{ github.event.pull_request.html_url }})\n:clock4: **Time:** $TIMESTAMP"
+          PAYLOAD=$(jq -n --arg title "📦 Dependencies Ready for Review" \
+                          --arg desc "$DESC" \
+                          --argjson color ${{ env.DISCORD_SUCCESS_COLOR }} \
+                          '{embeds: [{title: $title, description: $desc, color: $color}]}')
+          curl -s --max-time 10 -H "Content-Type: application/json" -X POST -d "$PAYLOAD" ${{ secrets.DISCORD_WEBHOOK_URL_GITHUB }} || true
+
+      - name: Notify — Major Version PR Opened
+        if: steps.meta.outputs.update-type == 'version-update:semver-major'
+        run: |
+          TIMESTAMP=$(TZ='America/New_York' date +'%a, %d %b %Y at %H:%M %Z')
+          printf -v DESC ":rotating_light: **${{ env.APP_NAME }} — Major Version Update**\n**:warning: Manual review required before merging:**\n> ${{ github.event.pull_request.title }}\n\nMajor bumps may contain breaking changes. Check the changelog before approving.\n:link: **PR:** [#${{ github.event.pull_request.number }}](${{ github.event.pull_request.html_url }})\n:clock4: **Time:** $TIMESTAMP"
+          PAYLOAD=$(jq -n --arg title "🚨 Major Dependency Update — Review Required" \
+                          --arg desc "$DESC" \
+                          --argjson color ${{ env.DISCORD_WARN_COLOR }} \
+                          '{embeds: [{title: $title, description: $desc, color: $color}]}')
+          curl -s --max-time 10 -H "Content-Type: application/json" -X POST -d "$PAYLOAD" ${{ secrets.DISCORD_WEBHOOK_URL_GITHUB }} || true
+
+  # ── Fires when a Dependabot PR is approved and merged to main ───────────────
+  notify-merged:
+    name: Notify Merge Success
+    runs-on: ubuntu-24.04-arm
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 2
+
+      - name: Check if commit is a Dependabot merge
+        id: check
+        run: |
+          COMMIT_MSG=$(git log -1 --pretty=%s)
+          AUTHOR=$(git log -1 --pretty=%an)
+          if echo "$AUTHOR" | grep -qi "dependabot" || echo "$COMMIT_MSG" | grep -qi "^chore(deps)"; then
+            echo "is_dependabot=true" >> $GITHUB_OUTPUT
+            echo "commit_msg=$COMMIT_MSG" >> $GITHUB_OUTPUT
+          else
+            echo "is_dependabot=false" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Notify — Dependabot Merge Landed
+        if: steps.check.outputs.is_dependabot == 'true'
+        run: |
+          TIMESTAMP=$(TZ='America/New_York' date +'%a, %d %b %Y at %H:%M %Z')
+          SHORT_SHA=$(git rev-parse --short HEAD)
+          printf -v DESC ":white_check_mark: **${{ env.APP_NAME }} — Dependencies Updated**\n**:new: Merged to main:**\n> ${{ steps.check.outputs.commit_msg }}\n\n:bar_chart: **Status:** CI Passed\n:label: **Commit:** \`$SHORT_SHA\`\n:clock4: **Time:** $TIMESTAMP"
+          PAYLOAD=$(jq -n --arg title "✅ Dependency Update Merged" \
+                          --arg desc "$DESC" \
+                          --argjson color ${{ env.DISCORD_SUCCESS_COLOR }} \
+                          '{embeds: [{title: $title, description: $desc, color: $color}]}')
+          curl -s --max-time 10 -H "Content-Type: application/json" -X POST -d "$PAYLOAD" ${{ secrets.DISCORD_WEBHOOK_URL_GITHUB }} || true
+
+  # ── Fires when CI fails on a Dependabot PR ──────────────────────────────────
+  notify-ci-failed:
+    name: Notify CI Failure
+    runs-on: ubuntu-24.04-arm
+    if: github.actor == 'dependabot[bot]' && github.event_name == 'pull_request_review' && github.event.review.state == 'changes_requested'
+    steps:
+      - name: Notify — CI Failed on Dependabot PR
+        run: |
+          TIMESTAMP=$(TZ='America/New_York' date +'%a, %d %b %Y at %H:%M %Z')
+          printf -v DESC ":x: **${{ env.APP_NAME }} — Dependency Update Failed CI**\n**:warning: Tests or build failed after update:**\n> ${{ github.event.pull_request.title }}\n\n:wrench: **Action Required:** Review the logs before merging.\n:link: **Logs:** [View Run](${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }})\n:clock4: **Time:** $TIMESTAMP"
+          PAYLOAD=$(jq -n --arg title "🚨 Dependency Update Failed CI" \
+                          --arg desc "$DESC" \
+                          --argjson color ${{ env.DISCORD_FAIL_COLOR }} \
+                          '{embeds: [{title: $title, description: $desc, color: $color}]}')
+          curl -s --max-time 10 -H "Content-Type: application/json" -X POST -d "$PAYLOAD" ${{ secrets.DISCORD_WEBHOOK_URL_GITHUB }} || true

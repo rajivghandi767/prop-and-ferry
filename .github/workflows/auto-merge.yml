@@ -1,0 +1,38 @@
+name: Dependabot Auto-Merge
+
+on:
+  pull_request_target:
+    types: [opened, synchronize, reopened]
+
+permissions:
+  contents: write
+  pull-requests: write
+
+jobs:
+  auto-merge:
+    name: Auto-Merge Patch/Minor
+    runs-on: ubuntu-24.04-arm
+    # Only act on Dependabot PRs
+    if: github.actor == 'dependabot[bot]'
+    steps:
+      - name: Fetch Dependabot metadata
+        id: meta
+        uses: dependabot/fetch-metadata@21025c705c08248db411dc16f3619e6b5f9ea21a # v2
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+
+      # Patch and minor updates: approve + enable auto-merge (squash).
+      # Auto-merge fires only after all required branch protection checks pass.
+      - name: Approve and auto-merge patch/minor updates
+        if: |
+          steps.meta.outputs.update-type == 'version-update:semver-patch' ||
+          steps.meta.outputs.update-type == 'version-update:semver-minor'
+        run: |
+          gh pr review "$PR_URL" --approve --body "✅ Auto-approved: patch/minor dependency update. Merging after CI passes."
+          gh pr merge "$PR_URL" --auto --squash
+        env:
+          PR_URL: ${{ github.event.pull_request.html_url }}
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      # Major updates: leave untouched. The dep-notify workflow already
+      # sends a Discord alert flagging it for manual review.
