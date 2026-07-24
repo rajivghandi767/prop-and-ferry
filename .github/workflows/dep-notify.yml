@@ -12,7 +12,7 @@ on:
       - 'frontend/package-lock.json'
 
 env:
-  APP_NAME: "Prop & Ferry"
+  APP_NAME: "Portfolio Website"
   DISCORD_SUCCESS_COLOR: "3066993"   # Green
   DISCORD_WARN_COLOR: "16098851"     # Orange
   DISCORD_FAIL_COLOR: "15158332"     # Red
@@ -44,7 +44,7 @@ jobs:
         if: steps.semver.outputs.is_major == 'false'
         run: |
           TIMESTAMP=$(TZ='America/New_York' date +'%a, %d %b %Y at %H:%M %Z')
-          printf -v DESC ":package: **${{ env.APP_NAME }} — Dependency PR Opened**\n**:new: Updates Queued (Patch/Minor):**\n> ${{ github.event.pull_request.title }}\n\n:white_check_mark: **CI will run automatically. Awaiting your approval to merge.**\n:link: **PR:** [#${{ github.event.pull_request.number }}](${{ github.event.pull_request.html_url }})\n:clock4: **Time:** $TIMESTAMP"
+          printf -v DESC ":package: **${{ env.APP_NAME }} — Dependency PR Opened**\n**:new: Updates Queued (Patch/Minor):**\n> ${{ github.event.pull_request.title }}\n\n:robot: **CI will run automatically. Will auto-merge once all checks pass.**\n:link: **PR:** [#${{ github.event.pull_request.number }}](${{ github.event.pull_request.html_url }})\n:clock4: **Time:** $TIMESTAMP"
           PAYLOAD=$(jq -n --arg title "📦 Dependencies Ready for Review" \
                           --arg desc "$DESC" \
                           --argjson color ${{ env.DISCORD_SUCCESS_COLOR }} \
