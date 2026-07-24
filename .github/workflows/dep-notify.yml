@@ -1,7 +1,7 @@
 name: Dependency Update Notifier
 
 on:
-  pull_request:
+  pull_request_target:
     types: [opened]
   pull_request_review:
     types: [submitted]
@@ -12,7 +12,7 @@ on:
       - 'frontend/package-lock.json'
 
 env:
-  APP_NAME: "Portfolio Website"
+  APP_NAME: ""
   DISCORD_SUCCESS_COLOR: "3066993"   # Green
   DISCORD_WARN_COLOR: "16098851"     # Orange
   DISCORD_FAIL_COLOR: "15158332"     # Red
@@ -22,26 +22,18 @@ jobs:
   notify-pr-opened:
     name: Notify PR Opened
     runs-on: ubuntu-24.04-arm
-    if: github.actor == 'dependabot[bot]' && github.event_name == 'pull_request' && github.event.action == 'opened'
+    if: github.actor == 'dependabot[bot]' && github.event_name == 'pull_request_target' && github.event.action == 'opened'
     steps:
-      - name: Detect major version bump
-        id: semver
-        run: |
-          TITLE="${{ github.event.pull_request.title }}"
-          if echo "$TITLE" | grep -qiE "from [0-9]+\.[0-9]+\.[0-9]+ to [0-9]+\."; then
-            OLD=$(echo "$TITLE" | grep -oP 'from \K[0-9]+')
-            NEW=$(echo "$TITLE" | grep -oP 'to \K[0-9]+')
-            if [ "$OLD" != "$NEW" ]; then
-              echo "is_major=true" >> $GITHUB_OUTPUT
-            else
-              echo "is_major=false" >> $GITHUB_OUTPUT
-            fi
-          else
-            echo "is_major=false" >> $GITHUB_OUTPUT
-          fi
+      - name: Fetch Dependabot metadata
+        id: meta
+        uses: dependabot/fetch-metadata@21025c705c08248db411dc16f3619e6b5f9ea21a # v2
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Notify — Patch/Minor PR Opened
-        if: steps.semver.outputs.is_major == 'false'
+        if: |
+          steps.meta.outputs.update-type == 'version-update:semver-patch' ||
+          steps.meta.outputs.update-type == 'version-update:semver-minor'
         run: |
           TIMESTAMP=$(TZ='America/New_York' date +'%a, %d %b %Y at %H:%M %Z')
           printf -v DESC ":package: **${{ env.APP_NAME }} — Dependency PR Opened**\n**:new: Updates Queued (Patch/Minor):**\n> ${{ github.event.pull_request.title }}\n\n:robot: **CI will run automatically. Will auto-merge once all checks pass.**\n:link: **PR:** [#${{ github.event.pull_request.number }}](${{ github.event.pull_request.html_url }})\n:clock4: **Time:** $TIMESTAMP"
@@ -52,7 +44,7 @@ jobs:
           curl -s --max-time 10 -H "Content-Type: application/json" -X POST -d "$PAYLOAD" ${{ secrets.DISCORD_WEBHOOK_URL_GITHUB }} || true
 
       - name: Notify — Major Version PR Opened
-        if: steps.semver.outputs.is_major == 'true'
+        if: steps.meta.outputs.update-type == 'version-update:semver-major'
         run: |
           TIMESTAMP=$(TZ='America/New_York' date +'%a, %d %b %Y at %H:%M %Z')
           printf -v DESC ":rotating_light: **${{ env.APP_NAME }} — Major Version Update**\n**:warning: Manual review required before merging:**\n> ${{ github.event.pull_request.title }}\n\nMajor bumps may contain breaking changes. Check the changelog before approving.\n:link: **PR:** [#${{ github.event.pull_request.number }}](${{ github.event.pull_request.html_url }})\n:clock4: **Time:** $TIMESTAMP"
