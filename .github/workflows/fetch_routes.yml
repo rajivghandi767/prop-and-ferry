@@ -2,7 +2,7 @@ name: Fetch Routes Data
 
 on:
   schedule:
-    - cron: '30 6 * * 0,3'
+    - cron: '30 7 * * 0,3'
   workflow_dispatch:
 
 env:
