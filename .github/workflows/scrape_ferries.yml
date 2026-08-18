@@ -1,8 +1,6 @@
 name: Scrape Ferry Data
 
 on:
-  schedule:
-    - cron: '45 7 * * 0,3'
   workflow_dispatch:
 
 env:
