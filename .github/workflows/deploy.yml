@@ -131,7 +131,7 @@ jobs:
       - name: Notify Success
         if: success()
         run: |
-          TIMESTAMP=$(python3 -c "from datetime import datetime; from zoneinfo import ZoneInfo; print(datetime.now(ZoneInfo('America/New_York')).strftime('%a, %d %b %Y at %H:%M %Z'))")
+          TIMESTAMP=$(python3 -c "from datetime import datetime,timezone,timedelta; u=datetime.now(timezone.utc); y=u.year; nxt=lambda d,w: d+timedelta(days=(w-d.weekday())%7); s=nxt(datetime(y,3,8),6); e=nxt(datetime(y,11,1),6); o,l=(-4,'EDT') if s<=u.replace(tzinfo=None)<e else (-5,'EST'); print((u+timedelta(hours=o)).strftime(f'%a, %d %b %Y at %H:%M {l}'))")
           if [ "${{ steps.deploy.outputs.status }}" == "UPDATED" ]; then
               printf -v DESC ":unicorn: **${{ env.APP_NAME }} Update Deployed**\n**:new: New Version Live:**\n• **Tag:** ${{ github.event.inputs.TAG_TO_DEPLOY || 'latest' }}\n• **Backend:** ${{ env.IMAGE_BACKEND }}\n• **Frontend:** ${{ env.IMAGE_FRONTEND }}\n• **Nginx:** ${{ env.IMAGE_NGINX }}\n\n:bar_chart: **Status:** Healthy\n:clock4: **Time:** $TIMESTAMP"
               PAYLOAD=$(jq -n --arg title "🚀 Deployment Successful" \
@@ -150,7 +150,7 @@ jobs:
       - name: Notify Failure
         if: failure()
         run: |
-          TIMESTAMP=$(python3 -c "from datetime import datetime; from zoneinfo import ZoneInfo; print(datetime.now(ZoneInfo('America/New_York')).strftime('%a, %d %b %Y at %H:%M %Z'))")
+          TIMESTAMP=$(python3 -c "from datetime import datetime,timezone,timedelta; u=datetime.now(timezone.utc); y=u.year; nxt=lambda d,w: d+timedelta(days=(w-d.weekday())%7); s=nxt(datetime(y,3,8),6); e=nxt(datetime(y,11,1),6); o,l=(-4,'EDT') if s<=u.replace(tzinfo=None)<e else (-5,'EST'); print((u+timedelta(hours=o)).strftime(f'%a, %d %b %Y at %H:%M {l}'))")
           printf -v DESC ":x: **${{ env.APP_NAME }} Deployment Failed**\n**:warning: Error Details:**\nCheck GitHub Actions logs for run #${{ github.run_number }}.\n:wrench: **Action Required:** Manual intervention needed.\n\n:clock4: **Time:** $TIMESTAMP"
           PAYLOAD=$(jq -n --arg title "🚨 Deployment Alert" \
                           --arg desc "$DESC" \
