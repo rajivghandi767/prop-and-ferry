@@ -32,7 +32,7 @@ jobs:
       - name: Notify Success
         if: success()
         run: |
-          TIMESTAMP=$(TZ='America/New_York' date +'%a, %d %b %Y at %H:%M %Z')
+          TIMESTAMP=$(python3 -c "from datetime import datetime,timezone,timedelta; u=datetime.now(timezone.utc); y=u.year; nxt=lambda d,w: d+timedelta(days=(w-d.weekday())%7); s=nxt(datetime(y,3,8),6); e=nxt(datetime(y,11,1),6); o,l=(-4,'EDT') if s<=u.replace(tzinfo=None)<e else (-5,'EST'); print((u+timedelta(hours=o)).strftime(f'%a, %d %b %Y at %H:%M {l}'))"
           printf -v DESC ":ship: **${{ env.APP_NAME }} Ferries Scraped**\nSuccessfully updated ferry schedules.\n\n:clock4: **Time:** $TIMESTAMP"
           PAYLOAD=$(jq -n --arg title "✅ Ferry Data Updated" \
                           --arg desc "$DESC" \
@@ -43,7 +43,7 @@ jobs:
       - name: Notify Failure
         if: failure()
         run: |
-          TIMESTAMP=$(TZ='America/New_York' date +'%a, %d %b %Y at %H:%M %Z')
+          TIMESTAMP=$(python3 -c "from datetime import datetime,timezone,timedelta; u=datetime.now(timezone.utc); y=u.year; nxt=lambda d,w: d+timedelta(days=(w-d.weekday())%7); s=nxt(datetime(y,3,8),6); e=nxt(datetime(y,11,1),6); o,l=(-4,'EDT') if s<=u.replace(tzinfo=None)<e else (-5,'EST'); print((u+timedelta(hours=o)).strftime(f'%a, %d %b %Y at %H:%M {l}'))"
           printf -v DESC ":x: **${{ env.APP_NAME }} Ferry Scrape Failed**\n**:warning: Error Details:**\nCheck GitHub Actions logs for run #${{ github.run_number }}.\n\n:clock4: **Time:** $TIMESTAMP"
           PAYLOAD=$(jq -n --arg title "🚨 Ferry Scrape Alert" \
                           --arg desc "$DESC" \
