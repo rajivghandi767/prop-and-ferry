@@ -42,7 +42,7 @@ jobs:
                           --arg desc "$DESC" \
                           --argjson color ${{ env.DISCORD_SUCCESS_COLOR }} \
                           '{embeds: [{title: $title, description: $desc, color: $color}]}')
-          curl -s --max-time 10 -H "Content-Type: application/json" -X POST -d "$PAYLOAD" ${{ secrets.DISCORD_WEBHOOK_URL_JENKINS }} || true
+          curl -s --max-time 10 -H "Content-Type: application/json" -X POST -d "$PAYLOAD" ${{ secrets.DISCORD_WEBHOOK_URL_GITHUB }} || true
 
       - name: Notify Failure
         if: failure()
@@ -53,4 +53,4 @@ jobs:
                           --arg desc "$DESC" \
                           --argjson color ${{ env.DISCORD_FAIL_COLOR }} \
                           '{embeds: [{title: $title, description: $desc, color: $color}]}')
-          curl -s --max-time 10 -H "Content-Type: application/json" -X POST -d "$PAYLOAD" ${{ secrets.DISCORD_WEBHOOK_URL_JENKINS }} || true
+          curl -s --max-time 10 -H "Content-Type: application/json" -X POST -d "$PAYLOAD" ${{ secrets.DISCORD_WEBHOOK_URL_GITHUB }} || true
