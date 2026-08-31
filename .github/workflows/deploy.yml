@@ -7,6 +7,11 @@ on:
         description: 'Image Version to Deploy'
         required: true
         default: 'latest'
+      FORCE_DEPLOY:
+        description: 'Force deployment even if no changes'
+        required: false
+        type: boolean
+        default: false
 
 env:
   APP_NAME: "Prop & Ferry"
@@ -91,7 +96,7 @@ jobs:
         id: deploy
         run: |
           CURRENT_TAG="${{ github.event.inputs.TAG_TO_DEPLOY || 'latest' }}"
-          IS_MANUAL_DEPLOY="${{ github.event_name == 'workflow_dispatch' }}"
+          IS_MANUAL_DEPLOY="${{ github.event.inputs.FORCE_DEPLOY == 'true' }}"
           
           # Check if the pulled image ID matches the currently running image ID
           IMAGE_ID=$(ssh ${{ env.DEPLOY_USER }}@${{ env.DEPLOY_HOST }} "docker image inspect ${{ env.REGISTRY }}/${{ env.IMAGE_BACKEND }}:$CURRENT_TAG --format '{{.Id}}' 2>/dev/null || echo 'missing'")
