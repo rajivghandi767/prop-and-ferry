@@ -18,6 +18,10 @@ from .serializers import (
     ItineraryLegSerializer,
 )
 
+MIN_CONNECT_FLIGHT = 3600  # 1 Hour: Minimum time to connect plane-to-plane
+MIN_CONNECT_FERRY = 7200  # 2 Hours: Minimum time to connect plane-to-ferry or ferry-to-plane
+MAX_CONNECT = 64800  # 18 Hours: Max layover time before we consider it two separate trips
+
 class ItineraryFilterBackend(DjangoFilterBackend):
     """
     Custom filter backend for itineraries.
@@ -141,8 +145,8 @@ class RouteViewSet(viewsets.ReadOnlyModelViewSet):
         origin_aliases = origin_loc.resolve_aliases()
         dest_aliases = dest_loc.resolve_aliases()
 
-
-        flight_dates = (
+        # 1. DIRECT ROUTES
+        flight_dates = set(
             FlightInstance.objects.filter(
                 route__origin__code__in=origin_aliases,
                 route__destination__code__in=dest_aliases,
@@ -153,7 +157,7 @@ class RouteViewSet(viewsets.ReadOnlyModelViewSet):
             .distinct()
         )
 
-        ferry_dates = (
+        ferry_dates = set(
             Sailing.objects.filter(
                 route__origin__code__in=origin_aliases,
                 route__destination__code__in=dest_aliases,
@@ -163,7 +167,106 @@ class RouteViewSet(viewsets.ReadOnlyModelViewSet):
             .distinct()
         )
 
-        all_dates = sorted(list(set(flight_dates) | set(ferry_dates)))
+        known_dates = flight_dates | ferry_dates
+        connected_dates = set()
+
+        # 2. CONNECTING ROUTES (LEG 1)
+        leg1_flights = list(
+            FlightInstance.objects.filter(
+                route__origin__code__in=origin_aliases,
+                route__is_active=True,
+                available_seats__gt=0,
+            )
+            .exclude(route__destination__code__in=dest_aliases)
+            .select_related("route", "route__destination")
+        )
+
+        leg1_ferries = list(
+            Sailing.objects.filter(
+                route__origin__code__in=origin_aliases,
+                route__is_active=True,
+            )
+            .exclude(route__destination__code__in=dest_aliases)
+            .select_related("route", "route__destination")
+        )
+
+        all_leg1 = leg1_flights + leg1_ferries
+
+        if all_leg1:
+            hub_codes = {item.route.destination.code for item in all_leg1}
+            hub_locations = (
+                Location.objects.filter(code__in=hub_codes)
+                .select_related("parent")
+                .prefetch_related("sub_locations", "parent__sub_locations")
+            )
+            expanded_hubs = set()
+            hub_alias_map = {}
+            for loc in hub_locations:
+                aliases = set(loc.resolve_aliases())
+                hub_alias_map[loc.code] = aliases
+                expanded_hubs.update(aliases)
+
+            leg2_flights = list(
+                FlightInstance.objects.filter(
+                    route__origin__code__in=expanded_hubs,
+                    route__destination__code__in=dest_aliases,
+                    route__is_active=True,
+                    available_seats__gt=0,
+                ).select_related("route", "route__origin")
+            )
+
+            leg2_ferries = list(
+                Sailing.objects.filter(
+                    route__origin__code__in=expanded_hubs,
+                    route__destination__code__in=dest_aliases,
+                    route__is_active=True,
+                ).select_related("route", "route__origin")
+            )
+
+            from collections import defaultdict
+
+            leg2_by_date = defaultdict(list)
+            for l2 in leg2_flights + leg2_ferries:
+                leg2_by_date[l2.date].append(l2)
+
+            for l1 in all_leg1:
+                if l1.date in known_dates or l1.date in connected_dates:
+                    continue
+
+                l1_is_ferry = isinstance(l1, Sailing)
+                l1_arr_time = l1.arrival_time if l1_is_ferry else l1.route.arrival_time
+                if not l1_arr_time:
+                    continue
+
+                l1_arr_dt = datetime.combine(l1.date, l1_arr_time)
+                dest_code = l1.route.destination.code
+                l1_dest_aliases = hub_alias_map.get(dest_code, {dest_code})
+
+                candidate_l2 = (
+                    leg2_by_date[l1.date] + leg2_by_date[l1.date + timedelta(days=1)]
+                )
+                for l2 in candidate_l2:
+                    if l2.route.origin.code not in l1_dest_aliases:
+                        continue
+                    l2_is_ferry = isinstance(l2, Sailing)
+                    l2_dep_time = (
+                        l2.departure_time if l2_is_ferry else l2.route.departure_time
+                    )
+                    if not l2_dep_time:
+                        continue
+
+                    l2_dep_dt = datetime.combine(l2.date, l2_dep_time)
+                    gap = (l2_dep_dt - l1_arr_dt).total_seconds()
+                    min_connect = (
+                        MIN_CONNECT_FERRY
+                        if (l1_is_ferry or l2_is_ferry)
+                        else MIN_CONNECT_FLIGHT
+                    )
+                    if min_connect <= gap <= MAX_CONNECT:
+                        connected_dates.add(l1.date)
+                        break
+
+        all_dates = sorted(list(known_dates | connected_dates))
         resp_data = {"available_dates": [d.strftime("%Y-%m-%d") for d in all_dates]}
         cache.set(cache_key, resp_data, 60 * 15)
         return Response(resp_data)
@@ -248,8 +351,8 @@ class RouteViewSet(viewsets.ReadOnlyModelViewSet):
         )
 
         # --- 2. FETCH CONNECTING ROUTES (LEG 1) ---
-        # Get all flights departing from the origin that do NOT go straight to the destination.
-        # These are potential "Leg 1" flights landing at a hub.
+        # Get all flights and ferries departing from the origin that do NOT go straight to the destination.
+        # These are potential "Leg 1" trips landing at a hub.
         leg1_flights = (
             FlightInstance.objects.filter(
                 route__origin__code__in=origin_aliases,
@@ -263,8 +366,22 @@ class RouteViewSet(viewsets.ReadOnlyModelViewSet):
             )
         )
 
-        # Determine all unique locations these leg 1 flights land at
-        hub_codes = {f.route.destination.code for f in leg1_flights}
+        leg1_ferries = (
+            Sailing.objects.filter(
+                route__origin__code__in=origin_aliases,
+                date__range=[target_date, end_date],
+                route__is_active=True,
+            )
+            .exclude(route__destination__code__in=dest_aliases)
+            .select_related(
+                "route", "route__carrier", "route__origin", "route__destination"
+            )
+        )
+
+        # Determine all unique locations these leg 1 flights and ferries land at
+        hub_codes = {f.route.destination.code for f in leg1_flights} | {
+            s.route.destination.code for s in leg1_ferries
+        }
 
         # Expand these hubs to include their aliases (e.g. an airport and a nearby ferry port)
         hub_locations = Location.objects.filter(code__in=hub_codes).prefetch_related(
@@ -296,11 +413,6 @@ class RouteViewSet(viewsets.ReadOnlyModelViewSet):
         )
 
         # --- 4. ASSEMBLE ITINERARIES ---
-        # We define acceptable connection times based on the mode of transport
-        MIN_CONNECT_FLIGHT = 3600  # 1 Hour: Minimum time to connect plane-to-plane
-        MIN_CONNECT_FERRY = 7200  # 2 Hours: Minimum time to connect plane-to-ferry (accounts for port transit)
-        MAX_CONNECT = 64800 # 18 Hours: Max layover time before we consider it two separate trips
-
         results = []
         found_date = target_date
         date_was_changed = False
@@ -320,7 +432,8 @@ class RouteViewSet(viewsets.ReadOnlyModelViewSet):
                     {"id": f"s_{s.id}", "legs": [ItineraryLegSerializer(s).data]}
                 )
 
-            day_l1 = [f for f in leg1_flights if f.date == check_date]
+            day_l1_f = [f for f in leg1_flights if f.date == check_date]
+            day_l1_s = [s for s in leg1_ferries if s.date == check_date]
 
             l2_candidates_f = [
                 f for f in leg2_flights if f.date in (check_date, next_date)
@@ -329,8 +442,8 @@ class RouteViewSet(viewsets.ReadOnlyModelViewSet):
                 s for s in leg2_ferries if s.date in (check_date, next_date)
             ]
 
-            # Check combinations of Leg 1 and Leg 2 for valid connections
-            for l1 in day_l1:
+            # Check combinations of Leg 1 (Flight) and Leg 2 (Flight / Ferry)
+            for l1 in day_l1_f:
                 if not l1.route.arrival_time:
                     continue
                 l1_arr_dt = datetime.combine(l1.date, l1.route.arrival_time)
@@ -392,6 +505,69 @@ class RouteViewSet(viewsets.ReadOnlyModelViewSet):
 
                         day_itineraries.append(
                             {"id": f"c_fs_{l1.id}_{l2_s.id}", "legs": [l1_data, l2_data]}
+                        )
+
+            # Check combinations of Leg 1 (Ferry) and Leg 2 (Flight / Ferry)
+            for l1_s in day_l1_s:
+                if not l1_s.arrival_time:
+                    continue
+                l1_arr_dt = datetime.combine(l1_s.date, l1_s.arrival_time)
+                l1_dest_aliases = l1_s.route.destination.resolve_aliases()
+
+                for l2 in l2_candidates_f:
+                    if l2.route.origin.code not in l1_dest_aliases:
+                        continue
+                    if not l2.route.departure_time:
+                        continue
+
+                    l2_dep_dt = datetime.combine(l2.date, l2.route.departure_time)
+                    gap = (l2_dep_dt - l1_arr_dt).total_seconds()
+
+                    if MIN_CONNECT_FERRY <= gap <= MAX_CONNECT:
+                        l1_data = ItineraryLegSerializer(l1_s).data
+                        l2_data = ItineraryLegSerializer(l2).data
+
+                        hours, mins = int(gap // 3600), int((gap % 3600) // 60)
+
+                        if l1_s.date != l2.date:
+                            l1_data["layover_text"] = (
+                                f"🌙 Overnight Layover: {hours}h {mins}m in {l1_s.route.destination.city} • Connect via Flight"
+                            )
+                        else:
+                            l1_data["layover_text"] = (
+                                f"✈️ {hours}h {mins}m Layover in {l1_s.route.destination.city} • Connect via Flight"
+                            )
+
+                        day_itineraries.append(
+                            {"id": f"c_sf_{l1_s.id}_{l2.id}", "legs": [l1_data, l2_data]}
+                        )
+
+                for l2_s in l2_candidates_s:
+                    if l2_s.route.origin.code not in l1_dest_aliases:
+                        continue
+                    if not l2_s.departure_time:
+                        continue
+
+                    l2_dep_dt = datetime.combine(l2_s.date, l2_s.departure_time)
+                    gap = (l2_dep_dt - l1_arr_dt).total_seconds()
+
+                    if MIN_CONNECT_FERRY <= gap <= MAX_CONNECT:
+                        l1_data = ItineraryLegSerializer(l1_s).data
+                        l2_data = ItineraryLegSerializer(l2_s).data
+
+                        hours, mins = int(gap // 3600), int((gap % 3600) // 60)
+
+                        if l1_s.date != l2_s.date:
+                            l1_data["layover_text"] = (
+                                f"🌙 Overnight Layover: {hours}h {mins}m in {l1_s.route.destination.city} • Connect via Ferry"
+                            )
+                        else:
+                            l1_data["layover_text"] = (
+                                f"⛴️ {hours}h {mins}m Layover in {l1_s.route.destination.city} • Connect via Ferry"
+                            )
+
+                        day_itineraries.append(
+                            {"id": f"c_ss_{l1_s.id}_{l2_s.id}", "legs": [l1_data, l2_data]}
                         )
 
             if day_itineraries:
