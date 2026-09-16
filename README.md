@@ -8,9 +8,9 @@ As an aviation nerd born in Dominica and residing in NYC, I built this applicati
 
 ## ⚠️ Proof of Concept Disclaimer
 
-This application is a Proof of Concept (POC) built to demonstrate complex system architecture, in-memory graph traversal, and API cost-optimization. It is actively maintained as an engineering portfolio piece.
+This application is a Proof of Concept (POC) built to demonstrate complex system architecture, in-memory graph traversal, and aggregator quota governance. It is actively maintained as an engineering portfolio piece.
 
-While the data powering the frontend is sourced **live** via the Duffel REST API and automated web scrapers, **the booking window is intentionally restricted to a 3-day rolling forecast.** This constraint is a deliberate engineering tradeoff designed to minimize monthly API overages while keeping the core routing logic fully functional for demonstration.
+While the data powering the frontend is sourced **live** via the Duffel REST API and automated web scrapers, **the booking window is intentionally restricted to a 3-day rolling forecast.** This constraint is a deliberate engineering tradeoff designed to stay well within aggregator free-tier allowances and prevent excess search surcharges while keeping the core routing logic fully functional for demonstration.
 
 ---
 
@@ -18,7 +18,7 @@ While the data powering the frontend is sourced **live** via the Duffel REST API
 
 - [🚀 Tech Stack](#-tech-stack)
 - [🧠 Core Architecture & Features](#-core-architecture--features)
-- [📉 Engineering Constraints & Cost Optimization](#-engineering-constraints--cost-optimization)
+- [📉 System Design: Free-Tier Sustainability & Look-to-Book Governance](#-system-design-free-tier-sustainability--look-to-book-governance)
 - [🔄 Architecture Shift: The Amadeus Deprecation](#-architecture-shift-the-amadeus-deprecation)
 - [⚙️ CI/CD & Monitoring](#️-cicd--monitoring)
 - [💻 Local Development](#-local-development)
@@ -70,27 +70,79 @@ Prop & Ferry calculates multi-leg travel itineraries by stitching together inter
 
 The database is actively maintained by two distinct, automated scrapers triggered by GitHub Actions cron jobs:
 
-- **The Flight Scraper:** Interfaces with the Duffel REST API to pull active schedules, pricing, and seat availability, featuring adaptive request pacing (0.5s baseline) and exponential backoff safeguards against HTTP 429 burst limits.
+- **The Flight Scraper:** Interfaces with the Duffel REST API to pull active schedules, pricing, and seat availability. Employs adaptive request pacing (0.5s baseline) and bounded exponential backoff ($\le 3$ retries with `Retry-After` header inspection) to eliminate HTTP 429 burst-rate throttling.
 - **The Ferry Scraper:** Uses `requests` and `BeautifulSoup` to scrape, parse, and normalize ferry schedules (FRS-Express) into the application's standard `ApiLeg` contract.
 
 ---
 
-### 📉 System Design: Achieving a <$3.00 API Budget
+### 📉 System Design: Free-Tier Sustainability & Look-to-Book Governance
 
-Operating a live flight aggregator out-of-pocket requires strict pipeline prioritization. Because the Duffel API charges $0.005 per excess search in production, querying all theoretical Caribbean flight paths would rapidly drain resources.
+Operating a live flight aggregator out-of-pocket requires strict pipeline governance. In flight aggregation, providers enforce **Look-to-Book (Search-to-Book) ratios** (standard industry baseline of 1,500:1) to prevent non-converting automated traffic from overwhelming airline reservation systems. 
 
-To solve this, the ETL pipeline utilizes a **Domain-Driven Waterfall Discovery Strategy**:
+Under Duffel's pricing model, accounts with zero monthly bookings are treated as having 1 order, granting a **baseline allowance of 1,500 free searches per month**. Searches beyond this quota incur an **Excess Search Fee of $0.005 per call**.
 
-- **The Global Constraint Map:** Transatlantic queries are hardcoded to test only valid physical realities (e.g., Paris to the French territories, London to Commonwealth hubs).
-- **Ferry Hand-Offs:** The system cross-references ferry scraping data to actively suppress Duffel API calls for inter-island routes where maritime transport is the superior default.
-- **Phase 1 (Network Mapping):** A "Saturday Anchor" sweep tests ~10 core trunk routes to establish the active network topology. If a regional airline drops a route, the system dynamically prunes it.
-- **Phase 2 (The Targeted Sweep):** The script executes a highly targeted 3-day rolling sweep on only the confirmed active routes.
+Querying a naive, brute-force Cartesian matrix across all Caribbean destinations and international gateways would rapidly blow past this quota. To ensure the application operates at **$0.00 actual cost** while preserving a large safety margin, the ETL pipeline utilizes a **Domain-Driven Waterfall Discovery Strategy**:
+
+- **The Global Constraint Map:** Queries strictly model real-world aviation corridors across 7 Gateways and 9 Regional Hubs:
+  - **North America:** `NYC` (transits `JFK`/`EWR`), `MIA` (direct American Airlines to `DOM`, `EIS`, `FDF`, `PTP`, `SJU`, `SXM`, `SKB`), and `CLT` (American Airlines hub feeding `ANU`, `BGI`, `UVF`, `SJU`, `SXM`, `SKB`).
+  - **Europe:** `LON` (feeds Commonwealth hubs `ANU`, `BGI`, `SKB`), `PAR` (feeds French ferry ports `PTP`, `FDF`), `AMS` (direct KLM to `SXM`), and `FRA` (direct Condor to `BGI`).
+  - **Direct Non-Stops to `DOM`:** Discovers direct non-stop trunks (`MIA <-> DOM`, `NYC <-> DOM`) and active island turboprop/jet feeders (`ANU`, `BGI`, `SXM`, `SJU`, `EIS`, `SKB`).
+- **Ferry Hand-Offs:** The pipeline cross-references maritime data from *L'Express des Îles* (`PTP`, `FDF`, `UVF` / Castries $\leftrightarrow$ Roseau `DMROS`), suppressing air queries for routes where sea transport is the dominant default.
+- **Phase 1 (Saturday Anchor Discovery):** A weekend sweep tests ~25 core trunk routes to map active operational realities. If an airline suspends or reschedules a route, the system automatically prunes it.
+- **Phase 2 (The Targeted Sweep):** The script executes a rolling 3-day sweep *only* on confirmed active routes.
+
+```mermaid
+flowchart TD
+    subgraph Gateways["International Gateways"]
+        NYC["NYC (JFK/EWR)"]
+        MIA["MIA (Miami)"]
+        CLT["CLT (Charlotte)"]
+        LON["LON (London)"]
+        PAR["PAR (Paris)"]
+        AMS["AMS (Amsterdam)"]
+        FRA["FRA (Frankfurt)"]
+    end
+
+    subgraph Hubs["Caribbean Flight Hubs"]
+        ANU["ANU (Antigua)"]
+        BGI["BGI (Barbados)"]
+        SXM["SXM (St. Maarten)"]
+        SJU["SJU (San Juan)"]
+        EIS["EIS (Tortola)"]
+        SKB["SKB (St. Kitts)"]
+    end
+
+    subgraph Ferries["Ferry Terminals (L'Express des Îles)"]
+        PTP["PTP (Guadeloupe)"]
+        FDF["FDF (Martinique)"]
+        UVF["UVF (St. Lucia)"]
+    end
+
+    subgraph Target["Dominica"]
+        DOM["DOM / DMROS (Dominica)"]
+    end
+
+    MIA ==> DOM
+    MIA --> EIS & SJU & SXM & SKB & PTP & FDF
+    NYC --> ANU & BGI & UVF & SJU & SXM & SKB
+    CLT --> ANU & BGI & UVF & SJU & SXM & SKB
+    LON --> ANU & BGI & SKB
+    PAR --> PTP & FDF
+    AMS --> SXM
+    FRA --> BGI
+
+    ANU & BGI & SXM & SJU & EIS & SKB --> DOM
+    PTP & FDF & UVF -. "Ferry" .-> DOM
+```
 
 **The Math (Why 3 Days?):**
-A full 14-day rolling window provides an excellent user experience but scales API calls linearly (costing over ~$75.00/year for this micro-network alone). By condensing the GitHub Actions cron job to run bi-weekly and strictly maintain a **3-day rolling window**, the pipeline hits roughly 70 API calls per run.
+By maintaining a **3-day rolling window**, the discovery pipeline executes roughly **50 calls per run**:
 
-- `70 calls * 8 runs/month = 560 calls`
-- `560 calls * $0.005 = $2.80 / month`
+- `50 calls * 8 runs/month = ~400 calls / month`
+- **Quota Consumption:** Uses only **26%** of Duffel's 1,500 free monthly search allowance.
+- **Safety Margin:** Leaves ~1,100 free searches as a buffer for local testing, container restarts, and manual workflow dispatches.
+- **Total Incurred Cost:** **$0.00** (zero excess search fees).
+- **Execution Time:** **$\approx 40$ seconds** on the self-hosted DietPi runner.
 
 **Risk vs. Reward:** This tradeoff restricts a user's ability to plan vacations weeks in advance. However, the architectural reward is immense: it ensures a 100% live, self-healing database that seamlessly feeds the backend Stitcher (graph traversal) algorithm, proving the core routing logic operates flawlessly under enterprise constraints.
 
