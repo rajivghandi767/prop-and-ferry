@@ -150,25 +150,59 @@ class FetchDuffelRoutesTests(TestCase):
         for hub in ["ANU", "BGI", "UVF", "PTP", "FDF", "SXM", "SJU", "EIS", "SKB"]:
             self.assertIn(hub, REGIONAL_HUBS)
 
+    def test_get_target_dates_biweekly_schedule(self) -> None:
+        from datetime import date
+
+        # Wednesday run (weekday 2): Should return Thu, Fri, Sat, Sun (4 days)
+        wed = date(2026, 9, 16)  # Wednesday
+        wed_dates = self.cmd.get_target_dates(wed)
+        self.assertEqual(
+            wed_dates,
+            ["2026-09-17", "2026-09-18", "2026-09-19", "2026-09-20"],
+        )
+
+        # Sunday run (weekday 6): Should return Mon, Tue, Wed (3 days)
+        sun = date(2026, 9, 20)  # Sunday
+        sun_dates = self.cmd.get_target_dates(sun)
+        self.assertEqual(
+            sun_dates,
+            ["2026-09-21", "2026-09-22", "2026-09-23"],
+        )
+
+        # Days override
+        override_dates = self.cmd.get_target_dates(wed, days_override=2)
+        self.assertEqual(override_dates, ["2026-09-17", "2026-09-18"])
+
     @patch("core.management.commands.fetch_duffel_routes.os.getenv")
     @patch.object(FetchDuffelCommand, "fetch_and_save")
-    def test_handle_phase_1_queries_mia_and_expanded_hubs(
+    def test_handle_queries_all_topology_routes_across_target_dates(
         self, mock_fetch_and_save: MagicMock, mock_getenv: MagicMock
     ) -> None:
         mock_getenv.return_value = "fake_duffel_token"
         mock_fetch_and_save.return_value = False
 
-        self.cmd.handle()
+        self.cmd.handle(days=1)
 
         queried_pairs = [
             (call.args[0], call.args[1]) for call in mock_fetch_and_save.call_args_list
         ]
-        # Verify both NYC->DOM and MIA->DOM are checked directly in Phase 1
+        # Verify direct trunks to DOM
         self.assertIn(("NYC", "DOM"), queried_pairs)
         self.assertIn(("MIA", "DOM"), queried_pairs)
+        self.assertIn(("DOM", "MIA"), queried_pairs)
 
-        # Verify all expanded hubs are checked into DOM
+        # Verify all regional hubs are checked in both directions (into and out of DOM)
         for hub in ["ANU", "BGI", "SXM", "SJU", "EIS", "SKB"]:
             self.assertIn((hub, "DOM"), queried_pairs)
+            self.assertIn(("DOM", hub), queried_pairs)
+
+        # Verify gateways connect to regional hubs (including MIA->BGI, MIA->SKB)
+        self.assertIn(("MIA", "SKB"), queried_pairs)
+        self.assertIn(("MIA", "BGI"), queried_pairs)
+        self.assertIn(("CLT", "ANU"), queried_pairs)
+        self.assertIn(("LON", "ANU"), queried_pairs)
+        self.assertIn(("PAR", "PTP"), queried_pairs)
+        self.assertIn(("AMS", "SXM"), queried_pairs)
+        self.assertIn(("FRA", "BGI"), queried_pairs)
 
 

@@ -289,12 +289,14 @@ function App() {
         <div className="w-full max-w-4xl mb-8 px-4 animate-fade-in">
           <p className="text-xs text-neutral-500 dark:text-neutral-400 bg-gray-50 dark:bg-neutral-900/40 border border-gray-200 dark:border-neutral-800 rounded-lg p-3">
             <strong>⚠️ Proof of Concept Notice:</strong> Live flight schedules
-            and pricing are actively indexed for a{" "}
-            <strong>3-day rolling forecast</strong>. To optimize API usage, this
-            platform is strictly scoped to routes terminating in{" "}
+            and pricing are actively indexed across a bi-weekly rolling forecast
+            covering the full week. To optimize API usage, this platform is
+            strictly scoped to routes terminating in{" "}
             <strong>Dominica (DOM)</strong>, originating from gateways in{" "}
-            <strong>New York (NYC)</strong>, <strong>London (LON)</strong>, and{" "}
-            <strong>Paris (PAR)</strong>.
+            <strong>New York (NYC/EWR)</strong>, <strong>Miami (MIA)</strong>,{" "}
+            <strong>Charlotte (CLT)</strong>, <strong>London (LON)</strong>,{" "}
+            <strong>Paris (PAR)</strong>, <strong>Amsterdam (AMS)</strong>, and{" "}
+            <strong>Frankfurt (FRA)</strong>.
           </p>
         </div>
 
