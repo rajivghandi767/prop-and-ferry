@@ -4,8 +4,18 @@ Global Constants for Route Discovery.
 
 # --- FLIGHT CONFIGURATION (IATA) ---
 TARGETS: list[str] = ["DOM"]
-REGIONAL_HUBS: list[str] = ["ANU", "BGI", "UVF", "PTP", "FDF"]
-GATEWAYS: list[str] = ["NYC", "LON", "PAR"]
+REGIONAL_HUBS: list[str] = [
+    "ANU",
+    "BGI",
+    "UVF",
+    "PTP",
+    "FDF",
+    "SXM",
+    "SJU",
+    "EIS",
+    "SKB",
+]
+GATEWAYS: list[str] = ["NYC", "MIA", "CLT", "LON", "PAR", "AMS", "FRA"]
 
 # --- FERRY CONFIGURATION (UN/LOCODE) ---
 
