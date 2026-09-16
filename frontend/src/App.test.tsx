@@ -7,4 +7,12 @@ describe('App Component', () => {
     const { container } = render(<App />);
     expect(container).toBeDefined();
   });
+
+  test('renders updated proof of concept notice with full gateway network', () => {
+    const { getByText } = render(<App />);
+    expect(getByText(/⚠️ Proof of Concept Notice:/)).toBeDefined();
+    expect(getByText(/Miami \(MIA\)/)).toBeDefined();
+    expect(getByText(/Charlotte \(CLT\)/)).toBeDefined();
+  });
 });
+

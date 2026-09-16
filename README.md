@@ -88,8 +88,10 @@ Querying a naive, brute-force Cartesian matrix across all Caribbean destinations
   - **Europe:** `LON` (feeds Commonwealth hubs `ANU`, `BGI`, `SKB`), `PAR` (feeds French ferry ports `PTP`, `FDF`), `AMS` (direct KLM to `SXM`), and `FRA` (direct Condor to `BGI`).
   - **Direct Non-Stops to `DOM`:** Discovers direct non-stop trunks (`MIA <-> DOM`, `NYC <-> DOM`) and active island turboprop/jet feeders (`ANU`, `BGI`, `SXM`, `SJU`, `EIS`, `SKB`).
 - **Ferry Hand-Offs:** The pipeline cross-references maritime data from *L'Express des Îles* (`PTP`, `FDF`, `UVF` / Castries $\leftrightarrow$ Roseau `DMROS`), suppressing air queries for routes where sea transport is the dominant default.
-- **Phase 1 (Saturday Anchor Discovery):** A weekend sweep tests ~25 core trunk routes to map active operational realities. If an airline suspends or reschedules a route, the system automatically prunes it.
-- **Phase 2 (The Targeted Sweep):** The script executes a rolling 3-day sweep *only* on confirmed active routes.
+- **Bi-Weekly 7-Day Rolling Schedule:**
+  - **Wednesday Run:** Scrapes 4 days ahead (**Thursday, Friday, Saturday, Sunday**).
+  - **Sunday Run:** Scrapes 3 days ahead (**Monday, Tuesday, Wednesday**).
+  - **Full-Week Coverage:** Tiling the week across two coordinated runs ensures 100% coverage of all 7 days, capturing both weekday-specific island hoppers (such as Winair's Friday nonstops) and weekend services.
 
 ```mermaid
 flowchart TD
@@ -123,7 +125,7 @@ flowchart TD
     end
 
     MIA ==> DOM
-    MIA --> EIS & SJU & SXM & SKB & PTP & FDF
+    MIA --> EIS & SJU & SXM & SKB & BGI & PTP & FDF
     NYC --> ANU & BGI & UVF & SJU & SXM & SKB
     CLT --> ANU & BGI & UVF & SJU & SXM & SKB
     LON --> ANU & BGI & SKB
@@ -135,14 +137,16 @@ flowchart TD
     PTP & FDF & UVF -. "Ferry" .-> DOM
 ```
 
-**The Math (Why 3 Days?):**
-By maintaining a **3-day rolling window**, the discovery pipeline executes roughly **50 calls per run**:
+**The Math (Why Bi-Weekly Wed/Sun?):**
+By syncing the pipeline to a **bi-weekly cadence (4 days on Wednesday, 3 days on Sunday)**, the pipeline achieves complete weekly coverage within quota:
 
-- `50 calls * 8 runs/month = ~400 calls / month`
-- **Quota Consumption:** Uses only **26%** of Duffel's 1,500 free monthly search allowance.
-- **Safety Margin:** Leaves ~1,100 free searches as a buffer for local testing, container restarts, and manual workflow dispatches.
+- **Wednesday:** 4 forecast days $\times$ 44 route queries $\approx$ **176 calls**
+- **Sunday:** 3 forecast days $\times$ 44 route queries $\approx$ **132 calls**
+- **Weekly Total:** $\approx$ **308 calls / week** ($\approx$ **1,324 calls / month**)
+- **Quota Consumption:** Uses **88%** of Duffel's 1,500 free monthly search allowance.
+- **Safety Margin:** Leaves ~175 free searches per month as an operational buffer for local testing, container restarts, and manual workflow dispatches.
 - **Total Incurred Cost:** **$0.00** (zero excess search fees).
-- **Execution Time:** **$\approx 40$ seconds** on the self-hosted DietPi runner.
+- **Execution Time:** **$\approx 90$ seconds** on the self-hosted DietPi runner.
 
 **Risk vs. Reward:** This tradeoff restricts a user's ability to plan vacations weeks in advance. However, the architectural reward is immense: it ensures a 100% live, self-healing database that seamlessly feeds the backend Stitcher (graph traversal) algorithm, proving the core routing logic operates flawlessly under enterprise constraints.
 

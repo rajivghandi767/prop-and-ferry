@@ -5,7 +5,7 @@ import time
 import random
 import requests
 from typing import Any
-from datetime import datetime, timedelta
+from datetime import date, datetime, timedelta
 
 from django.core.management.base import BaseCommand
 from core.models import Location, Route, Carrier, FlightInstance
@@ -14,8 +14,38 @@ logger = logging.getLogger(__name__)
 
 
 class Command(BaseCommand):
-    help = "Fetches strictly DOM-centric flight routes via Duffel API for a rolling 3-Day POC window."
+    help = "Fetches strictly DOM-centric flight routes via Duffel API for a bi-weekly 7-day rolling window."
     api_calls = 0
+
+    def add_arguments(self, parser: Any) -> None:
+        parser.add_argument(
+            "--days",
+            type=int,
+            help="Override number of forecast days to fetch (defaults to bi-weekly Wed/Sun schedule)",
+        )
+
+    def get_target_dates(
+        self, today: date, days_override: int | None = None
+    ) -> list[str]:
+        """
+        Determines the rolling forecast window based on execution day:
+        - Wednesday (weekday 2): Thursday, Friday, Saturday, Sunday (4 days)
+        - Sunday (weekday 6): Monday, Tuesday, Wednesday (3 days)
+        - Fallback/Manual: next 4 days
+        """
+        if days_override:
+            num_days = days_override
+        elif today.weekday() == 2:  # Wednesday
+            num_days = 4
+        elif today.weekday() == 6:  # Sunday
+            num_days = 3
+        else:
+            num_days = 4
+
+        return [
+            (today + timedelta(days=i)).strftime("%Y-%m-%d")
+            for i in range(1, num_days + 1)
+        ]
 
     def get_duffel_headers(self) -> dict[str, str]:
         return {
@@ -216,17 +246,18 @@ class Command(BaseCommand):
         if deleted_flights:
             self.stdout.write(f"🧹 Pruned {deleted_flights} past flight instances.")
 
+        days_override = kwargs.get("days")
+        target_dates = self.get_target_dates(today, days_override=days_override)
         self.stdout.write(
-            self.style.WARNING("\n--- PHASE 1: GLOBAL MICRO-NETWORK DISCOVERY ---")
+            self.style.WARNING(
+                f"\n--- TARGET ROLLING FORECAST ({len(target_dates)} DAYS): {', '.join(target_dates)} ---"
+            )
         )
 
-        valid_routes = set()
-
-        ferry_hubs = ["PTP", "FDF", "UVF"]
         flight_hubs = ["ANU", "BGI", "SXM", "SJU", "EIS", "SKB"]
 
         GATEWAY_ROUTES = {
-            "MIA": ["EIS", "SJU", "SXM", "SKB", "FDF", "PTP"],
+            "MIA": ["EIS", "SJU", "SXM", "SKB", "BGI", "FDF", "PTP"],
             "NYC": ["BGI", "ANU", "UVF", "SJU", "SXM", "SKB"],
             "CLT": ["ANU", "BGI", "UVF", "SJU", "SXM", "SKB"],
             "LON": ["ANU", "BGI", "SKB"],
@@ -235,50 +266,27 @@ class Command(BaseCommand):
             "FRA": ["BGI"],
         }
 
-        days_ahead = 5 - today.weekday()
-        if days_ahead <= 0:
-            days_ahead += 7
-        next_saturday = (today + timedelta(days=days_ahead)).strftime("%Y-%m-%d")
-
-        if self.fetch_and_save("NYC", "DOM", next_saturday):
-            valid_routes.add(("NYC", "DOM"))
-            valid_routes.add(("DOM", "NYC"))
-
-        if self.fetch_and_save("MIA", "DOM", next_saturday):
-            valid_routes.add(("MIA", "DOM"))
-            valid_routes.add(("DOM", "MIA"))
-
-        active_flight_hubs = []
-        for hub in flight_hubs:
-            if self.fetch_and_save(hub, "DOM", next_saturday):
-                valid_routes.add((hub, "DOM"))
-                valid_routes.add(("DOM", hub))
-                active_flight_hubs.append(hub)
-
-        for gateway, valid_hubs in GATEWAY_ROUTES.items():
-            for hub in valid_hubs:
-                if hub in ferry_hubs or hub in active_flight_hubs:
-                    if self.fetch_and_save(gateway, hub, next_saturday):
-                        valid_routes.add((gateway, hub))
-                        valid_routes.add((hub, gateway))
-
-        self.stdout.write(
-            self.style.SUCCESS(
-                f"\n✅ Global Network Mapped! Found {len(valid_routes) // 2} active two-way routes."
+        for date_str in target_dates:
+            self.stdout.write(
+                self.style.WARNING(f"\n--- Ingesting Schedule for {date_str} ---")
             )
-        )
 
-        self.stdout.write(
-            self.style.WARNING("\n--- PHASE 2: TARGETED 3-DAY ROLLING SWEEP ---")
-        )
-        rolling_dates = [
-            (today + timedelta(days=i)).strftime("%Y-%m-%d") for i in range(1, 4)
-        ]
+            # 1. Direct Non-Stop Trunks to Dominica
+            self.fetch_and_save("NYC", "DOM", date_str)
+            self.fetch_and_save("MIA", "DOM", date_str)
+            self.fetch_and_save("DOM", "MIA", date_str)
 
-        for date in rolling_dates:
-            for origin, dest in valid_routes:
-                if date != next_saturday:
-                    self.fetch_and_save(origin, dest, date)
+            # 2. Regional Island Feeders into and out of Dominica
+            for hub in flight_hubs:
+                self.fetch_and_save(hub, "DOM", date_str)
+                self.fetch_and_save("DOM", hub, date_str)
+
+            # 3. International Gateway Feeder Corridors
+            for gateway, valid_hubs in GATEWAY_ROUTES.items():
+                for hub in valid_hubs:
+                    self.fetch_and_save(gateway, hub, date_str)
+                    if gateway in ("PAR", "LON"):
+                        self.fetch_and_save(hub, gateway, date_str)
 
         self.stdout.write(
             self.style.SUCCESS(
