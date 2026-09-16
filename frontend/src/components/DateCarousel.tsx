@@ -1,3 +1,5 @@
+import { toISODate, isDateInSlidingWindow } from "../utils/dateUtils";
+
 interface DateCarouselProps {
   selectedDate: Date;
   onDateSelect: (date: Date) => void;
@@ -9,10 +11,6 @@ export function DateCarousel({
   onDateSelect,
   availableDates,
 }: DateCarouselProps) {
-  // Safe local date formatting to avoid UTC timezone shifts
-  const pad = (n: number) => n.toString().padStart(2, "0");
-  const toISODate = (d: Date) =>
-    `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
 
   // Generate 7 days (3 before, today, 3 after)
   const dateWindow = Array.from({ length: 7 }).map((_, i) => {
@@ -47,12 +45,13 @@ export function DateCarousel({
         const dateStr = toISODate(date);
         const isSelected = toISODate(selectedDate) === dateStr;
         const hasTravel = availableDates.includes(dateStr);
+        const isClickable = isDateInSlidingWindow(date);
 
         return (
           <button
             key={dateStr}
             onClick={() => onDateSelect(date)}
-            disabled={!hasTravel}
+            disabled={!isClickable}
             className={`
               flex flex-col items-center justify-center p-3 rounded-lg min-w-17.5 transition-all shrink-0 relative overflow-hidden
               ${
@@ -60,7 +59,7 @@ export function DateCarousel({
                   ? "bg-brand-light text-white shadow-md border border-brand-light dark:bg-brand-dark dark:text-black dark:border-brand-dark"
                   : "text-neutral-600 dark:text-neutral-300 hover:bg-gray-100 dark:hover:bg-neutral-900 border border-transparent"
               }
-              ${!hasTravel && !isSelected ? "opacity-30 cursor-not-allowed" : "cursor-pointer"}
+              ${!isClickable && !isSelected ? "opacity-30 cursor-not-allowed" : "cursor-pointer"}
             `}
           >
             <span className="text-[10px] font-bold tracking-widest">

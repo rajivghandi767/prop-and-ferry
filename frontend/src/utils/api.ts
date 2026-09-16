@@ -2,7 +2,8 @@ import { API_URL } from '../config';
 
 export const fetchAvailableDates = async (origin: string, destination: string) => {
   const response = await fetch(
-    `${API_URL}/api/routes/available-dates/?origin=${origin}&destination=${destination}`
+    `${API_URL}/api/routes/available-dates/?origin=${origin}&destination=${destination}`,
+    { cache: "no-store" }
   );
   if (!response.ok) {
     throw new Error('Failed to fetch available dates');
@@ -17,7 +18,9 @@ export const searchRoutes = async (origin: string, destination: string, date: st
     date,
     filter,
   });
-  const response = await fetch(`${API_URL}/api/routes/search/?${params}`);
+  const response = await fetch(`${API_URL}/api/routes/search/?${params}`, {
+    cache: "no-store",
+  });
   if (!response.ok) {
     const errorData = await response.json();
     throw new Error(errorData.error || "Failed to fetch routes");
