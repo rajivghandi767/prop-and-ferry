@@ -1,13 +1,49 @@
 from unittest.mock import patch, MagicMock
+from datetime import date, time
+from django.core.cache import cache
 from django.test import TestCase
 from django.urls import reverse
 from rest_framework.test import APITestCase
 
 from core.management.commands.fetch_duffel_routes import Command as FetchDuffelCommand
-from core.models import FlightInstance, Route, Carrier, Location
+from core.models import FlightInstance, Route, Carrier, Location, Sailing
 
 
 class SearchRoutesTests(APITestCase):
+    def setUp(self) -> None:
+        cache.clear()
+        self.mia = Location.objects.create(code="MIA", name="Miami Intl", city="Miami", country="USA")
+        self.skb = Location.objects.create(code="SKB", name="Robert L. Bradshaw", city="Basseterre", country="St. Kitts")
+        self.dom = Location.objects.create(code="DOM", name="Douglas-Charles", city="Marigot", country="Dominica")
+        self.dmros = Location.objects.create(
+            code="DMROS",
+            name="Roseau Ferry Terminal",
+            city="Roseau",
+            country="Dominica",
+            location_type="PRT",
+            parent=self.dom,
+        )
+        self.ptp = Location.objects.create(code="PTP", name="Pointe-a-Pitre Intl", city="Pointe-a-Pitre", country="Guadeloupe")
+        self.gpptp = Location.objects.create(
+            code="GPPTP",
+            name="Bergevin Ferry Port",
+            city="Pointe-a-Pitre",
+            country="Guadeloupe",
+            location_type="PRT",
+            parent=self.ptp,
+        )
+        self.par = Location.objects.create(code="PAR", name="Paris", city="Paris", country="France")
+        self.ory = Location.objects.create(
+            code="ORY",
+            name="Orly Airport",
+            city="Paris",
+            country="France",
+            parent=self.par,
+        )
+
+        self.carrier_air = Carrier.objects.create(code="WM", name="Winair", carrier_type="airline")
+        self.carrier_ferry = Carrier.objects.create(code="EXP", name="Express des Iles", carrier_type="ferry")
+
     def test_search_routes_missing_params(self) -> None:
         response = self.client.get('/api/routes/search/')
         self.assertEqual(response.status_code, 400)
@@ -17,6 +53,169 @@ class SearchRoutesTests(APITestCase):
         # It should return 404 Location not found if the locations don't exist
         response = self.client.get('/api/routes/search/?origin=JFK&destination=DOM&date=2026-07-01&filter=ferry')
         self.assertIn(response.status_code, [200, 404, 400])
+
+    def test_available_dates_includes_stitched_flight_to_flight(self) -> None:
+        # Leg 1: MIA -> SKB departing 11:00, arriving 14:00 on 2026-09-18
+        r1 = Route.objects.create(
+            origin=self.mia,
+            destination=self.skb,
+            carrier=self.carrier_air,
+            flight_number="AA123",
+            departure_time=time(11, 0),
+            arrival_time=time(14, 0),
+            is_active=True,
+        )
+        FlightInstance.objects.create(
+            route=r1,
+            date=date(2026, 9, 18),
+            price_amount=200.0,
+            available_seats=5,
+        )
+
+        # Leg 2: SKB -> DOM departing 16:00, arriving 16:45 on 2026-09-18 (2h layover)
+        r2 = Route.objects.create(
+            origin=self.skb,
+            destination=self.dom,
+            carrier=self.carrier_air,
+            flight_number="WM311",
+            departure_time=time(16, 0),
+            arrival_time=time(16, 45),
+            is_active=True,
+        )
+        FlightInstance.objects.create(
+            route=r2,
+            date=date(2026, 9, 18),
+            price_amount=150.0,
+            available_seats=4,
+        )
+
+        response = self.client.get('/api/routes/available-dates/?origin=MIA&destination=DOM')
+        self.assertEqual(response.status_code, 200)
+        self.assertIn("2026-09-18", response.data.get("available_dates", []))
+
+    def test_available_dates_excludes_invalid_connection_gap(self) -> None:
+        # Leg 1: MIA -> SKB departing 11:00, arriving 14:00 on 2026-09-18
+        r1 = Route.objects.create(
+            origin=self.mia,
+            destination=self.skb,
+            carrier=self.carrier_air,
+            flight_number="AA124",
+            departure_time=time(11, 0),
+            arrival_time=time(14, 0),
+            is_active=True,
+        )
+        FlightInstance.objects.create(
+            route=r1,
+            date=date(2026, 9, 18),
+            price_amount=200.0,
+            available_seats=5,
+        )
+
+        # Leg 2: SKB -> DOM departing 14:15 (only 15 mins layover, below 1h minimum)
+        r2 = Route.objects.create(
+            origin=self.skb,
+            destination=self.dom,
+            carrier=self.carrier_air,
+            flight_number="WM312",
+            departure_time=time(14, 15),
+            arrival_time=time(15, 0),
+            is_active=True,
+        )
+        FlightInstance.objects.create(
+            route=r2,
+            date=date(2026, 9, 18),
+            price_amount=150.0,
+            available_seats=4,
+        )
+
+        response = self.client.get('/api/routes/available-dates/?origin=MIA&destination=DOM')
+        self.assertEqual(response.status_code, 200)
+        self.assertNotIn("2026-09-18", response.data.get("available_dates", []))
+
+    def test_available_dates_includes_flight_to_ferry(self) -> None:
+        # Leg 1: MIA -> PTP arriving 12:00 on 2026-09-19
+        r1 = Route.objects.create(
+            origin=self.mia,
+            destination=self.ptp,
+            carrier=self.carrier_air,
+            flight_number="AF101",
+            departure_time=time(9, 0),
+            arrival_time=time(12, 0),
+            is_active=True,
+        )
+        FlightInstance.objects.create(
+            route=r1,
+            date=date(2026, 9, 19),
+            price_amount=250.0,
+            available_seats=3,
+        )
+
+        # Leg 2: GPPTP (ferry port for PTP) -> DMROS (ferry port for DOM) departing 15:00 (3h gap)
+        r2 = Route.objects.create(
+            origin=self.gpptp,
+            destination=self.dmros,
+            carrier=self.carrier_ferry,
+            departure_time=time(15, 0),
+            arrival_time=time(17, 15),
+            is_active=True,
+        )
+        Sailing.objects.create(
+            route=r2,
+            date=date(2026, 9, 19),
+            departure_time=time(15, 0),
+            arrival_time=time(17, 15),
+            price_text="$85",
+        )
+
+        response = self.client.get('/api/routes/available-dates/?origin=MIA&destination=DOM')
+        self.assertEqual(response.status_code, 200)
+        self.assertIn("2026-09-19", response.data.get("available_dates", []))
+
+    def test_search_assembles_ferry_to_flight_connection(self) -> None:
+        # Leg 1: DMROS -> GPPTP departing 08:00, arriving 10:15 on 2026-09-20
+        r1 = Route.objects.create(
+            origin=self.dmros,
+            destination=self.gpptp,
+            carrier=self.carrier_ferry,
+            departure_time=time(8, 0),
+            arrival_time=time(10, 15),
+            is_active=True,
+        )
+        Sailing.objects.create(
+            route=r1,
+            date=date(2026, 9, 20),
+            departure_time=time(8, 0),
+            arrival_time=time(10, 15),
+            price_text="$85",
+        )
+
+        # Leg 2: PTP -> ORY departing 17:00, arriving 06:30 (next day) on 2026-09-20
+        r2 = Route.objects.create(
+            origin=self.ptp,
+            destination=self.ory,
+            carrier=self.carrier_air,
+            flight_number="TX541",
+            departure_time=time(17, 0),
+            arrival_time=time(6, 30),
+            is_active=True,
+        )
+        FlightInstance.objects.create(
+            route=r2,
+            date=date(2026, 9, 20),
+            price_amount=450.0,
+            available_seats=2,
+        )
+
+        # Search DOM to PAR on 2026-09-20
+        response = self.client.get('/api/routes/search/?origin=DOM&destination=PAR&date=2026-09-20')
+        self.assertEqual(response.status_code, 200)
+        results = response.data.get("results", [])
+        self.assertTrue(len(results) > 0)
+        itinerary = results[0]
+        self.assertTrue(itinerary["id"].startswith("c_sf_"))
+        self.assertEqual(len(itinerary["legs"]), 2)
+        self.assertTrue(itinerary["legs"][0]["is_ferry"])
+        self.assertFalse(itinerary["legs"][1]["is_ferry"])
 
 
 class FetchDuffelRoutesTests(TestCase):
