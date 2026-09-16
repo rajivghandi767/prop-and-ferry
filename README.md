@@ -70,7 +70,7 @@ Prop & Ferry calculates multi-leg travel itineraries by stitching together inter
 
 The database is actively maintained by two distinct, automated scrapers triggered by GitHub Actions cron jobs:
 
-- **The Flight Scraper:** Interfaces with the Duffel REST API to pull active schedules, pricing, and seat availability.
+- **The Flight Scraper:** Interfaces with the Duffel REST API to pull active schedules, pricing, and seat availability, featuring adaptive request pacing (0.5s baseline) and exponential backoff safeguards against HTTP 429 burst limits.
 - **The Ferry Scraper:** Uses `requests` and `BeautifulSoup` to scrape, parse, and normalize ferry schedules (FRS-Express) into the application's standard `ApiLeg` contract.
 
 ---

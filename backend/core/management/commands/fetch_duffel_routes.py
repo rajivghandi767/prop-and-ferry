@@ -2,6 +2,7 @@ import os
 import logging
 import re
 import time
+import random
 import requests
 from typing import Any
 from datetime import datetime, timedelta
@@ -31,7 +32,9 @@ class Command(BaseCommand):
         minutes = int(match.group(1)) if (match := re.search(r"(\d+)M", iso_str)) else 0
         return (hours * 60) + minutes
 
-    def fetch_and_save(self, origin: str, dest: str, date_str: str) -> bool:
+    def fetch_and_save(
+        self, origin: str, dest: str, date_str: str, max_retries: int = 3
+    ) -> bool:
         target_date = datetime.strptime(date_str, "%Y-%m-%d").date()
         self.stdout.write(
             f"[API Calls: {self.api_calls + 1}] 🔎 Duffel: {origin}->{dest} on {date_str}",
@@ -49,20 +52,53 @@ class Command(BaseCommand):
             }
         }
 
-        try:
-            res = requests.post(
-                "https://api.duffel.com/air/offer_requests",
-                json=payload,
-                headers=self.get_duffel_headers(),
-            )
-            if res.status_code == 429:
-                time.sleep(2)
-                return self.fetch_and_save(origin, dest, date_str)
+        response_data: dict[str, Any] = {}
+        success = False
 
-            response_data = res.json().get("data", {})
-        except Exception as e:
-            logger.error(f"Request failed: {e}")
+        for attempt in range(max_retries + 1):
+            try:
+                res = requests.post(
+                    "https://api.duffel.com/air/offer_requests",
+                    json=payload,
+                    headers=self.get_duffel_headers(),
+                )
+                if res.status_code == 429:
+                    if attempt < max_retries:
+                        retry_after = res.headers.get("Retry-After")
+                        wait_time = (
+                            float(retry_after)
+                            if retry_after and retry_after.isdigit()
+                            else (1.5 * (2**attempt)) + random.uniform(0.1, 0.5)
+                        )
+                        logger.warning(
+                            f"HTTP 429 Rate limited for {origin}->{dest}. Waiting {wait_time:.1f}s (attempt {attempt + 1}/{max_retries})..."
+                        )
+                        time.sleep(wait_time)
+                        continue
+                    else:
+                        logger.error(
+                            f"Exceeded max retries ({max_retries}) for {origin}->{dest} on {date_str} due to rate limiting (HTTP 429)."
+                        )
+                        return False
+
+                if res.status_code not in (200, 201):
+                    logger.error(
+                        f"Duffel request failed with status {res.status_code}: {res.text}"
+                    )
+                    return False
+
+                response_data = res.json().get("data", {})
+                success = True
+                break
+            except Exception as e:
+                logger.error(f"Request failed: {e}")
+                return False
+
+        if not success:
             return False
+
+        # Guaranteed baseline pacing delay across all queries (both empty and populated)
+        time.sleep(0.5)
 
         offers = response_data.get("offers", [])
 
@@ -91,7 +127,6 @@ class Command(BaseCommand):
                         segments[0], date_str, price, currency, seats, cabin
                     )
 
-        time.sleep(0.2)
         return True
 
     def _process_segment(
