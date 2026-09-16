@@ -205,4 +205,14 @@ class FetchDuffelRoutesTests(TestCase):
         self.assertIn(("AMS", "SXM"), queried_pairs)
         self.assertIn(("FRA", "BGI"), queried_pairs)
 
+    def test_enrich_locations_populates_eis_metadata(self) -> None:
+        from django.core.management import call_command
+
+        call_command("enrich_locations")
+        eis = Location.objects.get(code="EIS")
+        self.assertEqual(eis.city, "Tortola")
+        self.assertEqual(eis.country, "British Virgin Islands")
+        self.assertEqual(eis.name, "Terrance B. Lettsome Intl")
+
+
 

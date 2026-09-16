@@ -45,6 +45,7 @@ class Command(BaseCommand):
             ("DOM", "Marigot", "Douglas-Charles", "Dominica"),
             ("FDF", "Fort-de-France", "Martinique Aimé Césaire Intl", "Martinique"),
             ("SKB", "Basseterre", "Robert L. Bradshaw Intl", "St. Kitts"),
+            ("EIS", "Tortola", "Terrance B. Lettsome Intl", "British Virgin Islands"),
             ("GND", "St. George's", "Maurice Bishop Intl", "Grenada"),
             ("SVD", "Kingstown", "Argyle Intl", "St. Vincent"),
             # --- Ferry Terminals ---
