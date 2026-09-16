@@ -138,3 +138,37 @@ class FetchDuffelRoutesTests(TestCase):
         # 1 initial + 2 retries = 3 calls
         self.assertEqual(mock_post.call_count, 3)
 
+    def test_expanded_constants_configuration(self) -> None:
+        from core.constants import GATEWAYS, REGIONAL_HUBS, TARGETS
+
+        self.assertIn("DOM", TARGETS)
+        # Expected Gateways
+        for gw in ["NYC", "MIA", "CLT", "LON", "PAR", "AMS", "FRA"]:
+            self.assertIn(gw, GATEWAYS)
+
+        # Expected Regional Hubs
+        for hub in ["ANU", "BGI", "UVF", "PTP", "FDF", "SXM", "SJU", "EIS", "SKB"]:
+            self.assertIn(hub, REGIONAL_HUBS)
+
+    @patch("core.management.commands.fetch_duffel_routes.os.getenv")
+    @patch.object(FetchDuffelCommand, "fetch_and_save")
+    def test_handle_phase_1_queries_mia_and_expanded_hubs(
+        self, mock_fetch_and_save: MagicMock, mock_getenv: MagicMock
+    ) -> None:
+        mock_getenv.return_value = "fake_duffel_token"
+        mock_fetch_and_save.return_value = False
+
+        self.cmd.handle()
+
+        queried_pairs = [
+            (call.args[0], call.args[1]) for call in mock_fetch_and_save.call_args_list
+        ]
+        # Verify both NYC->DOM and MIA->DOM are checked directly in Phase 1
+        self.assertIn(("NYC", "DOM"), queried_pairs)
+        self.assertIn(("MIA", "DOM"), queried_pairs)
+
+        # Verify all expanded hubs are checked into DOM
+        for hub in ["ANU", "BGI", "SXM", "SJU", "EIS", "SKB"]:
+            self.assertIn((hub, "DOM"), queried_pairs)
+
+

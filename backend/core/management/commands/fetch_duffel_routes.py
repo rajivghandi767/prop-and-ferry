@@ -223,12 +223,16 @@ class Command(BaseCommand):
         valid_routes = set()
 
         ferry_hubs = ["PTP", "FDF", "UVF"]
-        flight_hubs = ["ANU", "BGI"]
+        flight_hubs = ["ANU", "BGI", "SXM", "SJU", "EIS", "SKB"]
 
         GATEWAY_ROUTES = {
-            "NYC": ["BGI", "ANU", "UVF"],
+            "MIA": ["EIS", "SJU", "SXM", "SKB", "FDF", "PTP"],
+            "NYC": ["BGI", "ANU", "UVF", "SJU", "SXM", "SKB"],
+            "CLT": ["ANU", "BGI", "UVF", "SJU", "SXM", "SKB"],
+            "LON": ["ANU", "BGI", "SKB"],
             "PAR": ["PTP", "FDF"],
-            "LON": ["ANU", "BGI"],
+            "AMS": ["SXM"],
+            "FRA": ["BGI"],
         }
 
         days_ahead = 5 - today.weekday()
@@ -239,6 +243,10 @@ class Command(BaseCommand):
         if self.fetch_and_save("NYC", "DOM", next_saturday):
             valid_routes.add(("NYC", "DOM"))
             valid_routes.add(("DOM", "NYC"))
+
+        if self.fetch_and_save("MIA", "DOM", next_saturday):
+            valid_routes.add(("MIA", "DOM"))
+            valid_routes.add(("DOM", "MIA"))
 
         active_flight_hubs = []
         for hub in flight_hubs:
