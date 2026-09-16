@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { toISODate, isDateInSlidingWindow } from "../utils/dateUtils";
 
 interface CalendarProps {
   selectedDate: Date;
@@ -14,10 +15,6 @@ export function LeanCalendar({
   const [currentMonthView, setCurrentMonthView] = useState(
     new Date(selectedDate.getFullYear(), selectedDate.getMonth(), 1),
   );
-
-  const pad = (n: number) => n.toString().padStart(2, "0");
-  const toISODate = (d: Date) =>
-    `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
 
   // Calendar Math
   const year = currentMonthView.getFullYear();
@@ -80,6 +77,7 @@ export function LeanCalendar({
           const isSelected = toISODate(selectedDate) === dateStr;
           const hasTravel = availableDates.includes(dateStr);
           const isToday = toISODate(new Date()) === dateStr;
+          const isClickable = isDateInSlidingWindow(date);
 
           return (
             <button
@@ -88,16 +86,20 @@ export function LeanCalendar({
               onClick={() => {
                 onDateSelect(date);
               }}
-              disabled={!hasTravel}
+              disabled={!isClickable}
               className={`
-                p-2 rounded-full w-9 h-9 flex flex-col items-center justify-center text-sm mx-auto transition-all font-medium
-                ${isSelected ? "bg-brand-light text-white dark:bg-brand-dark dark:text-black font-bold shadow-md" : "text-neutral-700 dark:text-neutral-300"}
-                ${!isSelected && hasTravel ? "bg-green-50 text-green-700 dark:bg-green-900/30 dark:text-green-400 hover:bg-green-100 dark:hover:bg-green-900/50" : ""}
-                ${!hasTravel && !isSelected ? "opacity-20 cursor-not-allowed" : ""}
+                p-2 rounded-full w-9 h-9 flex flex-col items-center justify-center text-sm mx-auto transition-all font-medium relative
+                ${isSelected ? "bg-brand-light text-white dark:bg-brand-dark dark:text-black font-bold shadow-md" : ""}
+                ${!isSelected && hasTravel ? "bg-green-100 text-green-800 dark:bg-green-900/50 dark:text-green-300 font-semibold ring-1 ring-green-500/40 hover:bg-green-200 dark:hover:bg-green-900/70 cursor-pointer" : ""}
+                ${!isSelected && !hasTravel && isClickable ? "text-neutral-700 dark:text-neutral-300 hover:bg-gray-100 dark:hover:bg-neutral-800 cursor-pointer" : ""}
+                ${!isClickable && !isSelected ? "opacity-20 cursor-not-allowed text-neutral-400 dark:text-neutral-600" : ""}
                 ${isToday && !isSelected ? "border border-brand-light dark:border-brand-dark" : ""}
               `}
             >
               {i + 1}
+              {!isSelected && hasTravel && (
+                <span className="w-1 h-1 bg-green-500 dark:bg-green-400 rounded-full absolute bottom-1"></span>
+              )}
             </button>
           );
         })}
