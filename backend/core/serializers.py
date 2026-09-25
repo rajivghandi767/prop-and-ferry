@@ -90,6 +90,7 @@ class ItineraryLegSerializer(serializers.Serializer):
     days_of_operation = serializers.SerializerMethodField()
     price_text = serializers.SerializerMethodField()
     available_seats = serializers.SerializerMethodField()
+    is_sold_out = serializers.SerializerMethodField()
     last_seen_at = serializers.SerializerMethodField()
 
     def get_is_ferry(self, obj: Union[FlightInstance, Sailing]) -> bool:
@@ -151,6 +152,8 @@ class ItineraryLegSerializer(serializers.Serializer):
     def get_price_text(self, obj: Union[FlightInstance, Sailing]) -> Optional[str]:
         if isinstance(obj, Sailing):
             return obj.price_text
+        if getattr(obj, "available_seats", None) == 0:
+            return "Sold Out"
         if getattr(obj, "price_amount", None):
             return f"{obj.currency} {obj.price_amount}"
         return None
@@ -159,6 +162,12 @@ class ItineraryLegSerializer(serializers.Serializer):
         if isinstance(obj, Sailing):
             return None
         return getattr(obj, "available_seats", None)
+
+    def get_is_sold_out(self, obj: Union[FlightInstance, Sailing]) -> bool:
+        if isinstance(obj, Sailing):
+            return False
+        seats = getattr(obj, "available_seats", None)
+        return seats is not None and seats <= 0
 
     def get_last_seen_at(self, obj: Union[FlightInstance, Sailing]) -> Optional[str]:
         if hasattr(obj, "last_seen_at") and obj.last_seen_at:

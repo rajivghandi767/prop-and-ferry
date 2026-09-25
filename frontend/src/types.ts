@@ -30,6 +30,7 @@ export interface ApiLeg {
   // Cleaned up Pricing & Seats
   price_text?: string;
   available_seats?: number;
+  is_sold_out?: boolean;
   
   layover_text?: string;
   last_seen_at?: string;
@@ -37,6 +38,7 @@ export interface ApiLeg {
 
 export interface Itinerary {
   id: string;
+  is_sold_out?: boolean;
   legs: ApiLeg[];
 }
 

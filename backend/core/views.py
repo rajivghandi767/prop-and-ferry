@@ -151,7 +151,6 @@ class RouteViewSet(viewsets.ReadOnlyModelViewSet):
                 route__origin__code__in=origin_aliases,
                 route__destination__code__in=dest_aliases,
                 route__is_active=True,
-                available_seats__gt=0,
             )
             .values_list("date", flat=True)
             .distinct()
@@ -175,7 +174,6 @@ class RouteViewSet(viewsets.ReadOnlyModelViewSet):
             FlightInstance.objects.filter(
                 route__origin__code__in=origin_aliases,
                 route__is_active=True,
-                available_seats__gt=0,
             )
             .exclude(route__destination__code__in=dest_aliases)
             .select_related("route", "route__destination")
@@ -211,7 +209,6 @@ class RouteViewSet(viewsets.ReadOnlyModelViewSet):
                     route__origin__code__in=expanded_hubs,
                     route__destination__code__in=dest_aliases,
                     route__is_active=True,
-                    available_seats__gt=0,
                 ).select_related("route", "route__origin")
             )
 
@@ -336,7 +333,6 @@ class RouteViewSet(viewsets.ReadOnlyModelViewSet):
             route__destination__code__in=dest_aliases,
             date__range=[target_date, end_date],
             route__is_active=True,
-            available_seats__gt=0,
         ).select_related(
             "route", "route__carrier", "route__origin", "route__destination"
         )
@@ -358,7 +354,6 @@ class RouteViewSet(viewsets.ReadOnlyModelViewSet):
                 route__origin__code__in=origin_aliases,
                 date__range=[target_date, end_date],
                 route__is_active=True,
-                available_seats__gt=0,
             )
             .exclude(route__destination__code__in=dest_aliases)
             .select_related(
@@ -398,7 +393,6 @@ class RouteViewSet(viewsets.ReadOnlyModelViewSet):
             route__destination__code__in=dest_aliases,
             date__range=[target_date, end_date],
             route__is_active=True,
-            available_seats__gt=0,
         ).select_related(
             "route", "route__carrier", "route__origin", "route__destination"
         )
@@ -424,12 +418,22 @@ class RouteViewSet(viewsets.ReadOnlyModelViewSet):
             day_itineraries = []
 
             for f in [x for x in direct_flights if x.date == check_date]:
+                leg_data = ItineraryLegSerializer(f).data
                 day_itineraries.append(
-                    {"id": f"f_{f.id}", "legs": [ItineraryLegSerializer(f).data]}
+                    {
+                        "id": f"f_{f.id}",
+                        "is_sold_out": leg_data.get("is_sold_out", False),
+                        "legs": [leg_data],
+                    }
                 )
             for s in [x for x in direct_ferries if x.date == check_date]:
+                leg_data = ItineraryLegSerializer(s).data
                 day_itineraries.append(
-                    {"id": f"s_{s.id}", "legs": [ItineraryLegSerializer(s).data]}
+                    {
+                        "id": f"s_{s.id}",
+                        "is_sold_out": False,
+                        "legs": [leg_data],
+                    }
                 )
 
             day_l1_f = [f for f in leg1_flights if f.date == check_date]
@@ -474,8 +478,15 @@ class RouteViewSet(viewsets.ReadOnlyModelViewSet):
                                 f"✈️ {hours}h {mins}m Layover in {l1.route.destination.city} • Connect via Flight"
                             )
 
+                        is_sold_out = l1_data.get("is_sold_out", False) or l2_data.get(
+                            "is_sold_out", False
+                        )
                         day_itineraries.append(
-                            {"id": f"c_ff_{l1.id}_{l2.id}", "legs": [l1_data, l2_data]}
+                            {
+                                "id": f"c_ff_{l1.id}_{l2.id}",
+                                "is_sold_out": is_sold_out,
+                                "legs": [l1_data, l2_data],
+                            }
                         )
 
                 for l2_s in l2_candidates_s:
@@ -503,8 +514,15 @@ class RouteViewSet(viewsets.ReadOnlyModelViewSet):
                                 f"⛴️ {hours}h {mins}m Layover in {l1.route.destination.city} • Connect via Ferry"
                             )
 
+                        is_sold_out = l1_data.get("is_sold_out", False) or l2_data.get(
+                            "is_sold_out", False
+                        )
                         day_itineraries.append(
-                            {"id": f"c_fs_{l1.id}_{l2_s.id}", "legs": [l1_data, l2_data]}
+                            {
+                                "id": f"c_fs_{l1.id}_{l2_s.id}",
+                                "is_sold_out": is_sold_out,
+                                "legs": [l1_data, l2_data],
+                            }
                         )
 
             # Check combinations of Leg 1 (Ferry) and Leg 2 (Flight / Ferry)
@@ -538,8 +556,15 @@ class RouteViewSet(viewsets.ReadOnlyModelViewSet):
                                 f"✈️ {hours}h {mins}m Layover in {l1_s.route.destination.city} • Connect via Flight"
                             )
 
+                        is_sold_out = l1_data.get("is_sold_out", False) or l2_data.get(
+                            "is_sold_out", False
+                        )
                         day_itineraries.append(
-                            {"id": f"c_sf_{l1_s.id}_{l2.id}", "legs": [l1_data, l2_data]}
+                            {
+                                "id": f"c_sf_{l1_s.id}_{l2.id}",
+                                "is_sold_out": is_sold_out,
+                                "legs": [l1_data, l2_data],
+                            }
                         )
 
                 for l2_s in l2_candidates_s:
@@ -567,7 +592,11 @@ class RouteViewSet(viewsets.ReadOnlyModelViewSet):
                             )
 
                         day_itineraries.append(
-                            {"id": f"c_ss_{l1_s.id}_{l2_s.id}", "legs": [l1_data, l2_data]}
+                            {
+                                "id": f"c_ss_{l1_s.id}_{l2_s.id}",
+                                "is_sold_out": False,
+                                "legs": [l1_data, l2_data],
+                            }
                         )
 
             if day_itineraries:

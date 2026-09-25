@@ -10,6 +10,7 @@ import { ReportModal } from "./components/ReportModal";
 import { DateCarousel } from "./components/DateCarousel";
 import { LeanCalendar } from "./components/LeanCalendar";
 import { LazySection } from "./components/LazySection";
+import { ShowcasePills } from "./components/ShowcasePills";
 import { fetchAvailableDates, searchRoutes } from "./utils/api";
 import { usePortfolioData } from "./hooks/usePortfolioData";
 
@@ -179,6 +180,58 @@ function App() {
     }
   };
 
+  const handleSelectShowcaseRoute = async (newOrigin: string, newDest: string) => {
+    setOrigin(newOrigin);
+    setDestination(newDest);
+    setIsCalendarOpen(false);
+
+    try {
+      const datesData = await fetchAvailableDates(newOrigin, newDest);
+      const available = datesData.available_dates || [];
+      setAvailableDates(available);
+
+      // Prefer the earliest active date if available; otherwise use tomorrow
+      const searchTargetDate =
+        available.length > 0 ? available[0] : getTomorrowString();
+      setDate(searchTargetDate);
+
+      // Perform search directly with new params
+      setLoading(true);
+      setError("");
+      setItineraries([]);
+      setDateChanged(false);
+      setDisplayDate(searchTargetDate);
+      setSearchedDate(searchTargetDate);
+      setFilter("all");
+
+      const searchData: ApiResponse = await searchRoutes(
+        newOrigin,
+        newDest,
+        searchTargetDate,
+        "all",
+      );
+
+      if (searchData.date_was_changed) {
+        setDateChanged(true);
+        setDisplayDate(searchData.found_date);
+        setDate(searchData.found_date);
+      } else {
+        setDisplayDate(searchData.found_date || searchTargetDate);
+      }
+
+      setItineraries(searchData.results);
+      if (searchData.results.length === 0) {
+        setError(
+          `No routes found from ${newOrigin} to ${newDest} within the current rolling window.`,
+        );
+      }
+    } catch (err: any) {
+      setError(err.message || "An error occurred");
+    } finally {
+      setLoading(false);
+    }
+  };
+
 
 
   return (
@@ -285,18 +338,23 @@ function App() {
           </div>
         </div>
 
+        {/* Showcase Route Pills for Instant Stitching Showcase */}
+        <ShowcasePills
+          onSelectRoute={handleSelectShowcaseRoute}
+          currentOrigin={origin}
+          currentDestination={destination}
+          disabled={loading}
+        />
+
         {/* POC Disclaimer */}
-        <div className="w-full max-w-4xl mb-8 px-4 animate-fade-in">
-          <p className="text-xs text-neutral-500 dark:text-neutral-400 bg-gray-50 dark:bg-neutral-900/40 border border-gray-200 dark:border-neutral-800 rounded-lg p-3">
-            <strong>⚠️ Proof of Concept Notice:</strong> Live flight schedules
-            and pricing are actively indexed across a bi-weekly rolling forecast
-            covering the full week. To optimize API usage, this platform is
-            strictly scoped to routes terminating in{" "}
-            <strong>Dominica (DOM)</strong>, originating from gateways in{" "}
+        <div className="w-full max-w-4xl mb-6 px-4 animate-fade-in">
+          <p className="text-xs text-neutral-500 dark:text-neutral-400 bg-gray-50 dark:bg-neutral-900/40 border border-gray-200 dark:border-neutral-800 rounded-lg p-3 leading-relaxed">
+            <strong>⚠️ Proof of Concept Notice:</strong> Prop & Ferry demonstrates{" "}
+            <strong>in-memory multi-modal graph stitching</strong> (connecting international flights with regional turboprops and maritime ferries to Dominica). Live schedules are indexed across a bi-weekly rolling forecast for routes terminating in{" "}
+            <strong>Dominica (DOM)</strong> originating from gateways in{" "}
             <strong>New York (NYC/EWR)</strong>, <strong>Miami (MIA)</strong>,{" "}
-            <strong>Charlotte (CLT)</strong>, <strong>London (LON)</strong>,{" "}
-            <strong>Paris (PAR)</strong>, <strong>Amsterdam (AMS)</strong>, and{" "}
-            <strong>Frankfurt (FRA)</strong>.
+            <strong>Charlotte (CLT)</strong>, <strong>London (LON)</strong>, and{" "}
+            <strong>Paris (PAR)</strong>. Select one of the verified showcase routes above to test transit stitching.
           </p>
         </div>
 
@@ -341,8 +399,36 @@ function App() {
           )}
 
           {error && (
-            <div className="p-4 bg-red-50 dark:bg-red-900/20 text-red-700 dark:text-red-300 rounded-lg border border-red-200 dark:border-red-800 text-center">
-              {error}
+            <div className="p-5 bg-amber-50/70 dark:bg-amber-900/20 text-neutral-700 dark:text-neutral-300 rounded-xl border border-amber-200/60 dark:border-amber-800/40 text-center space-y-3 animate-fade-in">
+              <div className="text-sm font-semibold text-amber-800 dark:text-amber-300">
+                {error}
+              </div>
+              <p className="text-xs text-neutral-500 dark:text-neutral-400 max-w-md mx-auto">
+                Looking to test the multi-modal stitcher? Try one of our verified active corridors into Dominica:
+              </p>
+              <div className="flex flex-wrap justify-center gap-2 pt-1">
+                <button
+                  type="button"
+                  onClick={() => handleSelectShowcaseRoute("NYC", "DOM")}
+                  className="text-xs px-3 py-1.5 rounded-full bg-bg-light dark:bg-bg-dark border border-gray-300 dark:border-neutral-700 text-brand-light dark:text-brand-dark hover:border-brand-light font-medium transition-colors cursor-pointer"
+                >
+                  🗽 NYC → Dominica
+                </button>
+                <button
+                  type="button"
+                  onClick={() => handleSelectShowcaseRoute("MIA", "DOM")}
+                  className="text-xs px-3 py-1.5 rounded-full bg-bg-light dark:bg-bg-dark border border-gray-300 dark:border-neutral-700 text-brand-light dark:text-brand-dark hover:border-brand-light font-medium transition-colors cursor-pointer"
+                >
+                  🏖️ Miami → Dominica
+                </button>
+                <button
+                  type="button"
+                  onClick={() => handleSelectShowcaseRoute("PAR", "DOM")}
+                  className="text-xs px-3 py-1.5 rounded-full bg-bg-light dark:bg-bg-dark border border-gray-300 dark:border-neutral-700 text-brand-light dark:text-brand-dark hover:border-brand-light font-medium transition-colors cursor-pointer"
+                >
+                  🥐 Paris → Dominica
+                </button>
+              </div>
             </div>
           )}
 
@@ -351,6 +437,12 @@ function App() {
               <div
                 className="bg-bg-light dark:bg-bg-dark p-6 rounded-lg shadow-sm border border-gray-200 dark:border-neutral-800 hover:shadow-md transition-all animate-fade-in-up"
               >
+                {itinerary.is_sold_out && (
+                  <div className="mb-4 flex items-center gap-2 text-xs font-semibold text-amber-700 dark:text-amber-300 bg-amber-50/80 dark:bg-amber-900/25 px-3 py-2 rounded-lg border border-amber-200/60 dark:border-amber-800/40">
+                    <span>⚠️</span>
+                    <span>High Demand Corridor: One or more legs are currently sold out on live GDS. Direct airline standby recommended.</span>
+                  </div>
+                )}
                 {itinerary.legs.map((leg: ApiLeg, i: number) => (
                   <div key={`${leg.flight_number || leg.carrier.code}-${leg.departure_time}-${i}`}>
                     {i > 0 && (
@@ -442,7 +534,11 @@ function App() {
 
                           <div className="flex flex-wrap items-center gap-2">
                             {/* Price Pill */}
-                            {leg.price_text ? (
+                            {leg.is_sold_out || leg.available_seats === 0 ? (
+                              <span className="text-xs font-bold text-amber-700 dark:text-amber-300 bg-amber-50 dark:bg-amber-900/30 px-2.5 py-1 rounded-md border border-amber-200/50 dark:border-amber-800/30">
+                                Sold Out / High Demand
+                              </span>
+                            ) : leg.price_text ? (
                               <span className="text-xs font-bold text-emerald-700 dark:text-emerald-300 bg-emerald-50 dark:bg-emerald-900/30 px-2.5 py-1 rounded-md border border-emerald-200/50 dark:border-emerald-800/30">
                                 {leg.price_text}
                               </span>
@@ -457,6 +553,8 @@ function App() {
                               className={`flex items-center gap-1.5 text-xs font-bold px-2.5 py-1 rounded-md border ${
                                 leg.is_ferry
                                   ? "bg-indigo-50 text-indigo-600 border-indigo-100 dark:bg-indigo-900/20 dark:text-indigo-300 dark:border-indigo-800/30"
+                                  : (leg.is_sold_out || leg.available_seats === 0)
+                                  ? "bg-rose-50 text-rose-700 border-rose-100 dark:bg-rose-900/20 dark:text-rose-300 dark:border-rose-800/30"
                                   : "bg-amber-50 text-amber-700 border-amber-100 dark:bg-amber-900/20 dark:text-amber-400 dark:border-amber-800/30"
                               }`}
                             >
@@ -467,6 +565,8 @@ function App() {
                               <span>
                                 {leg.is_ferry
                                   ? "General Seating"
+                                  : (leg.is_sold_out || leg.available_seats === 0)
+                                  ? "0 Seats Left (Sold Out)"
                                   : `${leg.available_seats !== undefined && leg.available_seats !== null ? leg.available_seats : "--"} Seats Left`}
                               </span>
                             </div>
@@ -480,12 +580,14 @@ function App() {
                             href={leg.carrier.website}
                             target="_blank"
                             rel="noreferrer"
-                            className="bg-brand-light dark:bg-brand-dark hover:opacity-90 text-white dark:text-black text-xs px-4 py-2 rounded-full font-bold shadow-sm"
+                            className="bg-brand-light dark:bg-brand-dark hover:opacity-90 text-white dark:text-black text-xs px-4 py-2 rounded-full font-bold shadow-sm whitespace-nowrap"
                           >
-                            Book Direct
+                            {leg.is_sold_out || leg.available_seats === 0
+                              ? "Check Standby"
+                              : "Book Direct"}
                           </a>
                         ) : (
-                          <span className="bg-gray-100 dark:bg-neutral-900 border border-gray-200 dark:border-neutral-800 text-neutral-500 text-xs px-3 py-1 rounded-full">
+                          <span className="bg-gray-100 dark:bg-neutral-900 border border-gray-200 dark:border-neutral-800 text-neutral-500 text-xs px-3 py-1 rounded-full whitespace-nowrap">
                             Info Only
                           </span>
                         )}

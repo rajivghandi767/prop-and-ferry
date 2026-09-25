@@ -133,11 +133,39 @@ class Command(BaseCommand):
         offers = response_data.get("offers", [])
 
         # Overwrite logic: Drops existing records for this day to account for airline cancellations
+        orig_loc = Location.objects.filter(code=origin).first()
+        dest_loc = Location.objects.filter(code=dest).first()
+        orig_codes = orig_loc.resolve_aliases() if orig_loc else [origin]
+        dest_codes = dest_loc.resolve_aliases() if dest_loc else [dest]
+
         FlightInstance.objects.filter(
-            route__origin__code=origin, route__destination__code=dest, date=target_date
+            route__origin__code__in=orig_codes,
+            route__destination__code__in=dest_codes,
+            date=target_date,
         ).delete()
 
         if not offers:
+            # If Duffel returned 0 live offers, check if an active verified Route operates on this weekday
+            found_day = str(target_date.isoweekday())
+            known_routes = Route.objects.filter(
+                origin__code__in=orig_codes,
+                destination__code__in=dest_codes,
+                is_active=True,
+                days_of_operation__contains=found_day,
+            )
+            if known_routes.exists():
+                for r in known_routes:
+                    FlightInstance.objects.update_or_create(
+                        route=r,
+                        date=target_date,
+                        defaults={
+                            "price_amount": None,
+                            "currency": "USD",
+                            "available_seats": 0,
+                            "cabin_class": "Sold Out",
+                        },
+                    )
+                return True
             return False
 
         for offer in offers:
@@ -254,10 +282,11 @@ class Command(BaseCommand):
             )
         )
 
-        flight_hubs = ["ANU", "BGI", "SXM", "SJU", "EIS", "SKB"]
+        # EIS pruned: interCaribbean Airways is not supported on Duffel NDC
+        flight_hubs = ["ANU", "BGI", "SXM", "SJU", "SKB"]
 
         GATEWAY_ROUTES = {
-            "MIA": ["EIS", "SJU", "SXM", "SKB", "BGI", "FDF", "PTP"],
+            "MIA": ["SJU", "SXM", "SKB", "BGI", "FDF", "PTP"],
             "NYC": ["BGI", "ANU", "UVF", "SJU", "SXM", "SKB"],
             "CLT": ["ANU", "BGI", "UVF", "SJU", "SXM", "SKB"],
             "LON": ["ANU", "BGI", "SKB"],
@@ -270,9 +299,16 @@ class Command(BaseCommand):
             self.stdout.write(
                 self.style.WARNING(f"\n--- Ingesting Schedule for {date_str} ---")
             )
+            target_dt = datetime.strptime(date_str, "%Y-%m-%d").date()
+            is_wed_or_sat = target_dt.isoweekday() in (3, 6)
 
             # 1. Direct Non-Stop Trunks to Dominica
-            self.fetch_and_save("NYC", "DOM", date_str)
+            if is_wed_or_sat:
+                # United Airlines operates EWR <-> DOM nonstop on Wednesdays and Saturdays
+                self.fetch_and_save("EWR", "DOM", date_str)
+                self.fetch_and_save("DOM", "EWR", date_str)
+
+            # American Airlines operates MIA <-> DOM
             self.fetch_and_save("MIA", "DOM", date_str)
             self.fetch_and_save("DOM", "MIA", date_str)
 

@@ -217,6 +217,35 @@ class SearchRoutesTests(APITestCase):
         self.assertTrue(itinerary["legs"][0]["is_ferry"])
         self.assertFalse(itinerary["legs"][1]["is_ferry"])
 
+    def test_search_routes_includes_sold_out_itinerary(self) -> None:
+        carrier = Carrier.objects.create(code="AA", name="American Airlines", carrier_type="AIR")
+
+        route = Route.objects.create(
+            origin=self.mia,
+            destination=self.dom,
+            carrier=carrier,
+            flight_number="AA 3774",
+            departure_time=time(10, 0),
+            arrival_time=time(14, 0),
+            is_active=True,
+        )
+
+        FlightInstance.objects.create(
+            route=route,
+            date=date(2026, 9, 25),
+            available_seats=0,
+            price_amount=None,
+            cabin_class="Sold Out",
+        )
+
+        response = self.client.get('/api/routes/search/?origin=MIA&destination=DOM&date=2026-09-25')
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(len(response.data.get("results", [])), 1)
+        itinerary = response.data["results"][0]
+        self.assertTrue(itinerary.get("is_sold_out"))
+        self.assertEqual(itinerary["legs"][0]["price_text"], "Sold Out")
+        self.assertEqual(itinerary["legs"][0]["available_seats"], 0)
+
 
 class FetchDuffelRoutesTests(TestCase):
     def setUp(self) -> None:
@@ -386,12 +415,11 @@ class FetchDuffelRoutesTests(TestCase):
             (call.args[0], call.args[1]) for call in mock_fetch_and_save.call_args_list
         ]
         # Verify direct trunks to DOM
-        self.assertIn(("NYC", "DOM"), queried_pairs)
         self.assertIn(("MIA", "DOM"), queried_pairs)
         self.assertIn(("DOM", "MIA"), queried_pairs)
 
-        # Verify all regional hubs are checked in both directions (into and out of DOM)
-        for hub in ["ANU", "BGI", "SXM", "SJU", "EIS", "SKB"]:
+        # Verify active regional hubs are checked in both directions (EIS pruned)
+        for hub in ["ANU", "BGI", "SXM", "SJU", "SKB"]:
             self.assertIn((hub, "DOM"), queried_pairs)
             self.assertIn(("DOM", hub), queried_pairs)
 
@@ -403,6 +431,8 @@ class FetchDuffelRoutesTests(TestCase):
         self.assertIn(("PAR", "PTP"), queried_pairs)
         self.assertIn(("AMS", "SXM"), queried_pairs)
         self.assertIn(("FRA", "BGI"), queried_pairs)
+        self.assertNotIn(("MIA", "EIS"), queried_pairs)
+        self.assertNotIn(("EIS", "DOM"), queried_pairs)
 
     def test_enrich_locations_populates_eis_metadata(self) -> None:
         from django.core.management import call_command
@@ -412,6 +442,47 @@ class FetchDuffelRoutesTests(TestCase):
         self.assertEqual(eis.city, "Tortola")
         self.assertEqual(eis.country, "British Virgin Islands")
         self.assertEqual(eis.name, "Terrance B. Lettsome Intl")
+
+    @patch("core.management.commands.fetch_duffel_routes.time.sleep")
+    @patch("core.management.commands.fetch_duffel_routes.requests.post")
+    def test_fetch_and_save_empty_offers_marks_known_route_sold_out(
+        self, mock_post: MagicMock, mock_sleep: MagicMock
+    ) -> None:
+        # Wednesday date (2026-09-16 is ISO weekday 3)
+        target_date_str = "2026-09-16"
+        target_date = date(2026, 9, 16)
+
+        carrier = Carrier.objects.create(code="UA", name="United Airlines", carrier_type="AIR")
+        ewr = Location.objects.create(code="EWR", name="Newark Liberty", city="Newark", country="USA")
+        dom = Location.objects.create(code="DOM", name="Douglas-Charles", city="Marigot", country="Dominica")
+
+        # Existing verified route operating on Wednesday (3) and Saturday (6)
+        route = Route.objects.create(
+            origin=ewr,
+            destination=dom,
+            carrier=carrier,
+            flight_number="UA 1234",
+            departure_time=time(8, 45),
+            arrival_time=time(14, 17),
+            days_of_operation="36",
+            is_active=True,
+        )
+
+        # Duffel returns 200 with 0 offers (sold out)
+        mock_res = MagicMock()
+        mock_res.status_code = 200
+        mock_res.json.return_value = {"data": {"offers": []}}
+        mock_post.return_value = mock_res
+
+        result = self.cmd.fetch_and_save("EWR", "DOM", target_date_str)
+        self.assertTrue(result)
+
+        # Verify a FlightInstance was created with available_seats=0 and "Sold Out"
+        instance = FlightInstance.objects.filter(route=route, date=target_date).first()
+        self.assertIsNotNone(instance)
+        self.assertEqual(instance.available_seats, 0)
+        self.assertIsNone(instance.price_amount)
+        self.assertEqual(instance.cabin_class, "Sold Out")
 
 
 
