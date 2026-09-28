@@ -92,7 +92,7 @@ export function ShowcasePills({
                   {c.badge}
                 </span>
               </div>
-              <p className="text-[10px] text-neutral-500 dark:text-neutral-400 leading-tight line-clamp-2 text-center">
+              <p className="text-[10px] text-neutral-500 dark:text-neutral-400 leading-tight line-clamp-2">
                 {c.description}
               </p>
             </button>
