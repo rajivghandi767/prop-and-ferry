@@ -347,9 +347,9 @@ function App() {
         />
 
         {/* POC Disclaimer */}
-        <div className="w-full max-w-4xl mb-6 px-4 animate-fade-in">
+        <div className="w-full max-w-4xl mb-6 px-2 animate-fade-in">
           <div className="text-xs text-neutral-500 dark:text-neutral-400 bg-gray-50 dark:bg-neutral-900/40 border border-gray-200 dark:border-neutral-800 rounded-lg p-3">
-            <p className="leading-relaxed">
+            <p className="leading-relaxed tracking-tight sm:whitespace-nowrap">
               <span className="font-semibold text-neutral-700 dark:text-neutral-300">⚠️ Proof of Concept</span>
               {" — "}live multi-modal graph stitching across international flights, regional turboprops, and ferries{" "}
               <span className="whitespace-nowrap">to Dominica.</span>
