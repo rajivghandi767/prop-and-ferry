@@ -10,7 +10,7 @@ describe('App Component', () => {
 
   test('renders condensed proof of concept notice', () => {
     const { getByText } = render(<App />);
-    expect(getByText(/Portfolio demo/)).toBeDefined();
+    expect(getByText(/Proof of Concept/)).toBeDefined();
     expect(getByText(/Gateways: NYC · MIA · CLT · LON · PAR/)).toBeDefined();
   });
 });

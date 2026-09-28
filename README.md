@@ -18,6 +18,11 @@ While the data powering the frontend is sourced **live** via the Duffel REST API
 
 - [🚀 Tech Stack](#-tech-stack)
 - [🧠 Core Architecture & Features](#-core-architecture--features)
+  - [1. In-Memory Graph Traversal](#1-in-memory-graph-traversal-the-stitcher)
+  - [2. Backend API & Redis Caching](#2-backend-api--aggressive-redis-caching)
+  - [3. Dual-Source ETL Pipeline](#3-dual-source-etl-pipeline)
+  - [4. Showcase Corridor Cards](#4-showcase-corridor-cards)
+  - [5. Sliding Window Calendar](#5-sliding-window-calendar--available-date-enforcement)
 - [📉 System Design: Free-Tier Sustainability & Look-to-Book Governance](#-system-design-free-tier-sustainability--look-to-book-governance)
 - [🔄 Architecture Shift: The Amadeus Deprecation](#-architecture-shift-the-amadeus-deprecation)
 - [⚙️ CI/CD & Monitoring](#️-cicd--monitoring)
@@ -56,7 +61,7 @@ While the data powering the frontend is sourced **live** via the Duffel REST API
 
 ### 1. In-Memory Graph Traversal (The "Stitcher")
 
-Rather than relying on computationally expensive recursive SQL queries, the backend pulls normalized route data and uses O(1) set lookups to map topologies in memory. The stitcher natively understands overnight delays, dynamically flagging connections that require a hotel stay before an onward ferry transfer.
+Rather than relying on computationally expensive recursive SQL queries, the backend pulls normalized route data and uses O(1) set lookups to map topologies in memory. The stitcher natively understands overnight delays, dynamically flagging connections that require a hotel stay before an onward ferry transfer. Multi-leg itineraries are assembled by pairing Leg 1 (international gateway → Caribbean hub) with Leg 2 (hub → Dominica, either via flight or ferry), with timing constraints enforced per mode (minimum 2-hour plane-to-ferry connection window).
 
 ### 2. Backend API & Aggressive Redis Caching
 
@@ -72,6 +77,23 @@ The database is actively maintained by two distinct, automated scrapers triggere
 
 - **The Flight Scraper:** Interfaces with the Duffel REST API to pull active schedules, pricing, and seat availability. Employs adaptive request pacing (0.5s baseline) and bounded exponential backoff ($\le 3$ retries with `Retry-After` header inspection) to eliminate HTTP 429 burst-rate throttling.
 - **The Ferry Scraper:** Uses `requests` and `BeautifulSoup` to scrape, parse, and normalize ferry schedules (FRS-Express) into the application's standard `ApiLeg` contract.
+
+### 4. Showcase Corridor Cards
+
+Four verified routes are surfaced as 1-click corridor cards, allowing immediate transit-stitching demos without manual input. Each card is cross-referenced against the backend's `GATEWAY_ROUTES` config for badge and description accuracy:
+
+| Route | Badge | Routing Pattern |
+|---|---|---|
+| 🗽 New York → Dominica | `Nonstop or Stitched` | United nonstop (EWR, Wed/Sat) or stitched via ANU / SXM |
+| 🏖️ Miami → Dominica | `Direct / Feeder` | American Airlines direct or via SJU / SXM |
+| 🥐 Paris → Dominica | `Flight + Ferry` | Air France / Air Caraïbes via PTP or FDF + L'Express des Îles ferry |
+| 🇬🇧 London → Dominica | `Stitched Flight` | British Airways via Antigua (ANU) or Bridgetown (BGI) |
+
+Sold-out flight legs are surfaced with availability warnings and a "Check Standby" CTA rather than being silently filtered from results.
+
+### 5. Sliding Window Calendar & Available-Date Enforcement
+
+The date picker is pre-populated with only the dates known to have active routes for the selected origin/destination pair, sourced from a dedicated `/available-dates` endpoint. The backend enforces a 4-day sliding window: if no itineraries exist on the requested date, it automatically advances to the next available date and flags the UI accordingly.
 
 ---
 
