@@ -348,11 +348,10 @@ function App() {
 
         {/* POC Disclaimer */}
         <div className="w-full max-w-4xl mb-6 px-2 animate-fade-in">
-          <div className="text-xs text-neutral-500 dark:text-neutral-400 bg-gray-50 dark:bg-neutral-900/40 border border-gray-200 dark:border-neutral-800 rounded-lg p-3">
-            <p className="leading-relaxed tracking-tight sm:whitespace-nowrap">
+          <div className="text-[11px] sm:text-xs text-neutral-500 dark:text-neutral-400 bg-gray-50 dark:bg-neutral-900/40 border border-gray-200 dark:border-neutral-800 rounded-lg p-3 text-pretty">
+            <p className="leading-relaxed">
               <span className="font-semibold text-neutral-700 dark:text-neutral-300">⚠️ Proof of Concept</span>
-              {" — "}live multi-modal graph stitching across international flights, regional turboprops, and ferries{" "}
-              <span className="whitespace-nowrap">to Dominica.</span>
+              {" — "}live multi-modal graph stitching across international flights, regional turboprops, and ferries to Dominica.
             </p>
             <p className="mt-1 text-center text-neutral-400 dark:text-neutral-500">
               Gateways: NYC · MIA · CLT · LON · PAR · bi-weekly rolling schedule.
