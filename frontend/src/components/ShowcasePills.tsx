@@ -4,7 +4,6 @@ interface ShowcaseCorridor {
   destination: string;
   title: string;
   badge: string;
-  description: string;
 }
 
 const SHOWCASE_CORRIDORS: ShowcaseCorridor[] = [
@@ -14,7 +13,6 @@ const SHOWCASE_CORRIDORS: ShowcaseCorridor[] = [
     destination: "DOM",
     title: "🗽 New York → Dominica",
     badge: "Nonstop or Stitched",
-    description: "United nonstop (Wed/Sat) or stitched via ANU / SXM",
   },
   {
     id: "mia-dom",
@@ -22,7 +20,6 @@ const SHOWCASE_CORRIDORS: ShowcaseCorridor[] = [
     destination: "DOM",
     title: "🏖️ Miami → Dominica",
     badge: "Direct / Feeder",
-    description: "American Airlines direct or via SJU / SXM",
   },
   {
     id: "par-dom",
@@ -30,7 +27,6 @@ const SHOWCASE_CORRIDORS: ShowcaseCorridor[] = [
     destination: "DOM",
     title: "🥐 Paris → Dominica",
     badge: "Flight + Ferry",
-    description: "Air France / Air Caraïbes via PTP or FDF + ferry",
   },
   {
     id: "lon-dom",
@@ -38,7 +34,6 @@ const SHOWCASE_CORRIDORS: ShowcaseCorridor[] = [
     destination: "DOM",
     title: "🇬🇧 London → Dominica",
     badge: "Stitched Flight",
-    description: "British Airways via Antigua (ANU) or Bridgetown (BGI)",
   },
 ];
 
@@ -78,23 +73,18 @@ export function ShowcasePills({
               type="button"
               disabled={disabled}
               onClick={() => onSelectRoute(c.origin, c.destination)}
-              className={`p-2.5 rounded-lg border text-left transition-all duration-150 cursor-pointer flex flex-col justify-between ${
+              className={`p-3 rounded-lg border text-center transition-all duration-150 cursor-pointer flex flex-col items-center justify-center gap-1.5 ${
                 isActive
                   ? "bg-brand-light/10 dark:bg-brand-dark/15 border-brand-light dark:border-brand-dark ring-1 ring-brand-light dark:ring-brand-dark"
                   : "bg-gray-50/70 dark:bg-neutral-900/60 border-gray-200 dark:border-neutral-800 hover:border-brand-light/60 dark:hover:border-brand-dark/60 hover:bg-gray-100/80 dark:hover:bg-neutral-900"
               } ${disabled ? "opacity-50 cursor-not-allowed" : ""}`}
             >
-              <div className="flex flex-col items-center gap-1 mb-1">
-                <span className="font-bold text-xs text-black dark:text-white leading-snug text-center w-full">
-                  {c.title}
-                </span>
-                <span className="text-[9px] font-semibold px-1.5 py-0.5 rounded bg-brand-light/10 dark:bg-brand-dark/20 text-brand-light dark:text-brand-dark">
-                  {c.badge}
-                </span>
-              </div>
-              <p className="text-[10px] text-left text-neutral-500 dark:text-neutral-400 leading-tight line-clamp-2">
-                {c.description}
-              </p>
+              <span className="font-bold text-xs text-black dark:text-white leading-snug text-center w-full">
+                {c.title}
+              </span>
+              <span className="text-[9px] font-semibold px-2 py-0.5 rounded bg-brand-light/10 dark:bg-brand-dark/20 text-brand-light dark:text-brand-dark">
+                {c.badge}
+              </span>
             </button>
           );
         })}
