@@ -8,11 +8,10 @@ describe('App Component', () => {
     expect(container).toBeDefined();
   });
 
-  test('renders updated proof of concept notice with full gateway network', () => {
+  test('renders condensed proof of concept notice', () => {
     const { getByText } = render(<App />);
-    expect(getByText(/⚠️ Proof of Concept Notice:/)).toBeDefined();
-    expect(getByText(/Miami \(MIA\)/)).toBeDefined();
-    expect(getByText(/Charlotte \(CLT\)/)).toBeDefined();
+    expect(getByText(/Portfolio demo/)).toBeDefined();
+    expect(getByText(/Gateways: NYC · MIA · CLT · LON · PAR/)).toBeDefined();
   });
 });
 

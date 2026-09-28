@@ -13,8 +13,8 @@ const SHOWCASE_CORRIDORS: ShowcaseCorridor[] = [
     origin: "NYC",
     destination: "DOM",
     title: "🗽 New York → Dominica",
-    badge: "Multi-Modal",
-    description: "United (Wed/Sat) or Stitched via SXM / ANU",
+    badge: "Nonstop or Stitched",
+    description: "United nonstop (Wed/Sat) or stitched via ANU / SXM",
   },
   {
     id: "mia-dom",
@@ -22,7 +22,7 @@ const SHOWCASE_CORRIDORS: ShowcaseCorridor[] = [
     destination: "DOM",
     title: "🏖️ Miami → Dominica",
     badge: "Direct / Feeder",
-    description: "American Airlines Direct or via San Juan",
+    description: "American Airlines direct or via SJU / SXM",
   },
   {
     id: "par-dom",
@@ -30,15 +30,15 @@ const SHOWCASE_CORRIDORS: ShowcaseCorridor[] = [
     destination: "DOM",
     title: "🥐 Paris → Dominica",
     badge: "Flight + Ferry",
-    description: "Air France / Air Caraïbes + Express Ferry",
+    description: "Air France / Air Caraïbes via PTP or FDF + ferry",
   },
   {
     id: "lon-dom",
     origin: "LON",
     destination: "DOM",
     title: "🇬🇧 London → Dominica",
-    badge: "Stitched Island-Hop",
-    description: "British Airways + Winair connection",
+    badge: "Stitched Flight",
+    description: "British Airways via Antigua (ANU) or Bridgetown (BGI)",
   },
 ];
 
@@ -84,15 +84,15 @@ export function ShowcasePills({
                   : "bg-gray-50/70 dark:bg-neutral-900/60 border-gray-200 dark:border-neutral-800 hover:border-brand-light/60 dark:hover:border-brand-dark/60 hover:bg-gray-100/80 dark:hover:bg-neutral-900"
               } ${disabled ? "opacity-50 cursor-not-allowed" : ""}`}
             >
-              <div className="flex items-center justify-between gap-1 mb-1">
-                <span className="font-bold text-xs text-black dark:text-white truncate">
+              <div className="flex flex-col gap-1 mb-1">
+                <span className="font-bold text-xs text-black dark:text-white leading-snug">
                   {c.title}
                 </span>
-                <span className="text-[9px] font-semibold px-1.5 py-0.5 rounded bg-brand-light/10 dark:bg-brand-dark/20 text-brand-light dark:text-brand-dark shrink-0">
+                <span className="self-start text-[9px] font-semibold px-1.5 py-0.5 rounded bg-brand-light/10 dark:bg-brand-dark/20 text-brand-light dark:text-brand-dark">
                   {c.badge}
                 </span>
               </div>
-              <p className="text-[10px] text-neutral-500 dark:text-neutral-400 leading-tight truncate">
+              <p className="text-[10px] text-neutral-500 dark:text-neutral-400 leading-tight line-clamp-2">
                 {c.description}
               </p>
             </button>

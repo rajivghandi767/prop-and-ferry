@@ -348,14 +348,16 @@ function App() {
 
         {/* POC Disclaimer */}
         <div className="w-full max-w-4xl mb-6 px-4 animate-fade-in">
-          <p className="text-xs text-neutral-500 dark:text-neutral-400 bg-gray-50 dark:bg-neutral-900/40 border border-gray-200 dark:border-neutral-800 rounded-lg p-3 leading-relaxed">
-            <strong>⚠️ Proof of Concept Notice:</strong> Prop & Ferry demonstrates{" "}
-            <strong>in-memory multi-modal graph stitching</strong> (connecting international flights with regional turboprops and maritime ferries to Dominica). Live schedules are indexed across a bi-weekly rolling forecast for routes terminating in{" "}
-            <strong>Dominica (DOM)</strong> originating from gateways in{" "}
-            <strong>New York (NYC/EWR)</strong>, <strong>Miami (MIA)</strong>,{" "}
-            <strong>Charlotte (CLT)</strong>, <strong>London (LON)</strong>, and{" "}
-            <strong>Paris (PAR)</strong>. Select one of the verified showcase routes above to test transit stitching.
-          </p>
+          <div className="flex items-start gap-2.5 text-xs text-neutral-500 dark:text-neutral-400 bg-gray-50 dark:bg-neutral-900/40 border border-gray-200 dark:border-neutral-800 rounded-lg p-3">
+            <span className="text-base leading-none mt-0.5 shrink-0">ℹ️</span>
+            <div className="leading-relaxed">
+              <span className="font-semibold text-neutral-700 dark:text-neutral-300">Portfolio demo</span>
+              {" — "}live multi-modal graph stitching across flights, turboprops, and ferries to Dominica.
+              <span className="block mt-1 text-neutral-400 dark:text-neutral-500">
+                Gateways: NYC · MIA · CLT · LON · PAR · bi-weekly rolling schedule.
+              </span>
+            </div>
+          </div>
         </div>
 
         <div className="w-full max-w-3xl space-y-4 mb-20">
