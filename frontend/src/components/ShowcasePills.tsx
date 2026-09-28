@@ -85,14 +85,14 @@ export function ShowcasePills({
               } ${disabled ? "opacity-50 cursor-not-allowed" : ""}`}
             >
               <div className="flex flex-col items-center gap-1 mb-1">
-                <span className="font-bold text-xs text-black dark:text-white leading-snug">
+                <span className="font-bold text-xs text-black dark:text-white leading-snug text-center w-full">
                   {c.title}
                 </span>
                 <span className="text-[9px] font-semibold px-1.5 py-0.5 rounded bg-brand-light/10 dark:bg-brand-dark/20 text-brand-light dark:text-brand-dark">
                   {c.badge}
                 </span>
               </div>
-              <p className="text-[10px] text-neutral-500 dark:text-neutral-400 leading-tight line-clamp-2">
+              <p className="text-[10px] text-neutral-500 dark:text-neutral-400 leading-tight line-clamp-2 text-center">
                 {c.description}
               </p>
             </button>
