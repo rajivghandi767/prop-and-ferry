@@ -78,17 +78,17 @@ export function ShowcasePills({
               type="button"
               disabled={disabled}
               onClick={() => onSelectRoute(c.origin, c.destination)}
-              className={`p-2.5 rounded-lg border text-left transition-all duration-150 cursor-pointer flex flex-col justify-between ${
+              className={`p-2.5 rounded-lg border text-center transition-all duration-150 cursor-pointer flex flex-col justify-between ${
                 isActive
                   ? "bg-brand-light/10 dark:bg-brand-dark/15 border-brand-light dark:border-brand-dark ring-1 ring-brand-light dark:ring-brand-dark"
                   : "bg-gray-50/70 dark:bg-neutral-900/60 border-gray-200 dark:border-neutral-800 hover:border-brand-light/60 dark:hover:border-brand-dark/60 hover:bg-gray-100/80 dark:hover:bg-neutral-900"
               } ${disabled ? "opacity-50 cursor-not-allowed" : ""}`}
             >
-              <div className="flex flex-col gap-1 mb-1">
+              <div className="flex flex-col items-center gap-1 mb-1">
                 <span className="font-bold text-xs text-black dark:text-white leading-snug">
                   {c.title}
                 </span>
-                <span className="self-start text-[9px] font-semibold px-1.5 py-0.5 rounded bg-brand-light/10 dark:bg-brand-dark/20 text-brand-light dark:text-brand-dark">
+                <span className="text-[9px] font-semibold px-1.5 py-0.5 rounded bg-brand-light/10 dark:bg-brand-dark/20 text-brand-light dark:text-brand-dark">
                   {c.badge}
                 </span>
               </div>
