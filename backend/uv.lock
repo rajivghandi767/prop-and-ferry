@@ -282,7 +282,7 @@ prod = [
 [package.metadata]
 requires-dist = [
     { name = "beautifulsoup4" },
-    { name = "django", specifier = ">=5.2,<7.0" },
+    { name = "django" },
     { name = "django-filter" },
     { name = "django-prometheus" },
     { name = "djangorestframework" },

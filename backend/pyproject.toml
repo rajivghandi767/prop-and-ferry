@@ -5,7 +5,7 @@ description = "Backend API and Route Stitcher for Prop & Ferry"
 requires-python = ">=3.14"
 dependencies = [
     "beautifulsoup4",
-    "django>=5.2,<7.0",
+    "django",
     "django-filter",
     "django-prometheus",
     "djangorestframework",
