@@ -19,3 +19,23 @@ updates:
     labels:
       - "dependencies"
       - "frontend"
+
+  - package-ecosystem: "uv"
+    directory: "/backend"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+      time: "09:00"
+      timezone: "America/New_York"
+    # Group all patch + minor updates into a single weekly PR.
+    # Major versions are intentionally excluded from the group and get their own PR.
+    groups:
+      backend-patch-minor:
+        update-types:
+          - "minor"
+          - "patch"
+    commit-message:
+      prefix: "chore(deps)"
+    labels:
+      - "dependencies"
+      - "backend"

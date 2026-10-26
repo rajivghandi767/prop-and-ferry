@@ -42,6 +42,7 @@ While the data powering the frontend is sourced **live** via the Duffel REST API
 **Backend:**
 
 - Django & Django REST Framework (DRF)
+- uv (Deterministic Package & Dependency Management)
 - PostgreSQL & Redis (Isolated container network)
 - BeautifulSoup4 (Ferry Web Scraping)
 - Duffel REST API (Flight Data)

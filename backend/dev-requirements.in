@@ -1,8 +1,0 @@
-# Development Requirements
-
--r common.in
-
-# Local Development & Tooling
-django-cors-headers
-pip-tools
-psycopg[binary]
