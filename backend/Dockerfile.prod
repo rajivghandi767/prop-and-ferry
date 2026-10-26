@@ -31,11 +31,12 @@ RUN mkdir -p /home/backend/django/staticfiles \
     chmod -R 755 /home/backend/django
 
 # Copy and install Python dependencies as root
-COPY --chown=backend:backend_group requirements.txt ./
+COPY --from=ghcr.io/astral-sh/uv:latest /uv /usr/local/bin/uv
+COPY --chown=backend:backend_group pyproject.toml uv.lock ./
 
-RUN pip install --no-cache-dir --upgrade pip && \
-    pip install --no-cache-dir --no-warn-script-location -r requirements.txt && \
-    rm requirements.txt
+RUN uv export --frozen --no-emit-project --no-dev --group prod -o /tmp/requirements.txt && \
+    uv pip install --system --no-cache -r /tmp/requirements.txt && \
+    rm /tmp/requirements.txt pyproject.toml uv.lock /usr/local/bin/uv
 
 # Copy application code
 COPY --chown=backend:backend_group . .

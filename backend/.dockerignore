@@ -1,0 +1,23 @@
+# General ignores
+*.pyc
+*.pyo
+*.pyd
+__pycache__/
+*.log
+*.swp
+*.swo
+*.DS_Store
+Thumbs.db
+.vscode/
+.idea/
+*.env
+*.sqlite3
+
+# Ignore virtual environments and caches
+venv/
+.venv/
+.env/
+env/
+.*_cache/
+.git/
+.gitignore
