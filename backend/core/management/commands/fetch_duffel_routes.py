@@ -8,6 +8,13 @@ from typing import Any
 from datetime import date, datetime, timedelta
 
 from django.core.management.base import BaseCommand
+from core.constants import (
+    DEFAULT_CURRENCY,
+    DUFFEL_DEFAULT_SEATS,
+    DUFFEL_PACING_DELAY_SECONDS,
+    DUFFEL_REQUEST_TIMEOUT_SECONDS,
+    SOLD_OUT_LABEL,
+)
 from core.models import Location, Route, Carrier, FlightInstance
 
 logger = logging.getLogger(__name__)
@@ -91,6 +98,7 @@ class Command(BaseCommand):
                     "https://api.duffel.com/air/offer_requests",
                     json=payload,
                     headers=self.get_duffel_headers(),
+                    timeout=DUFFEL_REQUEST_TIMEOUT_SECONDS,
                 )
                 if res.status_code == 429:
                     if attempt < max_retries:
@@ -128,7 +136,7 @@ class Command(BaseCommand):
             return False
 
         # Guaranteed baseline pacing delay across all queries (both empty and populated)
-        time.sleep(0.5)
+        time.sleep(DUFFEL_PACING_DELAY_SECONDS)
 
         offers = response_data.get("offers", [])
 
@@ -160,9 +168,9 @@ class Command(BaseCommand):
                         date=target_date,
                         defaults={
                             "price_amount": None,
-                            "currency": "USD",
+                            "currency": DEFAULT_CURRENCY,
                             "available_seats": 0,
-                            "cabin_class": "Sold Out",
+                            "cabin_class": SOLD_OUT_LABEL,
                         },
                     )
                 return True
@@ -171,7 +179,7 @@ class Command(BaseCommand):
         for offer in offers:
             price = offer.get("total_amount")
             currency = offer.get("total_currency")
-            seats = 9  # Standardized availability assumption for the Stitcher
+            seats = DUFFEL_DEFAULT_SEATS  # Standardized availability assumption for the Stitcher
 
             for slice_obj in offer.get("slices", []):
                 segments = slice_obj.get("segments", [])

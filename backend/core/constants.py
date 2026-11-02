@@ -1,5 +1,5 @@
 """
-Global Constants for Route Discovery.
+Global Constants for Route Discovery, Graph Stitching, and Caching.
 """
 
 # --- FLIGHT CONFIGURATION (IATA) ---
@@ -18,17 +18,17 @@ REGIONAL_HUBS: list[str] = [
 GATEWAYS: list[str] = ["NYC", "MIA", "CLT", "LON", "PAR", "AMS", "FRA"]
 
 # --- FERRY CONFIGURATION (UN/LOCODE) ---
-
-# 1. Canonical IDs (The Database Truth)
-# We use UN/LOCODEs to physically distinguish Ferry Terminals from Airports.
+# Canonical IDs (The Database Truth): UN/LOCODEs physically distinguish Ferry Terminals from Airports.
 PORT_ROSEAU = "DMROS"  # Roseau, Dominica
 PORT_PTP = "GPPTP"  # Pointe à Pitre, Guadeloupe
 PORT_FDF = "MQFDF"  # Fort de France, Martinique
 PORT_CASTRIES = "LCCAS"  # Castries, St. Lucia
 
-# 2. DB -> Website Input (What we type/select)
-# When we want to check 'DMROS', we try these values in the dropdown.
-# The scraper will try them in order until one works.
+FERRY_TERMINAL_CODES: frozenset[str] = frozenset(
+    {PORT_ROSEAU, PORT_PTP, PORT_FDF, PORT_CASTRIES}
+)
+
+# DB -> Website Input (What the FRS Express scraper submits in the search form)
 DB_TO_SITE_OPTS: dict[str, list[str]] = {
     PORT_ROSEAU: ["DOM", "Dominique - Roseau", "Roseau", "Dominique", "Dominica"],
     PORT_PTP: [
@@ -55,32 +55,27 @@ DB_TO_SITE_OPTS: dict[str, list[str]] = {
     ],
 }
 
-# 3. Website Output -> DB (What we save)
-# If the website result says "Depart: Pointe-à-Pitre", we map it back to 'GPPTP'.
-SITE_TO_DB_MAP: dict[str, str] = {
-    # DOMINICA
-    "DOM": PORT_ROSEAU,
-    "Dominique - Roseau": PORT_ROSEAU,
-    "Roseau": PORT_ROSEAU,
-    "Dominique": PORT_ROSEAU,
-    "Dominica": PORT_ROSEAU,
-    # GUADELOUPE
-    "PTP": PORT_PTP,
-    "Guadeloupe - Pointe à Pitre": PORT_PTP,
-    "Pointe à Pitre": PORT_PTP,
-    "Pointe-à-Pitre": PORT_PTP,
-    "Guadeloupe": PORT_PTP,
-    # MARTINIQUE
-    "FDF": PORT_FDF,
-    "Martinique - Fort de France": PORT_FDF,
-    "Fort de France": PORT_FDF,
-    "Fort-de-France": PORT_FDF,
-    "Martinique": PORT_FDF,
-    # ST LUCIA
-    "SLU": PORT_CASTRIES,
-    "Sainte Lucie - Castries": PORT_CASTRIES,
-    "Castries": PORT_CASTRIES,
-    "Sainte Lucie": PORT_CASTRIES,
-    "Saint Lucia": PORT_CASTRIES,
-    "St. Lucia": PORT_CASTRIES,
-}
+# --- ROUTE STITCHING & CONNECTION CONSTRAINTS ---
+MIN_CONNECT_FLIGHT_SECONDS: int = 3600  # 1 Hour: Minimum time to connect plane-to-plane
+MIN_CONNECT_FERRY_SECONDS: int = (
+    7200  # 2 Hours: Minimum time to connect plane-to-ferry or ferry-to-plane
+)
+MAX_CONNECT_SECONDS: int = (
+    64800  # 18 Hours: Max layover time before we consider it two separate trips
+)
+SEARCH_WINDOW_DAYS: int = 4  # 4-day sliding window to capture overnight connections
+
+# --- CACHE TTLs (SECONDS) ---
+CACHE_TTL_REFERENCE: int = 3600  # 1 hour for locations and carriers
+CACHE_TTL_AVAILABLE_DATES: int = 900  # 15 minutes for available dates
+CACHE_TTL_SEARCH: int = 300  # 5 minutes for route search results
+
+# --- SCRAPER & DOMAIN DEFAULTS ---
+DEFAULT_FERRY_DURATION_MINS: int = 120
+DEFAULT_CURRENCY: str = "USD"
+SOLD_OUT_LABEL: str = "Sold Out"
+DUFFEL_DEFAULT_SEATS: int = 9
+DUFFEL_PACING_DELAY_SECONDS: float = 0.5
+DUFFEL_REQUEST_TIMEOUT_SECONDS: int = 30
+DISCORD_TIMEOUT_SECONDS: int = 5
+MAX_ISSUE_NOTE_LENGTH: int = 1000

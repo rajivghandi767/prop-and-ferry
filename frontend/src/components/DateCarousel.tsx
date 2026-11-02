@@ -4,12 +4,16 @@ interface DateCarouselProps {
   selectedDate: Date;
   onDateSelect: (date: Date) => void;
   availableDates: string[]; // Array of 'YYYY-MM-DD' strings
+  windowStart?: string;
+  windowEnd?: string;
 }
 
 export function DateCarousel({
   selectedDate,
   onDateSelect,
   availableDates,
+  windowStart,
+  windowEnd,
 }: DateCarouselProps) {
 
   // Generate 7 days (3 before, today, 3 after)
@@ -45,7 +49,12 @@ export function DateCarousel({
         const dateStr = toISODate(date);
         const isSelected = toISODate(selectedDate) === dateStr;
         const hasTravel = availableDates.includes(dateStr);
-        const isClickable = isDateInSlidingWindow(date);
+        const isClickable = isDateInSlidingWindow(
+          date,
+          new Date(),
+          windowStart,
+          windowEnd,
+        );
 
         return (
           <button

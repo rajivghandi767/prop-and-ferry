@@ -1,5 +1,7 @@
+from __future__ import annotations
+
 from django.contrib import admin
-from .models import Location, Carrier, Route
+from .models import Carrier, Location, ReportedIssue, Route
 
 
 @admin.register(Location)
@@ -19,3 +21,10 @@ class CarrierAdmin(admin.ModelAdmin):
 class RouteAdmin(admin.ModelAdmin):
     list_display = ("carrier", "origin", "destination", "is_active")
     autocomplete_fields = ["origin", "destination", "carrier"]
+
+
+@admin.register(ReportedIssue)
+class ReportedIssueAdmin(admin.ModelAdmin):
+    list_display = ("issue_type", "resolved", "created_at")
+    list_filter = ("issue_type", "resolved")
+    search_fields = ("user_note",)

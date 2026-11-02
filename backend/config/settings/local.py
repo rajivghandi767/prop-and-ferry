@@ -128,7 +128,7 @@ LOGGING = {
             "level": "INFO",
             "propagate": False,
         },
-        "contacts": {
+        "core": {
             "handlers": ["console"],
             "level": "DEBUG",
             "propagate": False,
@@ -159,12 +159,5 @@ REST_FRAMEWORK.update(
             "rest_framework.renderers.BrowsableAPIRenderer",
         ],
         "DEFAULT_THROTTLE_CLASSES": [],
-        "DEFAULT_THROTTLE_RATES": {},  # type: ignore
     }
 )
-
-# ============================================================================
-# AMADEUS SETTINGS FOR DEVELOPMENT
-# ============================================================================
-AMADEUS_API_KEY = os.getenv("AMADEUS_API_KEY")
-AMADEUS_API_SECRET = os.getenv("AMADEUS_API_SECRET")

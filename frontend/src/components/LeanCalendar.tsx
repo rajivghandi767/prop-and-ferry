@@ -5,12 +5,16 @@ interface CalendarProps {
   selectedDate: Date;
   onDateSelect: (date: Date) => void;
   availableDates: string[];
+  windowStart?: string;
+  windowEnd?: string;
 }
 
 export function LeanCalendar({
   selectedDate,
   onDateSelect,
   availableDates,
+  windowStart,
+  windowEnd,
 }: CalendarProps) {
   const [currentMonthView, setCurrentMonthView] = useState(
     new Date(selectedDate.getFullYear(), selectedDate.getMonth(), 1),
@@ -77,7 +81,12 @@ export function LeanCalendar({
           const isSelected = toISODate(selectedDate) === dateStr;
           const hasTravel = availableDates.includes(dateStr);
           const isToday = toISODate(new Date()) === dateStr;
-          const isClickable = isDateInSlidingWindow(date);
+          const isClickable = isDateInSlidingWindow(
+            date,
+            new Date(),
+            windowStart,
+            windowEnd,
+          );
 
           return (
             <button

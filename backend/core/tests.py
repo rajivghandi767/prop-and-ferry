@@ -6,7 +6,8 @@ from django.urls import reverse
 from rest_framework.test import APITestCase
 
 from core.management.commands.fetch_duffel_routes import Command as FetchDuffelCommand
-from core.models import FlightInstance, Route, Carrier, Location, Sailing
+from core.models import FlightInstance, Route, Carrier, Location, Sailing, ReportedIssue
+from core.views import get_sliding_window
 
 
 class SearchRoutesTests(APITestCase):
@@ -246,6 +247,55 @@ class SearchRoutesTests(APITestCase):
         self.assertEqual(itinerary["legs"][0]["price_text"], "Sold Out")
         self.assertEqual(itinerary["legs"][0]["available_seats"], 0)
 
+    def test_locations_excludes_child_ferry_terminals(self) -> None:
+        response = self.client.get("/api/locations/")
+        self.assertEqual(response.status_code, 200)
+        codes = {loc["code"] for loc in response.data}
+        self.assertIn("DOM", codes)
+        self.assertIn("PTP", codes)
+        self.assertIn("ORY", codes)
+        # Child PRT terminals with a parent airport are filtered out on the server
+        self.assertNotIn("DMROS", codes)
+        self.assertNotIn("GPPTP", codes)
+
+    def test_reports_endpoint_is_post_only_and_read_only_fields_protected(self) -> None:
+        get_res = self.client.get("/api/reports/")
+        self.assertEqual(get_res.status_code, 405)
+
+        with patch.object(ReportedIssue, "send_notifications") as mock_notify:
+            post_res = self.client.post(
+                "/api/reports/",
+                {
+                    "issue_type": "routing_error",
+                    "user_note": "Test report",
+                    "resolved": True,
+                },
+                format="json",
+            )
+            self.assertEqual(post_res.status_code, 201)
+            mock_notify.assert_called_once()
+            issue = ReportedIssue.objects.get(pk=post_res.data["id"])
+            self.assertFalse(issue.resolved)
+
+    def test_sliding_window_matches_wed_sun_schedule(self) -> None:
+        # Wednesday 2026-09-16 -> window is Thu 2026-09-17 .. Sun 2026-09-20
+        w_start, w_end = get_sliding_window(date(2026, 9, 16))
+        self.assertEqual(w_start, date(2026, 9, 17))
+        self.assertEqual(w_end, date(2026, 9, 20))
+
+        # Sunday 2026-09-20 -> window is Mon 2026-09-21 .. Wed 2026-09-23
+        s_start, s_end = get_sliding_window(date(2026, 9, 20))
+        self.assertEqual(s_start, date(2026, 9, 21))
+        self.assertEqual(s_end, date(2026, 9, 23))
+
+    def test_search_routes_without_date_auto_resolves_date(self) -> None:
+        response = self.client.get("/api/routes/search/?origin=MIA&destination=DOM")
+        self.assertEqual(response.status_code, 200)
+        self.assertIn("found_date", response.data)
+        self.assertIn("available_dates", response.data)
+        self.assertIn("window_start", response.data)
+        self.assertIn("window_end", response.data)
+
 
 class FetchDuffelRoutesTests(TestCase):
     def setUp(self) -> None:
@@ -324,6 +374,7 @@ class FetchDuffelRoutesTests(TestCase):
             route__destination__code="DOM",
             date="2026-09-20",
         )
+        assert flight.price_amount is not None
         self.assertEqual(float(flight.price_amount), 250.00)
         self.assertEqual(flight.currency, "USD")
 
@@ -480,6 +531,7 @@ class FetchDuffelRoutesTests(TestCase):
         # Verify a FlightInstance was created with available_seats=0 and "Sold Out"
         instance = FlightInstance.objects.filter(route=route, date=target_date).first()
         self.assertIsNotNone(instance)
+        assert instance is not None
         self.assertEqual(instance.available_seats, 0)
         self.assertIsNone(instance.price_amount)
         self.assertEqual(instance.cabin_class, "Sold Out")

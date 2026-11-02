@@ -1,7 +1,12 @@
-from rest_framework import serializers
-from typing import Any, Optional, Union
-from .models import Location, Carrier, Route, FlightInstance, Sailing, ReportedIssue
+from __future__ import annotations
 
+from typing import Any
+from rest_framework import serializers
+
+from .constants import MAX_ISSUE_NOTE_LENGTH, SOLD_OUT_LABEL
+from .models import Carrier, FlightInstance, Location, ReportedIssue, Route, Sailing
+
+type TransitLeg = FlightInstance | Sailing
 
 
 class LocationSerializer(serializers.ModelSerializer):
@@ -54,8 +59,6 @@ class RouteSerializer(serializers.ModelSerializer):
         ]
 
 
-
-
 class SailingSerializer(serializers.ModelSerializer):
     route = RouteSerializer(read_only=True)
 
@@ -72,9 +75,11 @@ class SailingSerializer(serializers.ModelSerializer):
         ]
 
 
-
-
 class ItineraryLegSerializer(serializers.Serializer):
+    """
+    Normalizes heterogeneous FlightInstance and Sailing records into a unified
+    transit leg contract for the frontend client.
+    """
 
     is_ferry = serializers.SerializerMethodField()
     origin = serializers.SerializerMethodField()
@@ -93,91 +98,93 @@ class ItineraryLegSerializer(serializers.Serializer):
     is_sold_out = serializers.SerializerMethodField()
     last_seen_at = serializers.SerializerMethodField()
 
-    def get_is_ferry(self, obj: Union[FlightInstance, Sailing]) -> bool:
+    def get_is_ferry(self, obj: TransitLeg) -> bool:
         return isinstance(obj, Sailing)
 
-    def get_origin(self, obj: Union[FlightInstance, Sailing]) -> dict[str, Any]:
+    def get_origin(self, obj: TransitLeg) -> dict[str, Any]:
         return {
             "code": obj.route.origin.code,
             "name": obj.route.origin.name,
             "city": obj.route.origin.city,
         }
 
-    def get_destination(self, obj: Union[FlightInstance, Sailing]) -> dict[str, Any]:
+    def get_destination(self, obj: TransitLeg) -> dict[str, Any]:
         return {
             "code": obj.route.destination.code,
             "name": obj.route.destination.name,
             "city": obj.route.destination.city,
         }
 
-    def get_carrier(self, obj: Union[FlightInstance, Sailing]) -> dict[str, Any]:
+    def get_carrier(self, obj: TransitLeg) -> dict[str, Any]:
         return {
             "code": obj.route.carrier.code,
             "name": obj.route.carrier.name,
             "website": obj.route.carrier.website,
         }
 
-    def get_departure_date(self, obj: Union[FlightInstance, Sailing]) -> str:
+    def get_departure_date(self, obj: TransitLeg) -> str:
         return obj.date.strftime("%Y-%m-%d")
 
-    def get_arrival_date(self, obj: Union[FlightInstance, Sailing]) -> str:
+    def get_arrival_date(self, obj: TransitLeg) -> str:
         return obj.date.strftime("%Y-%m-%d")
 
-    def get_departure_time(self, obj: Union[FlightInstance, Sailing]) -> str:
-        time = (
+    def get_departure_time(self, obj: TransitLeg) -> str:
+        dep_time = (
             obj.departure_time if isinstance(obj, Sailing) else obj.route.departure_time
         )
-        return time.strftime("%H:%M") if time else "00:00"
+        return dep_time.strftime("%H:%M") if dep_time else "00:00"
 
-    def get_arrival_time(self, obj: Union[FlightInstance, Sailing]) -> str:
-        time = obj.arrival_time if isinstance(obj, Sailing) else obj.route.arrival_time
-        return time.strftime("%H:%M") if time else "00:00"
+    def get_arrival_time(self, obj: TransitLeg) -> str:
+        arr_time = (
+            obj.arrival_time if isinstance(obj, Sailing) else obj.route.arrival_time
+        )
+        return arr_time.strftime("%H:%M") if arr_time else "00:00"
 
-    def get_duration_minutes(self, obj: Union[FlightInstance, Sailing]) -> Optional[int]:
+    def get_duration_minutes(self, obj: TransitLeg) -> int | None:
         return (
             obj.duration_minutes
             if isinstance(obj, Sailing)
             else obj.route.duration_minutes
         )
 
-    def get_flight_number(self, obj: Union[FlightInstance, Sailing]) -> Optional[str]:
+    def get_flight_number(self, obj: TransitLeg) -> str | None:
         return obj.route.flight_number
 
-    def get_aircraft_type(self, obj: Union[FlightInstance, Sailing]) -> Optional[str]:
+    def get_aircraft_type(self, obj: TransitLeg) -> str | None:
         return obj.route.aircraft_type
 
-    def get_days_of_operation(self, obj: Union[FlightInstance, Sailing]) -> Optional[str]:
+    def get_days_of_operation(self, obj: TransitLeg) -> str | None:
         return None if isinstance(obj, Sailing) else obj.route.days_of_operation
 
-    def get_price_text(self, obj: Union[FlightInstance, Sailing]) -> Optional[str]:
+    def get_price_text(self, obj: TransitLeg) -> str | None:
         if isinstance(obj, Sailing):
             return obj.price_text
-        if getattr(obj, "available_seats", None) == 0:
-            return "Sold Out"
-        if getattr(obj, "price_amount", None):
+        if obj.available_seats == 0:
+            return SOLD_OUT_LABEL
+        if obj.price_amount is not None:
             return f"{obj.currency} {obj.price_amount}"
         return None
 
-    def get_available_seats(self, obj: Union[FlightInstance, Sailing]) -> Optional[int]:
+    def get_available_seats(self, obj: TransitLeg) -> int | None:
         if isinstance(obj, Sailing):
             return None
-        return getattr(obj, "available_seats", None)
+        return obj.available_seats
 
-    def get_is_sold_out(self, obj: Union[FlightInstance, Sailing]) -> bool:
+    def get_is_sold_out(self, obj: TransitLeg) -> bool:
         if isinstance(obj, Sailing):
             return False
-        seats = getattr(obj, "available_seats", None)
-        return seats is not None and seats <= 0
+        return obj.available_seats is not None and obj.available_seats <= 0
 
-    def get_last_seen_at(self, obj: Union[FlightInstance, Sailing]) -> Optional[str]:
-        if hasattr(obj, "last_seen_at") and obj.last_seen_at:
+    def get_last_seen_at(self, obj: TransitLeg) -> str | None:
+        if isinstance(obj, FlightInstance) and obj.last_seen_at:
             return obj.last_seen_at.strftime("%b %d, %H:%M")
         return None
 
 
-
-
 class ReportedIssueSerializer(serializers.ModelSerializer):
+    user_note = serializers.CharField(max_length=MAX_ISSUE_NOTE_LENGTH)
+
     class Meta:
         model = ReportedIssue
-        fields = "__all__"
+        fields = ["id", "issue_type", "user_note", "resolved", "created_at"]
+        read_only_fields = ["id", "resolved", "created_at"]
