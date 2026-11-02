@@ -9,10 +9,16 @@ export interface Location {
   has_children?: boolean;
 }
 
+export interface LegEndpoint {
+  code: string;
+  name: string;
+  city?: string;
+}
+
 export interface ApiLeg {
   is_ferry: boolean;
-  origin: Location;
-  destination: Location;
+  origin: LegEndpoint;
+  destination: LegEndpoint;
   carrier: {
     code: string;
     name: string;
@@ -26,12 +32,12 @@ export interface ApiLeg {
   flight_number?: string;
   aircraft_type?: string;
   days_of_operation?: string;
-  
+
   // Cleaned up Pricing & Seats
   price_text?: string;
   available_seats?: number;
   is_sold_out?: boolean;
-  
+
   layover_text?: string;
   last_seen_at?: string;
 }
@@ -42,8 +48,17 @@ export interface Itinerary {
   legs: ApiLeg[];
 }
 
+export interface AvailableDatesResponse {
+  available_dates: string[];
+  window_start?: string;
+  window_end?: string;
+}
+
 export interface ApiResponse {
   date_was_changed: boolean;
   found_date: string;
   results: Itinerary[];
+  available_dates?: string[];
+  window_start?: string;
+  window_end?: string;
 }

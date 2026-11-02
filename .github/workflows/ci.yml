@@ -17,7 +17,6 @@ env:
   APP_NAME: "Prop & Ferry"
   REGISTRY: "ghcr.io"
   IMAGE_BACKEND: "rajivghandi767/prop-ferry-backend"
-  IMAGE_FRONTEND: "rajivghandi767/prop-ferry-frontend"
   IMAGE_NGINX: "rajivghandi767/prop-ferry-nginx"
   DISCORD_SUCCESS_COLOR: "3066993"
   DISCORD_FAIL_COLOR: "15158332"
@@ -66,21 +65,13 @@ jobs:
                        -f backend/Dockerfile.prod ./backend
           docker push ghcr.io/rajivghandi767/prop-ferry-backend --all-tags
 
-      - name: Build and Push Frontend
-        run: |
-          docker build -t ghcr.io/rajivghandi767/prop-ferry-frontend:${{ github.run_number }} \
-                       -t ghcr.io/rajivghandi767/prop-ferry-frontend:latest \
-                       --label git-commit=${{ steps.git-commit.outputs.short }} \
-                       --build-arg VITE_API_URL=https://prop-ferry-api.rajivwallace.com \
-                       -f frontend/Dockerfile.prod ./frontend
-          docker push ghcr.io/rajivghandi767/prop-ferry-frontend --all-tags
-
-      - name: Build and Push Nginx
+      - name: Build and Push Nginx (with embedded Frontend SPA)
         run: |
           docker build -t ghcr.io/rajivghandi767/prop-ferry-nginx:${{ github.run_number }} \
                        -t ghcr.io/rajivghandi767/prop-ferry-nginx:latest \
                        --label git-commit=${{ steps.git-commit.outputs.short }} \
-                       ./nginx
+                       --build-arg VITE_API_URL=https://prop-ferry-api.rajivwallace.com \
+                       -f nginx/Dockerfile .
           docker push ghcr.io/rajivghandi767/prop-ferry-nginx --all-tags
 
   notify:

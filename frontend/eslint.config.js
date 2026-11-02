@@ -35,12 +35,7 @@ export default tseslint.config(
       ],
       ...eslintReact.configs.recommended.rules,
       
-      // Relax rules for API payloads and any assignments
-      "@typescript-eslint/no-unsafe-assignment": "off",
-      "@typescript-eslint/no-unsafe-member-access": "off",
-      "@typescript-eslint/no-unsafe-argument": "off",
-      "@typescript-eslint/no-explicit-any": "off",
-      "@typescript-eslint/no-floating-promises": "off",
+      // Stylistic/ergonomic overrides while keeping strict type-safety active
       "@typescript-eslint/prefer-nullish-coalescing": "off",
       "@typescript-eslint/no-empty-function": "off",
       "@typescript-eslint/no-misused-promises": "off",

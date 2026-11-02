@@ -42,6 +42,7 @@ While the data powering the frontend is sourced **live** via the Duffel REST API
 **Backend:**
 
 - Django & Django REST Framework (DRF)
+- Python 3.14 with strict static typing (`mypy`, `django-stubs`, `djangorestframework-stubs`)
 - uv (Deterministic Package & Dependency Management)
 - PostgreSQL & Redis (Isolated container network)
 - BeautifulSoup4 (Ferry Web Scraping)
@@ -50,7 +51,7 @@ While the data powering the frontend is sourced **live** via the Duffel REST API
 **Infrastructure & CI/CD:**
 
 - Self-hosted on a Raspberry Pi 4B (DietPi OS) within a Ubiquiti UniFi segmented network
-- Docker & Docker Compose
+- Docker & Docker Compose (Consolidated multi-stage `prop-ferry-nginx` serving built SPA assets directly and reverse-proxying `/api/` to `prop-ferry-backend`)
 - GitHub Actions (Automated CI/CD Deployments & ETL Pipelines)
 - HashiCorp Vault (Secrets Management)
 - Nginx Proxy Manager & Cloudflare (Ingress & Reverse Proxy)
@@ -94,7 +95,7 @@ Sold-out flight legs are surfaced with availability warnings and a "Check Standb
 
 ### 5. Sliding Window Calendar & Available-Date Enforcement
 
-The date picker is pre-populated with only the dates known to have active routes for the selected origin/destination pair, sourced from a dedicated `/available-dates` endpoint. The backend enforces a 4-day sliding window: if no itineraries exist on the requested date, it automatically advances to the next available date and flags the UI accordingly.
+The date picker is pre-populated with only the dates known to have active routes for the selected origin/destination pair, sourced from a dedicated `/available-dates` endpoint alongside server-computed `window_start` and `window_end` bounds aligned with the Wednesday/Sunday scraper schedule. For 1-click Showcase Routes, `/api/routes/search/` automatically resolves available dates and selects the earliest active date in a single HTTP round-trip. If no itineraries exist on a requested date, the backend scans across a 4-day sliding window and automatically advances to the next available date.
 
 ---
 
@@ -193,7 +194,7 @@ This migration was executed for three critical engineering reasons:
 2. **SDK Dependency Risk:** Rather than relying on an abandoned or poorly maintained third-party SDK, the new Duffel integration utilizes standard Python `requests`. This removes a fragile dependency from the project and ensures the ETL pipeline communicates directly with the modern REST endpoints.
 3. **Distribution Networks:** Amadeus's free tier aggressively sandboxes real-world data and frequently fails to capture major US carriers (like American Airlines). Duffel's Direct Connect (NDC) integration and Hahn Air partnerships natively surface the exact flights required to make Caribbean island-hopping functional.
 
-_Note: The original Amadeus scraper (`fetch_routes.py`) remains in the repository's `backend/core/management/commands/` directory for historical context and rollback capabilities, but is flagged with a deprecation warning and is no longer executed by GitHub Actions._
+_Note: The original Amadeus scraper (`fetch_routes.py`) has been removed from the active codebase and preserved in Git history to keep the repository lean._
 
 ---
 

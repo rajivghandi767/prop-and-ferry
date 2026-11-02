@@ -20,7 +20,6 @@ env:
   DEPLOY_HOST: "10.100.10.5"
   DEPLOY_DIR: "/opt/homelab-iac/services/apps/prop-and-ferry"
   IMAGE_BACKEND: "rajivghandi767/prop-ferry-backend"
-  IMAGE_FRONTEND: "rajivghandi767/prop-ferry-frontend"
   IMAGE_NGINX: "rajivghandi767/prop-ferry-nginx"
   DISCORD_SUCCESS_COLOR: "3066993"
   DISCORD_SKIP_COLOR: "3447003"
@@ -98,21 +97,24 @@ jobs:
           CURRENT_TAG="${{ github.event.inputs.TAG_TO_DEPLOY || 'latest' }}"
           IS_MANUAL_DEPLOY="${{ github.event.inputs.FORCE_DEPLOY == 'true' }}"
           
-          # Check if the pulled image ID matches the currently running image ID
-          IMAGE_ID=$(ssh ${{ env.DEPLOY_USER }}@${{ env.DEPLOY_HOST }} "docker image inspect ${{ env.REGISTRY }}/${{ env.IMAGE_BACKEND }}:$CURRENT_TAG --format '{{.Id}}' 2>/dev/null || echo 'missing'")
-          RUNNING_ID=$(ssh ${{ env.DEPLOY_USER }}@${{ env.DEPLOY_HOST }} "cd ${{ env.DEPLOY_DIR }}; CID=\$(docker compose ps -q prop-ferry-backend 2>/dev/null); if [ ! -z \"\$CID\" ]; then docker inspect --format '{{.Image}}' \$CID; else echo 'none'; fi")
+          # Check if the pulled image IDs match the currently running image IDs
+          BACKEND_IMAGE_ID=$(ssh ${{ env.DEPLOY_USER }}@${{ env.DEPLOY_HOST }} "docker image inspect ${{ env.REGISTRY }}/${{ env.IMAGE_BACKEND }}:$CURRENT_TAG --format '{{.Id}}' 2>/dev/null || echo 'missing'")
+          BACKEND_RUNNING_ID=$(ssh ${{ env.DEPLOY_USER }}@${{ env.DEPLOY_HOST }} "cd ${{ env.DEPLOY_DIR }}; CID=\$(docker compose ps -q prop-ferry-backend 2>/dev/null); if [ ! -z \"\$CID\" ]; then docker inspect --format '{{.Image}}' \$CID; else echo 'none'; fi")
+          NGINX_IMAGE_ID=$(ssh ${{ env.DEPLOY_USER }}@${{ env.DEPLOY_HOST }} "docker image inspect ${{ env.REGISTRY }}/${{ env.IMAGE_NGINX }}:$CURRENT_TAG --format '{{.Id}}' 2>/dev/null || echo 'missing'")
+          NGINX_RUNNING_ID=$(ssh ${{ env.DEPLOY_USER }}@${{ env.DEPLOY_HOST }} "cd ${{ env.DEPLOY_DIR }}; CID=\$(docker compose ps -q prop-ferry-nginx 2>/dev/null); if [ ! -z \"\$CID\" ]; then docker inspect --format '{{.Image}}' \$CID; else echo 'none'; fi")
           
-          echo "🔎 Version Check: Running [$RUNNING_ID] vs Pulled [$IMAGE_ID]"
+          echo "🔎 Version Check (Backend): Running [$BACKEND_RUNNING_ID] vs Pulled [$BACKEND_IMAGE_ID]"
+          echo "🔎 Version Check (Nginx):   Running [$NGINX_RUNNING_ID] vs Pulled [$NGINX_IMAGE_ID]"
           
           SHOULD_DEPLOY=false
           if [ "$IS_MANUAL_DEPLOY" = "true" ]; then
               echo "⚠️ Manual Deployment requested."
               SHOULD_DEPLOY=true
-          elif [ "$IMAGE_ID" = "missing" ]; then
+          elif [ "$BACKEND_IMAGE_ID" = "missing" ] || [ "$NGINX_IMAGE_ID" = "missing" ]; then
               echo "⚠️ Failed to inspect pulled image. Forcing deploy to be safe."
               SHOULD_DEPLOY=true
-          elif [ "$IMAGE_ID" = "$RUNNING_ID" ]; then
-              echo "✅ Running image matches the latest remote image. Skipping unnecessary deploy."
+          elif [ "$BACKEND_IMAGE_ID" = "$BACKEND_RUNNING_ID" ] && [ "$NGINX_IMAGE_ID" = "$NGINX_RUNNING_ID" ]; then
+              echo "✅ Running images match the latest remote images. Skipping unnecessary deploy."
               echo "status=SKIPPED" >> $GITHUB_OUTPUT
           else
               echo "🚀 Image Change detected. Proceeding with deploy..."
@@ -138,7 +140,7 @@ jobs:
         run: |
           TIMESTAMP=$(python3 -c "from datetime import datetime,timezone,timedelta; u=datetime.now(timezone.utc); y=u.year; nxt=lambda d,w: d+timedelta(days=(w-d.weekday())%7); s=nxt(datetime(y,3,8),6); e=nxt(datetime(y,11,1),6); o,l=(-4,'EDT') if s<=u.replace(tzinfo=None)<e else (-5,'EST'); print((u+timedelta(hours=o)).strftime(f'%a, %d %b %Y at %H:%M {l}'))")
           if [ "${{ steps.deploy.outputs.status }}" == "UPDATED" ]; then
-              printf -v DESC ":unicorn: **${{ env.APP_NAME }} Update Deployed**\n**:new: New Version Live:**\n• **Tag:** ${{ github.event.inputs.TAG_TO_DEPLOY || 'latest' }}\n• **Backend:** ${{ env.IMAGE_BACKEND }}\n• **Frontend:** ${{ env.IMAGE_FRONTEND }}\n• **Nginx:** ${{ env.IMAGE_NGINX }}\n\n:bar_chart: **Status:** Healthy\n:clock4: **Time:** $TIMESTAMP"
+              printf -v DESC ":unicorn: **${{ env.APP_NAME }} Update Deployed**\n**:new: New Version Live:**\n• **Tag:** ${{ github.event.inputs.TAG_TO_DEPLOY || 'latest' }}\n• **Backend:** ${{ env.IMAGE_BACKEND }}\n• **Nginx (SPA + Proxy):** ${{ env.IMAGE_NGINX }}\n\n:bar_chart: **Status:** Healthy\n:clock4: **Time:** $TIMESTAMP"
               PAYLOAD=$(jq -n --arg title "🚀 Deployment Successful" \
                               --arg desc "$DESC" \
                               --argjson color ${{ env.DISCORD_SUCCESS_COLOR }} \

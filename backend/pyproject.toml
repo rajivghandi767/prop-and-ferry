@@ -6,7 +6,6 @@ requires-python = ">=3.14"
 dependencies = [
     "beautifulsoup4",
     "django",
-    "django-filter",
     "django-prometheus",
     "djangorestframework",
     "redis",
@@ -20,7 +19,10 @@ prod = [
 ]
 dev = [
     "django-cors-headers",
+    "django-stubs[compatible-mypy]",
+    "djangorestframework-stubs[compatible-mypy]",
+    "mypy",
     "psycopg[binary]",
-    "pytest",
-    "pytest-django",
+    "types-beautifulsoup4",
+    "types-requests",
 ]

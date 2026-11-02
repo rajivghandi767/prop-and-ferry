@@ -9,6 +9,7 @@ from django.db import transaction
 from django.core.management.base import BaseCommand
 from core.models import Location, Route, Carrier, Sailing
 from core.constants import (
+    DEFAULT_FERRY_DURATION_MINS,
     PORT_ROSEAU,
     PORT_PTP,
     PORT_FDF,
@@ -269,7 +270,7 @@ class Command(BaseCommand):
                 if len(times) >= 2:
                     dep_time = times[0].get_text(strip=True)
                     arr_time = times[1].get_text(strip=True)
-                    duration_mins = 120
+                    duration_mins = DEFAULT_FERRY_DURATION_MINS
                     if match := re.search(r"(\d+)h(\d+)", dur_node.strip()):
                         duration_mins = (int(match.group(1)) * 60) + int(match.group(2))
 
@@ -296,7 +297,7 @@ class Command(BaseCommand):
                         date=date_obj,
                         departure_time=times[i].get_text(strip=True),
                         arrival_time=times[i + 1].get_text(strip=True),
-                        duration_minutes=120,
+                        duration_minutes=DEFAULT_FERRY_DURATION_MINS,
                         price_text=price_text,
                     )
                 )
@@ -329,5 +330,5 @@ class Command(BaseCommand):
             today = datetime.now().date()
             year = today.year + 1 if month < today.month - 2 else today.year
             return datetime(year, month, day).date()
-        except:
+        except (ValueError, TypeError, IndexError):
             return None

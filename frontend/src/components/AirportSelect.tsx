@@ -31,8 +31,8 @@ export function AirportSelect({
           setLocations(data);
         }
       })
-      .catch((err) => {
-        if (err.name !== "AbortError") {
+      .catch((err: unknown) => {
+        if (err instanceof Error && err.name !== "AbortError") {
           console.error("Failed to load locations", err);
         }
       });
@@ -49,28 +49,19 @@ export function AirportSelect({
    * Filter Logic for Airport Selection
    *
    * As users type, we filter the fetched locations by code, city, or name.
-   * Crucially, we must hide sub-terminals (like specific ferry docks that are logically 
-   * grouped under a parent island airport code) from the main search results.
-   * 
-   * Example: If 'DMROS' (Roseau Ferry) is a child of 'DOM' (Dominica Airport), 
-   * we only want the user to select 'DOM'. Our backend routing logic handles 
-   * expanding 'DOM' into ['DOM', 'DMROS'] automatically under the hood.
+   * Internal sub-terminals (ferry ports grouped under a parent island airport code)
+   * are already excluded by the backend `LocationViewSet`, and the backend routing
+   * stitcher automatically expands parent codes into their sub-locations.
    */
   useEffect(() => {
     if (query.length > 0) {
       const lowerQuery = query.toLowerCase();
-      const results = locations.filter((loc) => {
-        const matchesSearch =
+      const results = locations.filter(
+        (loc) =>
           (loc.code || "").toLowerCase().includes(lowerQuery) ||
           (loc.city || "").toLowerCase().includes(lowerQuery) ||
-          (loc.name || "").toLowerCase().includes(lowerQuery);
-
-        // Identify internal sub-terminals (e.g. Ferry ports with a parent airport assigned)
-        const isHidden =
-          loc.location_type === "PRT" && loc.parent_code !== null;
-
-        return matchesSearch && !isHidden;
-      });
+          (loc.name || "").toLowerCase().includes(lowerQuery),
+      );
       setFiltered(results);
     } else {
       setFiltered([]);

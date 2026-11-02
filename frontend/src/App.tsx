@@ -12,13 +12,13 @@ import { LeanCalendar } from "./components/LeanCalendar";
 import { LazySection } from "./components/LazySection";
 import { ShowcasePills } from "./components/ShowcasePills";
 import { fetchAvailableDates, searchRoutes } from "./utils/api";
+import { toISODate } from "./utils/dateUtils";
 import { usePortfolioData } from "./hooks/usePortfolioData";
 
-const getTomorrowString = () => {
-  const pad = (n: number) => n.toString().padStart(2, "0");
+const getTomorrowString = (): string => {
   const d = new Date();
   d.setDate(d.getDate() + 1);
-  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
+  return toISODate(d);
 };
 
 const parseDateLocal = (dateStr: string) => {
@@ -67,8 +67,11 @@ function App() {
   const [searchedDate, setSearchedDate] = useState("");
 
   const [availableDates, setAvailableDates] = useState<string[]>([]);
+  const [windowStart, setWindowStart] = useState<string | undefined>(undefined);
+  const [windowEnd, setWindowEnd] = useState<string | undefined>(undefined);
   const [isCalendarOpen, setIsCalendarOpen] = useState(false);
   const calendarRef = useRef<HTMLDivElement>(null);
+  const skipNextDatesFetchRef = useRef(false);
 
   const [itineraries, setItineraries] = useState<Itinerary[]>([]);
   const [filter, setFilter] = useState<FilterType>("all");
@@ -79,16 +82,23 @@ function App() {
 
   /**
    * Effect: Fetch Available Dates
-   * 
+   *
    * As soon as both origin and destination have valid selections (length >= 3),
-   * we pre-fetch the available dates for this route. This prevents users from
-   * selecting dates on the calendar where no routes exist.
+   * we pre-fetch the available dates and server sliding-window bounds for this route.
+   * When a 1-click Showcase Route triggers a search directly, `skipNextDatesFetchRef`
+   * suppresses this duplicate call since `/api/routes/search/` returns `available_dates`.
    */
   useEffect(() => {
+    if (skipNextDatesFetchRef.current) {
+      skipNextDatesFetchRef.current = false;
+      return;
+    }
     if (origin.length >= 3 && destination.length >= 3) {
       fetchAvailableDates(origin, destination)
         .then((data) => {
           if (data.available_dates) setAvailableDates(data.available_dates);
+          if (data.window_start) setWindowStart(data.window_start);
+          if (data.window_end) setWindowEnd(data.window_end);
         })
         .catch(console.error);
     } else {
@@ -116,42 +126,71 @@ function App() {
 
   /**
    * Orchestrates the search process.
-   * 
-   * This function resets the UI state, makes the API call to searchRoutes,
-   * and handles the response. It notably manages a "date_was_changed" 
-   * scenario where the API might automatically bump the search date forward 
-   * if no itineraries exist on the initially requested date.
    *
-   * @param searchDate - The ISO formatted date string (YYYY-MM-DD) to search
+   * Resets UI state, calls `searchRoutes`, and updates itineraries and server
+   * sliding-window metadata. When `searchDate` is omitted (e.g. Showcase Route
+   * 1-click selection), the backend resolves available dates and selects the
+   * earliest active date in a single round-trip.
    */
-  const performSearch = async (searchDate: string, currentFilter: FilterType = "all") => {
+  const performSearch = async (
+    searchDate?: string,
+    currentFilter: FilterType = "all",
+    overrideOrigin?: string,
+    overrideDest?: string,
+  ) => {
+    const activeOrigin = overrideOrigin ?? origin;
+    const activeDest = overrideDest ?? destination;
+
     setLoading(true);
     setError("");
     setItineraries([]);
     setDateChanged(false);
-    setDisplayDate(searchDate);
-    setSearchedDate(searchDate);
+    if (searchDate) {
+      setDisplayDate(searchDate);
+      setSearchedDate(searchDate);
+    }
     setFilter(currentFilter);
 
     try {
-      const data: ApiResponse = await searchRoutes(origin, destination, searchDate, currentFilter);
+      const data: ApiResponse = await searchRoutes(
+        activeOrigin,
+        activeDest,
+        searchDate,
+        currentFilter,
+      );
+
+      if (data.available_dates) {
+        setAvailableDates(data.available_dates);
+      }
+      if (data.window_start) {
+        setWindowStart(data.window_start);
+      }
+      if (data.window_end) {
+        setWindowEnd(data.window_end);
+      }
+
+      const resolvedDate = data.found_date || searchDate || getTomorrowString();
+      if (!searchDate) {
+        setDate(resolvedDate);
+        setSearchedDate(resolvedDate);
+      }
 
       if (data.date_was_changed) {
         setDateChanged(true);
         setDisplayDate(data.found_date);
         setDate(data.found_date);
       } else {
-        setDisplayDate(data.found_date || searchDate);
+        setDisplayDate(resolvedDate);
       }
 
       setItineraries(data.results);
       if (data.results.length === 0) {
         setError(
-          `No routes found from ${origin} to ${destination} within the next 3 days.`,
+          `No routes found from ${activeOrigin} to ${activeDest} within the current rolling window.`,
         );
       }
-    } catch (err: any) {
-      setError(err.message || "An error occurred");
+    } catch (err: unknown) {
+      setError(err instanceof Error ? err.message : "An error occurred");
     } finally {
       setLoading(false);
     }
@@ -160,76 +199,31 @@ function App() {
   const handleSearchSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     setIsCalendarOpen(false);
-    performSearch(date, "all");
+    void performSearch(date, "all");
   };
 
   const handleDateSelect = (selectedDate: Date) => {
-    const pad = (n: number) => n.toString().padStart(2, "0");
-    const dateStr = `${selectedDate.getFullYear()}-${pad(selectedDate.getMonth() + 1)}-${pad(selectedDate.getDate())}`;
+    const dateStr = toISODate(selectedDate);
 
     setDate(dateStr);
     setIsCalendarOpen(false);
 
-    if (origin && destination) performSearch(dateStr, filter);
+    if (origin && destination) void performSearch(dateStr, filter);
   };
 
   const handleFilterChange = (newFilter: FilterType) => {
     setFilter(newFilter);
     if (origin && destination) {
-      performSearch(searchedDate || date, newFilter);
+      void performSearch(searchedDate || date, newFilter);
     }
   };
 
-  const handleSelectShowcaseRoute = async (newOrigin: string, newDest: string) => {
+  const handleSelectShowcaseRoute = (newOrigin: string, newDest: string) => {
+    skipNextDatesFetchRef.current = true;
     setOrigin(newOrigin);
     setDestination(newDest);
     setIsCalendarOpen(false);
-
-    try {
-      const datesData = await fetchAvailableDates(newOrigin, newDest);
-      const available = datesData.available_dates || [];
-      setAvailableDates(available);
-
-      // Prefer the earliest active date if available; otherwise use tomorrow
-      const searchTargetDate =
-        available.length > 0 ? available[0] : getTomorrowString();
-      setDate(searchTargetDate);
-
-      // Perform search directly with new params
-      setLoading(true);
-      setError("");
-      setItineraries([]);
-      setDateChanged(false);
-      setDisplayDate(searchTargetDate);
-      setSearchedDate(searchTargetDate);
-      setFilter("all");
-
-      const searchData: ApiResponse = await searchRoutes(
-        newOrigin,
-        newDest,
-        searchTargetDate,
-        "all",
-      );
-
-      if (searchData.date_was_changed) {
-        setDateChanged(true);
-        setDisplayDate(searchData.found_date);
-        setDate(searchData.found_date);
-      } else {
-        setDisplayDate(searchData.found_date || searchTargetDate);
-      }
-
-      setItineraries(searchData.results);
-      if (searchData.results.length === 0) {
-        setError(
-          `No routes found from ${newOrigin} to ${newDest} within the current rolling window.`,
-        );
-      }
-    } catch (err: any) {
-      setError(err.message || "An error occurred");
-    } finally {
-      setLoading(false);
-    }
+    void performSearch(undefined, "all", newOrigin, newDest);
   };
 
 
@@ -321,6 +315,8 @@ function App() {
                     selectedDate={parseDateLocal(date)}
                     onDateSelect={handleDateSelect}
                     availableDates={availableDates}
+                    windowStart={windowStart}
+                    windowEnd={windowEnd}
                   />
                 </div>
               )}
@@ -366,6 +362,8 @@ function App() {
                 selectedDate={parseDateLocal(displayDate)}
                 onDateSelect={handleDateSelect}
                 availableDates={availableDates}
+                windowStart={windowStart}
+                windowEnd={windowEnd}
               />
             </div>
           )}

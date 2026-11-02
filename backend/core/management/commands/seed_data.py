@@ -2,7 +2,7 @@ import logging
 from typing import Any
 from datetime import datetime, timedelta
 from django.core.management.base import BaseCommand
-from core.models import Location, Carrier, Route, FlightInstance
+from core.models import Location, Carrier, Route, FlightInstance, Sailing
 
 logger = logging.getLogger(__name__)
 
@@ -13,6 +13,7 @@ class Command(BaseCommand):
     def handle(self, *args: Any, **kwargs: Any) -> None:
         self.stdout.write(
             "🧹 Wiping existing network data to ensure a fresh state...")
+        Sailing.objects.all().delete()
         FlightInstance.objects.all().delete()
         Route.objects.all().delete()
         Location.objects.all().delete()
@@ -133,16 +134,29 @@ class Command(BaseCommand):
 
             # Generate searchable dates for the next 7 days
             today = datetime.now().date()
+            is_sea = carriers[carrier].carrier_type == Carrier.CarrierType.SEA
             for i in range(7):
-                FlightInstance.objects.update_or_create(
-                    route=route,
-                    date=today + timedelta(days=i),
-                    defaults={
-                        "price_amount": 199.99,
-                        "currency": "USD",
-                        "available_seats": 9,
-                    },
-                )
+                if is_sea:
+                    Sailing.objects.update_or_create(
+                        route=route,
+                        date=today + timedelta(days=i),
+                        departure_time=dep_time,
+                        defaults={
+                            "arrival_time": arr_time,
+                            "duration_minutes": dur_min,
+                            "price_text": "€89",
+                        },
+                    )
+                else:
+                    FlightInstance.objects.update_or_create(
+                        route=route,
+                        date=today + timedelta(days=i),
+                        defaults={
+                            "price_amount": 199.99,
+                            "currency": "USD",
+                            "available_seats": 9,
+                        },
+                    )
 
         self.stdout.write("✈️ Building Flight Network Graph...")
         create_route("CDG", "SXM", "AF", "10:30",

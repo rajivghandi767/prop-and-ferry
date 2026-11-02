@@ -56,7 +56,7 @@ export function ReportModal() {
       </button>
 
       {isOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-60 backdrop-blur-sm p-4">
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4">
           <div className="bg-bg-light dark:bg-bg-dark text-brand-light dark:text-brand-dark border border-gray-200 dark:border-neutral-800 rounded-lg p-6 w-full max-w-md shadow-2xl relative transition-colors duration-200">
             <button
               onClick={() => setIsOpen(false)}
@@ -72,7 +72,7 @@ export function ReportModal() {
                 Thanks for the heads up! We'll look into it.
               </div>
             ) : (
-              <form onSubmit={handleSubmit} className="space-y-4">
+              <form onSubmit={(e) => void handleSubmit(e)} className="space-y-4">
                 <div>
                   <label className="block text-sm font-medium mb-1 opacity-80">
                     What's wrong?
