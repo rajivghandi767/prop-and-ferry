@@ -35,8 +35,8 @@ While the data powering the frontend is sourced **live** via the Duffel REST API
 
 **Frontend:**
 
-- React 19 & TypeScript
-- Tailwind CSS v4 (Custom UI with Dark/Light mode)
+- React 19 & TypeScript (Strict Type-Checked ESLint & Vitest across `src/` and test suites)
+- Tailwind CSS v4 (Custom UI with Dark/Light mode & deduplicated portfolio metadata hooks)
 - Vite
 
 **Backend:**
@@ -63,15 +63,16 @@ While the data powering the frontend is sourced **live** via the Duffel REST API
 
 ### 1. In-Memory Graph Traversal (The "Stitcher")
 
-Rather than relying on computationally expensive recursive SQL queries, the backend pulls normalized route data and uses O(1) set lookups to map topologies in memory. The stitcher natively understands overnight delays, dynamically flagging connections that require a hotel stay before an onward ferry transfer. Multi-leg itineraries are assembled by pairing Leg 1 (international gateway → Caribbean hub) with Leg 2 (hub → Dominica, either via flight or ferry), with timing constraints enforced per mode (minimum 2-hour plane-to-ferry connection window).
+Rather than relying on computationally expensive recursive SQL queries, the backend pulls normalized route data and uses O(1) dictionary and set lookups (`locs_dict`, `carriers_dict`) to map topologies in memory. Under a strict **Smart Server / Dumb Client** architecture, `RouteSearchService` enriches each leg with server-computed presentation metadata (`segment_number`, `total_segments`, `leg_type`) so the React frontend renders itineraries with zero domain logic. The stitcher natively understands overnight delays, dynamically flagging connections that require a hotel stay before an onward ferry transfer. Multi-leg itineraries are assembled by pairing Leg 1 (international gateway → Caribbean hub) with Leg 2 (hub → Dominica, either via flight or ferry), with timing constraints enforced per mode (minimum 2-hour plane-to-ferry connection window).
 
 ### 2. Backend API & Aggressive Redis Caching
 
-Prop & Ferry calculates multi-leg travel itineraries by stitching together intersecting flights and marine sailings. Because computing dynamic routing with overnight layover logic is computationally expensive, the Backend API is heavily optimized:
+Prop & Ferry calculates multi-leg travel itineraries by stitching together intersecting flights and marine sailings. Because computing dynamic routing with overnight layover logic is computationally expensive, the Backend API is heavily optimized and hardened:
 
 - **Pre-Serialization Caching:** Instead of caching raw Django HTTP responses (which breaks Django REST Framework serialization and CORS), the app intercepts requests at the view level and caches raw Python dictionary payloads in Redis. 
 - **Idempotent Search Results:** Complex route calculations are cached dynamically using a combined `{origin}_{destination}_{date}` cache key. This guarantees that duplicate searches from users exploring the same routes result in instantaneous, memory-served responses.
 - **Static Reference Caching:** High-volume initialization endpoints (like the complete lists of Locations and Carriers) are cached for extended periods, reducing the initial frontend load time to mere milliseconds and preventing database I/O bloat.
+- **Endpoint Hardening & Rate Limiting:** Issue and feedback submissions (`FeedbackCreateView`) are locked to `POST`-only with DRF `ScopedRateThrottle` (`20/hour`) and strict `1000`-character message length enforcement.
 
 ### 3. Dual-Source ETL Pipeline
 
