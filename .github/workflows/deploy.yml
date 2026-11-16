@@ -1,6 +1,18 @@
 name: Deployment Pipeline
 
 on:
+  workflow_call:
+    inputs:
+      TAG_TO_DEPLOY:
+        description: 'Image Version to Deploy'
+        required: false
+        default: 'latest'
+        type: string
+      FORCE_DEPLOY:
+        description: 'Force deployment even if no changes'
+        required: false
+        default: false
+        type: boolean
   workflow_dispatch:
     inputs:
       TAG_TO_DEPLOY:
@@ -12,6 +24,10 @@ on:
         required: false
         type: boolean
         default: false
+
+concurrency:
+  group: deploy-prop-and-ferry
+  cancel-in-progress: false
 
 env:
   APP_NAME: "Prop & Ferry"
@@ -29,6 +45,55 @@ jobs:
   deploy:
     runs-on: self-hosted
     steps:
+      - name: Record Job Start
+        id: timing
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          python3 - << 'PY'
+          import json, os, urllib.request
+          from datetime import datetime, timezone, timedelta
+
+          def fmt_et(dt_utc: datetime) -> str:
+              y = dt_utc.year
+              nxt = lambda d, w: d + timedelta(days=(w - d.weekday()) % 7)
+              dst_start = nxt(datetime(y, 3, 8, 7, 0, tzinfo=timezone.utc), 6)
+              dst_end = nxt(datetime(y, 11, 1, 6, 0, tzinfo=timezone.utc), 6)
+              offset, tz = (-4, "EDT") if dst_start <= dt_utc < dst_end else (-5, "EST")
+              return (dt_utc + timedelta(hours=offset)).strftime(f"%a, %d %b %Y at %H:%M:%S {tz}")
+
+          now_utc = datetime.now(timezone.utc)
+          started_epoch = int(now_utc.timestamp())
+          started_iso = now_utc.strftime("%Y-%m-%dT%H:%M:%SZ")
+          started_et = fmt_et(now_utc)
+          triggered_et = started_et
+          queue_sec = 0
+
+          try:
+              url = f"{os.environ['GITHUB_API_URL']}/repos/{os.environ['GITHUB_REPOSITORY']}/actions/runs/{os.environ['GITHUB_RUN_ID']}"
+              req = urllib.request.Request(url, headers={
+                  "Authorization": f"Bearer {os.environ.get('GH_TOKEN', '')}",
+                  "Accept": "application/vnd.github+json",
+              })
+              with urllib.request.urlopen(req, timeout=5) as resp:
+                  data = json.loads(resp.read().decode("utf-8"))
+              created_str = data.get("created_at")
+              if created_str:
+                  created_utc = datetime.fromisoformat(created_str.replace("Z", "+00:00"))
+                  triggered_et = fmt_et(created_utc)
+                  queue_sec = max(0, started_epoch - int(created_utc.timestamp()))
+          except Exception:
+              pass
+
+          queue_str = f"+{queue_sec // 60}m {queue_sec % 60}s queue" if queue_sec >= 60 else f"+{queue_sec}s queue"
+          with open(os.environ["GITHUB_OUTPUT"], "a", encoding="utf-8") as fh:
+              fh.write(f"started_epoch={started_epoch}\n")
+              fh.write(f"started_iso={started_iso}\n")
+              fh.write(f"started_et={started_et}\n")
+              fh.write(f"triggered_et={triggered_et}\n")
+              fh.write(f"queue_str={queue_str}\n")
+          PY
+
       - uses: actions/checkout@v4
 
       - name: Import Secrets from Vault
@@ -55,7 +120,7 @@ jobs:
       - name: Generate .env.prod
         run: |
           cat << 'EOF' > .env.prod
-          IMAGE_TAG='${{ github.event.inputs.TAG_TO_DEPLOY || 'latest' }}'
+          IMAGE_TAG='${{ inputs.TAG_TO_DEPLOY || github.event.inputs.TAG_TO_DEPLOY || 'latest' }}'
           DJANGO_SECRET_KEY='${{ env.DJANGO_SECRET_KEY }}'
           ALLOWED_HOSTS='${{ env.ALLOWED_HOSTS }}'
           CSRF_TRUSTED_ORIGINS='${{ env.CSRF_TRUSTED_ORIGINS }}'
@@ -88,24 +153,23 @@ jobs:
 
       - name: Pull Latest Images (Locked)
         run: |
-          CURRENT_TAG="${{ github.event.inputs.TAG_TO_DEPLOY || 'latest' }}"
+          CURRENT_TAG="${{ inputs.TAG_TO_DEPLOY || github.event.inputs.TAG_TO_DEPLOY || 'latest' }}"
           ssh ${{ env.DEPLOY_USER }}@${{ env.DEPLOY_HOST }} "exec 9>/tmp/ghcr_pull.lock; flock -w 300 9; echo \"${{ secrets.GITHUB_TOKEN }}\" | docker login ${{ env.REGISTRY }} -u ${{ github.actor }} --password-stdin && cd ${{ env.DEPLOY_DIR }} && IMAGE_TAG=$CURRENT_TAG docker compose pull -q"
 
-      - name: Check Versions and Deploy
+      - name: Check Versions and Deploy (Serialized on Pi)
         id: deploy
         run: |
-          CURRENT_TAG="${{ github.event.inputs.TAG_TO_DEPLOY || 'latest' }}"
-          IS_MANUAL_DEPLOY="${{ github.event.inputs.FORCE_DEPLOY == 'true' }}"
-          
-          # Check if the pulled image IDs match the currently running image IDs
+          CURRENT_TAG="${{ inputs.TAG_TO_DEPLOY || github.event.inputs.TAG_TO_DEPLOY || 'latest' }}"
+          IS_MANUAL_DEPLOY="${{ (inputs.FORCE_DEPLOY || github.event.inputs.FORCE_DEPLOY) == 'true' }}"
+
           BACKEND_IMAGE_ID=$(ssh ${{ env.DEPLOY_USER }}@${{ env.DEPLOY_HOST }} "docker image inspect ${{ env.REGISTRY }}/${{ env.IMAGE_BACKEND }}:$CURRENT_TAG --format '{{.Id}}' 2>/dev/null || echo 'missing'")
           BACKEND_RUNNING_ID=$(ssh ${{ env.DEPLOY_USER }}@${{ env.DEPLOY_HOST }} "cd ${{ env.DEPLOY_DIR }}; CID=\$(docker compose ps -q prop-ferry-backend 2>/dev/null); if [ ! -z \"\$CID\" ]; then docker inspect --format '{{.Image}}' \$CID; else echo 'none'; fi")
           NGINX_IMAGE_ID=$(ssh ${{ env.DEPLOY_USER }}@${{ env.DEPLOY_HOST }} "docker image inspect ${{ env.REGISTRY }}/${{ env.IMAGE_NGINX }}:$CURRENT_TAG --format '{{.Id}}' 2>/dev/null || echo 'missing'")
           NGINX_RUNNING_ID=$(ssh ${{ env.DEPLOY_USER }}@${{ env.DEPLOY_HOST }} "cd ${{ env.DEPLOY_DIR }}; CID=\$(docker compose ps -q prop-ferry-nginx 2>/dev/null); if [ ! -z \"\$CID\" ]; then docker inspect --format '{{.Image}}' \$CID; else echo 'none'; fi")
-          
+
           echo "🔎 Version Check (Backend): Running [$BACKEND_RUNNING_ID] vs Pulled [$BACKEND_IMAGE_ID]"
           echo "🔎 Version Check (Nginx):   Running [$NGINX_RUNNING_ID] vs Pulled [$NGINX_IMAGE_ID]"
-          
+
           SHOULD_DEPLOY=false
           if [ "$IS_MANUAL_DEPLOY" = "true" ]; then
               echo "⚠️ Manual Deployment requested."
@@ -120,47 +184,95 @@ jobs:
               echo "🚀 Image Change detected. Proceeding with deploy..."
               SHOULD_DEPLOY=true
           fi
-          
+
           if [ "$SHOULD_DEPLOY" = "true" ]; then
-              echo "🚀 Deploying and checking container health..."
-              if ! ssh ${{ env.DEPLOY_USER }}@${{ env.DEPLOY_HOST }} "cd ${{ env.DEPLOY_DIR }} && chmod 600 .env && IMAGE_TAG=$CURRENT_TAG docker compose up -d --wait --remove-orphans"; then
+              echo "🚀 Deploying and checking container health (serialized via /tmp/pi_app_deploy.lock)..."
+              if ! ssh ${{ env.DEPLOY_USER }}@${{ env.DEPLOY_HOST }} "exec 9>/tmp/pi_app_deploy.lock; flock -w 600 9; cd ${{ env.DEPLOY_DIR }} && chmod 600 .env && IMAGE_TAG=$CURRENT_TAG docker compose up -d --wait --remove-orphans"; then
                   echo "🚨 Healthchecks failed! Reverting to last stable tag..."
-                  ssh ${{ env.DEPLOY_USER }}@${{ env.DEPLOY_HOST }} "cd ${{ env.DEPLOY_DIR }} && if [ -f .env.bak ]; then mv .env.bak .env; docker compose up -d --remove-orphans; fi"
+                  ssh ${{ env.DEPLOY_USER }}@${{ env.DEPLOY_HOST }} "exec 9>/tmp/pi_app_deploy.lock; flock -w 600 9; cd ${{ env.DEPLOY_DIR }} && if [ -f .env.bak ]; then mv .env.bak .env; docker compose up -d --remove-orphans; fi"
                   exit 1
               fi
               ssh ${{ env.DEPLOY_USER }}@${{ env.DEPLOY_HOST }} "cd ${{ env.DEPLOY_DIR }} && rm -f .env.bak && docker image prune -f"
               echo "status=UPDATED" >> $GITHUB_OUTPUT
           fi
-          
+
           ssh ${{ env.DEPLOY_USER }}@${{ env.DEPLOY_HOST }} "docker logout ${{ env.REGISTRY }}"
-          rm .env.prod
+          rm -f .env.prod
 
       - name: Notify Success
         if: success()
+        env:
+          STARTED_EPOCH: ${{ steps.timing.outputs.started_epoch }}
+          STARTED_ISO: ${{ steps.timing.outputs.started_iso }}
+          STARTED_ET: ${{ steps.timing.outputs.started_et }}
+          TRIGGERED_ET: ${{ steps.timing.outputs.triggered_et }}
+          QUEUE_STR: ${{ steps.timing.outputs.queue_str }}
         run: |
-          TIMESTAMP=$(python3 -c "from datetime import datetime,timezone,timedelta; u=datetime.now(timezone.utc); y=u.year; nxt=lambda d,w: d+timedelta(days=(w-d.weekday())%7); s=nxt(datetime(y,3,8),6); e=nxt(datetime(y,11,1),6); o,l=(-4,'EDT') if s<=u.replace(tzinfo=None)<e else (-5,'EST'); print((u+timedelta(hours=o)).strftime(f'%a, %d %b %Y at %H:%M {l}'))")
+          IFS=$'\t' read -r FINISHED_ET DURATION_STR < <(python3 - "${STARTED_EPOCH:-0}" << 'PY'
+          import sys
+          from datetime import datetime, timezone, timedelta
+          started_epoch = int(sys.argv[1] or 0)
+          now_utc = datetime.now(timezone.utc)
+          y = now_utc.year
+          nxt = lambda d, w: d + timedelta(days=(w - d.weekday()) % 7)
+          dst_start = nxt(datetime(y, 3, 8, 7, 0, tzinfo=timezone.utc), 6)
+          dst_end = nxt(datetime(y, 11, 1, 6, 0, tzinfo=timezone.utc), 6)
+          offset, tz = (-4, "EDT") if dst_start <= now_utc < dst_end else (-5, "EST")
+          finished_et = (now_utc + timedelta(hours=offset)).strftime(f"%a, %d %b %Y at %H:%M:%S {tz}")
+          dur = max(0, int(now_utc.timestamp()) - started_epoch) if started_epoch else 0
+          dur_str = f"{dur // 60}m {dur % 60:02d}s" if dur >= 60 else f"{dur}s"
+          print(f"{finished_et}\t{dur_str}")
+          PY
+          )
+          TS_ISO="${STARTED_ISO:-$(date -u +"%Y-%m-%dT%H:%M:%SZ")}"
+          CURRENT_TAG="${{ inputs.TAG_TO_DEPLOY || github.event.inputs.TAG_TO_DEPLOY || 'latest' }}"
           if [ "${{ steps.deploy.outputs.status }}" == "UPDATED" ]; then
-              printf -v DESC ":unicorn: **${{ env.APP_NAME }} Update Deployed**\n**:new: New Version Live:**\n• **Tag:** ${{ github.event.inputs.TAG_TO_DEPLOY || 'latest' }}\n• **Backend:** ${{ env.IMAGE_BACKEND }}\n• **Nginx (SPA + Proxy):** ${{ env.IMAGE_NGINX }}\n\n:bar_chart: **Status:** Healthy\n:clock4: **Time:** $TIMESTAMP"
+              printf -v DESC ":unicorn: **${{ env.APP_NAME }} Update Deployed**\n**:new: New Version Live:**\n• **Tag:** $CURRENT_TAG\n• **Backend:** ${{ env.IMAGE_BACKEND }}\n• **Nginx (SPA + API Proxy):** ${{ env.IMAGE_NGINX }}\n\n:bar_chart: **Status:** Healthy\n:clock3: **Triggered:** ${TRIGGERED_ET}\n:strawberry: **Pi Runner Started:** ${STARTED_ET} (${QUEUE_STR})\n:checkered_flag: **Finished:** ${FINISHED_ET} (${DURATION_STR})"
               PAYLOAD=$(jq -n --arg title "🚀 Deployment Successful" \
                               --arg desc "$DESC" \
+                              --arg ts "$TS_ISO" \
                               --argjson color ${{ env.DISCORD_SUCCESS_COLOR }} \
-                              '{embeds: [{title: $title, description: $desc, color: $color}]}')
+                              '{embeds: [{title: $title, description: $desc, color: $color, timestamp: $ts}]}')
           else
-              printf -v DESC ":shield: **${{ env.APP_NAME }} Up to Date**\nNo new code changes found for tag: **${{ github.event.inputs.TAG_TO_DEPLOY || 'latest' }}**.\nRunning services remain unchanged.\n\n:clock4: **Time:** $TIMESTAMP"
+              printf -v DESC ":shield: **${{ env.APP_NAME }} Up to Date**\nNo new code changes found for tag: **$CURRENT_TAG**.\nRunning services remain unchanged.\n\n:clock3: **Triggered:** ${TRIGGERED_ET}\n:strawberry: **Pi Runner Started:** ${STARTED_ET} (${QUEUE_STR})\n:checkered_flag: **Finished:** ${FINISHED_ET} (${DURATION_STR})"
               PAYLOAD=$(jq -n --arg title "✅ Check Complete: No Changes" \
                               --arg desc "$DESC" \
+                              --arg ts "$TS_ISO" \
                               --argjson color ${{ env.DISCORD_SKIP_COLOR }} \
-                              '{embeds: [{title: $title, description: $desc, color: $color}]}')
+                              '{embeds: [{title: $title, description: $desc, color: $color, timestamp: $ts}]}')
           fi
           curl -s --max-time 10 -H "Content-Type: application/json" -X POST -d "$PAYLOAD" ${{ secrets.DISCORD_WEBHOOK_URL_GITHUB }} || true
 
       - name: Notify Failure
         if: failure()
+        env:
+          STARTED_EPOCH: ${{ steps.timing.outputs.started_epoch }}
+          STARTED_ISO: ${{ steps.timing.outputs.started_iso }}
+          STARTED_ET: ${{ steps.timing.outputs.started_et }}
+          TRIGGERED_ET: ${{ steps.timing.outputs.triggered_et }}
+          QUEUE_STR: ${{ steps.timing.outputs.queue_str }}
         run: |
-          TIMESTAMP=$(python3 -c "from datetime import datetime,timezone,timedelta; u=datetime.now(timezone.utc); y=u.year; nxt=lambda d,w: d+timedelta(days=(w-d.weekday())%7); s=nxt(datetime(y,3,8),6); e=nxt(datetime(y,11,1),6); o,l=(-4,'EDT') if s<=u.replace(tzinfo=None)<e else (-5,'EST'); print((u+timedelta(hours=o)).strftime(f'%a, %d %b %Y at %H:%M {l}'))")
-          printf -v DESC ":x: **${{ env.APP_NAME }} Deployment Failed**\n**:warning: Error Details:**\nCheck GitHub Actions logs for run #${{ github.run_number }}.\n:wrench: **Action Required:** Manual intervention needed.\n\n:clock4: **Time:** $TIMESTAMP"
+          IFS=$'\t' read -r FINISHED_ET DURATION_STR < <(python3 - "${STARTED_EPOCH:-0}" << 'PY'
+          import sys
+          from datetime import datetime, timezone, timedelta
+          started_epoch = int(sys.argv[1] or 0)
+          now_utc = datetime.now(timezone.utc)
+          y = now_utc.year
+          nxt = lambda d, w: d + timedelta(days=(w - d.weekday()) % 7)
+          dst_start = nxt(datetime(y, 3, 8, 7, 0, tzinfo=timezone.utc), 6)
+          dst_end = nxt(datetime(y, 11, 1, 6, 0, tzinfo=timezone.utc), 6)
+          offset, tz = (-4, "EDT") if dst_start <= now_utc < dst_end else (-5, "EST")
+          finished_et = (now_utc + timedelta(hours=offset)).strftime(f"%a, %d %b %Y at %H:%M:%S {tz}")
+          dur = max(0, int(now_utc.timestamp()) - started_epoch) if started_epoch else 0
+          dur_str = f"{dur // 60}m {dur % 60:02d}s" if dur >= 60 else f"{dur}s"
+          print(f"{finished_et}\t{dur_str}")
+          PY
+          )
+          TS_ISO="${STARTED_ISO:-$(date -u +"%Y-%m-%dT%H:%M:%SZ")}"
+          printf -v DESC ":x: **${{ env.APP_NAME }} Deployment Failed**\n**:warning: Error Details:**\nCheck GitHub Actions logs for run #${{ github.run_number }}.\n:wrench: **Action Required:** Manual intervention needed.\n\n:clock3: **Triggered:** ${TRIGGERED_ET}\n:strawberry: **Pi Runner Started:** ${STARTED_ET} (${QUEUE_STR})\n:checkered_flag: **Failed:** ${FINISHED_ET} (${DURATION_STR})"
           PAYLOAD=$(jq -n --arg title "🚨 Deployment Alert" \
                           --arg desc "$DESC" \
+                          --arg ts "$TS_ISO" \
                           --argjson color ${{ env.DISCORD_FAIL_COLOR }} \
-                          '{embeds: [{title: $title, description: $desc, color: $color}]}')
+                          '{embeds: [{title: $title, description: $desc, color: $color, timestamp: $ts}]}')
           curl -s --max-time 10 -H "Content-Type: application/json" -X POST -d "$PAYLOAD" ${{ secrets.DISCORD_WEBHOOK_URL_GITHUB }} || true
