@@ -62,6 +62,12 @@ services:
       - prop-ferry_logs:/home/backend/django/logs
     user: "backend:backend_group"
     command: ["python", "manage.py", "run_scheduler"]
+    healthcheck:
+      test: ["CMD", "python", "-c", "import pathlib, sys; sys.exit(0 if b'run_scheduler' in pathlib.Path('/proc/1/cmdline').read_bytes() else 1)"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
 
   # Single unified nginx service (serves built SPA + reverse-proxies API)
   prop-ferry-nginx:
