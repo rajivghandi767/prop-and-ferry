@@ -209,10 +209,10 @@ Automated GitHub Actions pipelines handle the full lifecycle of the application:
 - **Event-Driven Deployment:** Commits to `main` trigger the full `Test Suite` (`python manage.py test`, `Dockerfile.prod` + `gunicorn --check-config`, `npm ci`, `eslint`, `tsc -b && vite build`, and `vitest`), build multi-stage Docker images on `ubuntu-24.04-arm`, and immediately deploy to the Raspberry Pi via host-serialized (`flock`) rolling restarts (`docker compose up -d --wait`) with automatic healthcheck rollback. HashiCorp Vault is dynamically queried to inject runtime secrets.
 - **Observability Stack:** Prometheus scrapes metrics across the containers, alerting Discord via Alertmanager if memory limits or service drops are detected.
 
-ETL pipelines manage data fetching directly within the production Docker containers via SSH, dispatched at **`02:30 AM` (`America/New_York`) every Wednesday & Sunday** by a local Raspberry Pi cron (`dispatch_data_jobs.sh` $\rightarrow$ `deploy-orchestrator.yml`):
-- **Flights (`fetch_routes.yml`):** Populates the 3–4 day rolling Duffel flight window.
-- **Ferries (`scrape_ferries.yml`):** Scrapes and normalizes FRS Express / L'Express des Îles ferry schedules right after the flight window completes.
-- **Alerting:** If Duffel returns an unknown airport code or a new airline carrier, the backend triggers a Discord Webhook, alerting the developer to enrich the database topology manually.
+ETL pipelines run inside the containerized `prop-ferry-scheduler` service (`python manage.py run_scheduler`) at **`02:30 AM` (`America/New_York`) every Wednesday & Sunday**, executing sequentially within the production Docker stack and posting ✅ success / 🚨 failure alerts directly to `#data-pipeline` (`DISCORD_DATAPIPES_WEBHOOK_URL`):
+- **Flights (`fetch_duffel_routes`):** Populates the 3–4 day rolling Duffel flight window.
+- **Alerting (`notify_unenriched`):** Scans for unknown airport or carrier stubs discovered by Duffel and posts enrichment alerts to `#data-pipeline`.
+- **Ferries (`scrape_ferries`):** Scrapes and normalizes FRS Express / L'Express des Îles ferry schedules right after the flight window completes.
 
 ---
 

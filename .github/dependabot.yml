@@ -16,9 +16,6 @@ updates:
           - "patch"
     commit-message:
       prefix: "chore(deps)"
-    labels:
-      - "dependencies"
-      - "frontend"
 
   - package-ecosystem: "uv"
     directory: "/backend"
@@ -36,6 +33,3 @@ updates:
           - "patch"
     commit-message:
       prefix: "chore(deps)"
-    labels:
-      - "dependencies"
-      - "backend"

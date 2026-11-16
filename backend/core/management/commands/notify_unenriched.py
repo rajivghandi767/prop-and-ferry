@@ -1,17 +1,20 @@
 import requests
 from typing import Any
 from django.conf import settings
-from django.core.management.base import BaseCommand
+from django.core.management.base import BaseCommand, CommandError
+from core.constants import DISCORD_TIMEOUT_SECONDS
 from core.models import Location, Carrier
 
 
 class Command(BaseCommand):
-    help = "Scans for stubbed locations/carriers and triggers a Discord webhook."
+    help = "Scans for stubbed locations/carriers and triggers a #data-pipeline Discord webhook."
 
     def handle(self, *args: Any, **kwargs: Any) -> None:
-        webhook_url = getattr(settings, "DISCORD_WEBHOOK_URL", None)
+        webhook_url = getattr(settings, "DISCORD_DATAPIPES_WEBHOOK_URL", None)
         if not webhook_url:
-            self.stdout.write(self.style.ERROR("No DISCORD_WEBHOOK_URL configured."))
+            self.stdout.write(
+                self.style.ERROR("No DISCORD_DATAPIPES_WEBHOOK_URL configured.")
+            )
             return
 
         # Identify stubs: Locations with no city, Carriers with the default fetch_routes name
@@ -33,8 +36,9 @@ class Command(BaseCommand):
         )
 
         # Discord Embed Payload
-        payload = {
+        payload: dict[str, Any] = {
             "content": "🚨 **Prop & Ferry Data Alert: Enrichment Required** 🚨",
+            "allowed_mentions": {"parse": []},
             "embeds": [
                 {
                     "title": "📍 Unenriched Locations",
@@ -50,7 +54,11 @@ class Command(BaseCommand):
         }
 
         try:
-            requests.post(webhook_url, json=payload, timeout=5)
+            resp = requests.post(
+                webhook_url, json=payload, timeout=DISCORD_TIMEOUT_SECONDS
+            )
+            resp.raise_for_status()
             self.stdout.write(self.style.SUCCESS("Webhook sent successfully."))
         except Exception as e:
             self.stdout.write(self.style.ERROR(f"Webhook failed: {e}"))
+            raise CommandError(f"Enrichment notification failed: {e}") from e

@@ -46,6 +46,23 @@ services:
       retries: 3
       start_period: 60s
 
+  # In-App ETL Scheduler (Wed & Sun 02:30 AM America/New_York)
+  prop-ferry-scheduler:
+    image: ghcr.io/rajivghandi767/prop-ferry-backend:${IMAGE_TAG:-latest}
+    container_name: prop-ferry-scheduler
+    restart: unless-stopped
+    networks:
+      - prop-ferry
+      - database
+    depends_on:
+      prop-ferry-backend-init:
+        condition: service_completed_successfully
+    env_file: .env
+    volumes:
+      - prop-ferry_logs:/home/backend/django/logs
+    user: "backend:backend_group"
+    command: ["python", "manage.py", "run_scheduler"]
+
   # Single unified nginx service (serves built SPA + reverse-proxies API)
   prop-ferry-nginx:
     image: ghcr.io/rajivghandi767/prop-ferry-nginx:${IMAGE_TAG:-latest}

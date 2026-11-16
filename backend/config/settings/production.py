@@ -161,6 +161,7 @@ REST_FRAMEWORK.update(
 # OPTIONAL SETTINGS
 # ============================================================================
 DISCORD_WEBHOOK_URL = os.getenv("DISCORD_WEBHOOK_URL")
+DISCORD_DATAPIPES_WEBHOOK_URL = os.getenv("DISCORD_DATAPIPES_WEBHOOK_URL")
 HEALTH_CHECK_ENABLED = True
 
 # ============================================================================

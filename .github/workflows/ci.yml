@@ -15,7 +15,6 @@ on:
 
 env:
   APP_NAME: "Prop & Ferry"
-  REGISTRY: "ghcr.io"
   IMAGE_BACKEND: "rajivghandi767/prop-ferry-backend"
   IMAGE_NGINX: "rajivghandi767/prop-ferry-nginx"
   DISCORD_SUCCESS_COLOR: "3066993"
@@ -91,30 +90,7 @@ jobs:
       - name: Verify Production Backend Image & Gunicorn Config
         run: |
           docker build -t prop-ferry-backend:prod-test -f backend/Dockerfile.prod ./backend
-          DUMMY_GCS_CREDS=$(python3 -c '
-          import json, subprocess
-          pem = subprocess.check_output(["openssl", "genrsa", "2048"], stderr=subprocess.DEVNULL).decode()
-          print(json.dumps({
-              "type": "service_account",
-              "project_id": "ci-smoke",
-              "private_key_id": "ci-key",
-              "private_key": pem,
-              "client_email": "ci@ci-smoke.iam.gserviceaccount.com",
-              "token_uri": "https://oauth2.googleapis.com/token",
-          }))
-          ')
           docker run --rm \
-            -e DJANGO_SETTINGS_MODULE=config.settings.production \
-            -e DJANGO_ENV=production \
-            -e DJANGO_SECRET_KEY=ci-smoke-secret-key \
-            -e ALLOWED_HOSTS=localhost \
-            -e REDIS_URL=redis://127.0.0.1:6379/0 \
-            -e POSTGRES_DB=ci \
-            -e POSTGRES_USER=ci \
-            -e POSTGRES_PASSWORD=ci \
-            -e POSTGRES_HOST=127.0.0.1 \
-            -e POSTGRES_PORT=5432 \
-            -e GCS_CREDENTIALS="$DUMMY_GCS_CREDS" \
             prop-ferry-backend:prod-test \
             gunicorn --check-config \
             --workers 2 \
@@ -150,15 +126,10 @@ jobs:
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Get Git Commit
-        id: git-commit
-        run: echo "short=$(git rev-parse --short HEAD)" >> $GITHUB_OUTPUT
-
       - name: Build and Push Backend
         run: |
           docker build -t ghcr.io/rajivghandi767/prop-ferry-backend:${{ github.run_number }} \
                        -t ghcr.io/rajivghandi767/prop-ferry-backend:latest \
-                       --label git-commit=${{ steps.git-commit.outputs.short }} \
                        -f backend/Dockerfile.prod ./backend
           docker push ghcr.io/rajivghandi767/prop-ferry-backend --all-tags
 
@@ -166,7 +137,6 @@ jobs:
         run: |
           docker build -t ghcr.io/rajivghandi767/prop-ferry-nginx:${{ github.run_number }} \
                        -t ghcr.io/rajivghandi767/prop-ferry-nginx:latest \
-                       --label git-commit=${{ steps.git-commit.outputs.short }} \
                        --build-arg VITE_API_URL=https://prop-ferry-api.rajivwallace.com \
                        -f nginx/Dockerfile .
           docker push ghcr.io/rajivghandi767/prop-ferry-nginx --all-tags

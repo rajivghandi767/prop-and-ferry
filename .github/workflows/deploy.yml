@@ -114,6 +114,7 @@ jobs:
             secret/data/prop-ferry-prod POSTGRES_PASSWORD | POSTGRES_PASSWORD ;
             secret/data/prop-ferry-prod POSTGRES_DB | POSTGRES_DB ;
             secret/data/prop-ferry-prod DISCORD_WEBHOOK_URL | DISCORD_WEBHOOK_URL ;
+            secret/data/prop-ferry-prod DISCORD_DATAPIPES_WEBHOOK_URL | DISCORD_DATAPIPES_WEBHOOK_URL ;
             secret/data/prop-ferry-prod DUFFEL_ACCESS_TOKEN | DUFFEL_ACCESS_TOKEN ;
             secret/data/prop-ferry-prod REDIS_URL | REDIS_URL ;
 
@@ -130,6 +131,7 @@ jobs:
           POSTGRES_PASSWORD='${{ env.POSTGRES_PASSWORD }}'
           POSTGRES_DB='${{ env.POSTGRES_DB }}'
           DISCORD_WEBHOOK_URL='${{ env.DISCORD_WEBHOOK_URL }}'
+          DISCORD_DATAPIPES_WEBHOOK_URL='${{ env.DISCORD_DATAPIPES_WEBHOOK_URL }}'
           DUFFEL_ACCESS_TOKEN='${{ env.DUFFEL_ACCESS_TOKEN }}'
           REDIS_URL='${{ env.REDIS_URL }}'
           EOF

@@ -94,6 +94,7 @@ MEDIA_ROOT = BASE_DIR / "mediafiles"
 # NOTIFICATION SETTINGS FOR DEVELOPMENT
 # ============================================================================
 DISCORD_WEBHOOK_URL = os.getenv("DISCORD_WEBHOOK_URL")
+DISCORD_DATAPIPES_WEBHOOK_URL = os.getenv("DISCORD_DATAPIPES_WEBHOOK_URL")
 
 # ============================================================================
 # DEVELOPMENT LOGGING

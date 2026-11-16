@@ -1,11 +1,20 @@
 from unittest.mock import patch, MagicMock
-from datetime import date, time
+from datetime import date, datetime, time, timezone
+import requests
 from django.core.cache import cache
-from django.test import TestCase
+from django.core.management import call_command
+from django.core.management.base import CommandError
+from django.test import TestCase, override_settings
 from django.urls import reverse
 from rest_framework.test import APITestCase
 
 from core.management.commands.fetch_duffel_routes import Command as FetchDuffelCommand
+from core.management.commands.run_scheduler import (
+    _USEasternTZ,
+    compute_next_run,
+    execute_pipeline_once,
+    post_discord_alert,
+)
 from core.models import FlightInstance, Route, Carrier, Location, Sailing, ReportedIssue
 from core.views import get_sliding_window
 
@@ -535,6 +544,130 @@ class FetchDuffelRoutesTests(TestCase):
         self.assertEqual(instance.available_seats, 0)
         self.assertIsNone(instance.price_amount)
         self.assertEqual(instance.cabin_class, "Sold Out")
+
+
+class PipelineAndSchedulerTests(TestCase):
+    @patch.dict("os.environ", {"DUFFEL_ACCESS_TOKEN": ""}, clear=False)
+    def test_fetch_duffel_routes_requires_token(self) -> None:
+        with self.assertRaises(CommandError):
+            call_command("fetch_duffel_routes", days=1)
+
+    @override_settings(DISCORD_DATAPIPES_WEBHOOK_URL="https://discord.example.com/datapipes")
+    @patch("core.management.commands.notify_unenriched.requests.post")
+    def test_notify_unenriched_posts_to_datapipes_webhook(
+        self, mock_post: MagicMock
+    ) -> None:
+        Location.objects.create(code="XYZ", name="XYZ Airport", city="")
+        Carrier.objects.create(code="ZZ", name="Airline ZZ", carrier_type="AIR")
+        mock_resp = MagicMock()
+        mock_post.return_value = mock_resp
+
+        call_command("notify_unenriched")
+
+        mock_post.assert_called_once()
+        self.assertEqual(
+            mock_post.call_args.args[0], "https://discord.example.com/datapipes"
+        )
+        payload = mock_post.call_args.kwargs["json"]
+        self.assertEqual(payload["allowed_mentions"], {"parse": []})
+        mock_resp.raise_for_status.assert_called_once()
+
+    def test_compute_next_run_selects_wed_and_sun_et(self) -> None:
+        # Mon Nov 16 2026 -> Wed Nov 18 02:30 EST == 07:30 UTC
+        mon_utc = datetime(2026, 11, 16, 12, 0, tzinfo=timezone.utc)
+        self.assertEqual(
+            compute_next_run(mon_utc),
+            datetime(2026, 11, 18, 7, 30, tzinfo=timezone.utc),
+        )
+
+        # Wed Nov 18 02:35 EST == 07:35 UTC -> Sun Nov 22 02:30 EST == 07:30 UTC
+        wed_after_utc = datetime(2026, 11, 18, 7, 35, tzinfo=timezone.utc)
+        self.assertEqual(
+            compute_next_run(wed_after_utc),
+            datetime(2026, 11, 22, 7, 30, tzinfo=timezone.utc),
+        )
+
+        # Sun Jul 5 2026 01:00 EDT == 05:00 UTC -> same day 02:30 EDT == 06:30 UTC
+        sun_edt_utc = datetime(2026, 7, 5, 5, 0, tzinfo=timezone.utc)
+        self.assertEqual(
+            compute_next_run(sun_edt_utc),
+            datetime(2026, 7, 5, 6, 30, tzinfo=timezone.utc),
+        )
+
+    def test_us_eastern_fallback_dst_names(self) -> None:
+        tz = _USEasternTZ()
+        self.assertEqual(
+            datetime(2026, 1, 15, 12, 0, tzinfo=timezone.utc).astimezone(tz).tzname(),
+            "EST",
+        )
+        self.assertEqual(
+            datetime(2026, 7, 15, 12, 0, tzinfo=timezone.utc).astimezone(tz).tzname(),
+            "EDT",
+        )
+
+    @patch("core.management.commands.run_scheduler.requests.post")
+    def test_execute_pipeline_once_posts_success_and_failure_embeds(
+        self, mock_post: MagicMock
+    ) -> None:
+        mock_post.return_value = MagicMock()
+        calls: list[str] = []
+        times = iter(
+            [
+                datetime(2026, 11, 18, 7, 30, 0, tzinfo=timezone.utc),
+                datetime(2026, 11, 18, 7, 32, 5, tzinfo=timezone.utc),
+            ]
+        )
+
+        execute_pipeline_once(
+            scheduled_utc=datetime(2026, 11, 18, 7, 30, 0, tzinfo=timezone.utc),
+            runner=lambda name: calls.append(name),
+            now_fn=lambda: next(times),
+            webhook_url="https://discord.example.com/datapipes",
+        )
+        self.assertEqual(
+            calls, ["fetch_duffel_routes", "notify_unenriched", "scrape_ferries"]
+        )
+        ok_embed = mock_post.call_args.kwargs["json"]["embeds"][0]
+        self.assertEqual(ok_embed["title"], "✅ Prop & Ferry Data Pipeline Complete")
+        self.assertEqual(ok_embed["color"], 3066993)
+
+        def fail_on_scrape(name: str) -> None:
+            if name == "scrape_ferries":
+                raise CommandError("FRS HTTP 503")
+
+        fail_times = iter(
+            [
+                datetime(2026, 11, 18, 7, 30, 0, tzinfo=timezone.utc),
+                datetime(2026, 11, 18, 7, 30, 9, tzinfo=timezone.utc),
+            ]
+        )
+        with self.assertRaises(CommandError):
+            execute_pipeline_once(
+                scheduled_utc=datetime(2026, 11, 18, 7, 30, 0, tzinfo=timezone.utc),
+                runner=fail_on_scrape,
+                now_fn=lambda: next(fail_times),
+                webhook_url="https://discord.example.com/datapipes",
+            )
+        fail_embed = mock_post.call_args.kwargs["json"]["embeds"][0]
+        self.assertEqual(fail_embed["title"], "🚨 Prop & Ferry Data Pipeline Alert")
+        self.assertEqual(fail_embed["color"], 15158332)
+        self.assertIn("scrape_ferries", fail_embed["description"])
+        self.assertIn("FRS HTTP 503", fail_embed["description"])
+
+    @patch("core.management.commands.run_scheduler.requests.post")
+    def test_post_discord_alert_handles_request_exception(
+        self, mock_post: MagicMock
+    ) -> None:
+        mock_post.side_effect = requests.RequestException("network unreachable")
+        self.assertFalse(
+            post_discord_alert(
+                "https://discord.example.com/datapipes",
+                title="test",
+                description="desc",
+                color=123,
+                timestamp_iso="2026-11-18T07:30:00Z",
+            )
+        )
 
 
 
