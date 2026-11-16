@@ -52,7 +52,7 @@ While the data powering the frontend is sourced **live** via the Duffel REST API
 
 - Self-hosted on a Raspberry Pi 4B (DietPi OS) within a Ubiquiti UniFi segmented network
 - Docker & Docker Compose (Consolidated multi-stage `prop-ferry-nginx` serving built SPA assets directly and reverse-proxying `/api/` to `prop-ferry-backend`)
-- GitHub Actions (Automated CI/CD Deployments & ETL Pipelines)
+- GitHub Actions (Automated CI/CD Deployments) & Containerized `prop-ferry-scheduler` (Automated ETL Pipelines)
 - HashiCorp Vault (Secrets Management)
 - Nginx Proxy Manager & Cloudflare (Ingress & Reverse Proxy)
 - Prometheus, Grafana, & Discord Webhook Alerts
@@ -76,7 +76,7 @@ Prop & Ferry calculates multi-leg travel itineraries by stitching together inter
 
 ### 3. Dual-Source ETL Pipeline
 
-The database is actively maintained by two distinct, automated scrapers triggered by GitHub Actions cron jobs:
+The database is actively maintained by two distinct, automated scrapers triggered by the containerized `prop-ferry-scheduler` service:
 
 - **The Flight Scraper:** Interfaces with the Duffel REST API to pull active schedules, pricing, and seat availability. Employs adaptive request pacing (0.5s baseline) and bounded exponential backoff ($\le 3$ retries with `Retry-After` header inspection) to eliminate HTTP 429 burst-rate throttling.
 - **The Ferry Scraper:** Uses `requests` and `BeautifulSoup` to scrape, parse, and normalize ferry schedules (FRS-Express) into the application's standard `ApiLeg` contract.
@@ -169,9 +169,9 @@ By syncing the pipeline to a **bi-weekly cadence (4 days on Wednesday, 3 days on
 - **Sunday:** 3 forecast days $\times$ ~40 route queries $\approx$ **120 calls**
 - **Weekly Total:** $\approx$ **280 calls / week** ($\approx$ **1,213 calls / month**)
 - **Quota Consumption:** Uses **~81%** of Duffel's 1,500 free monthly search allowance.
-- **Safety Margin:** Leaves ~287 free searches per month as an operational buffer for local testing, container restarts, and manual workflow dispatches.
+- **Safety Margin:** Leaves ~287 free searches per month as an operational buffer for local testing, container restarts, and manual `run_scheduler --once` runs.
 - **Total Incurred Cost:** **$0.00** (zero excess search fees).
-- **Execution Time:** **$\approx 85$ seconds** on the self-hosted DietPi runner.
+- **Execution Time:** **$\approx 85$ seconds** on the Raspberry Pi (`prop-ferry-scheduler` container).
 
 **Risk vs. Reward:** This tradeoff restricts a user's ability to plan vacations weeks in advance. However, the architectural reward is immense: it ensures a 100% live, self-healing database that seamlessly feeds the backend Stitcher (graph traversal) algorithm, proving the core routing logic operates flawlessly under enterprise constraints.
 
