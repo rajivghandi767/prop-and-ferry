@@ -6,7 +6,7 @@ from bs4 import BeautifulSoup
 from typing import Any, Optional
 from datetime import datetime, timedelta, date
 from django.db import transaction
-from django.core.management.base import BaseCommand
+from django.core.management.base import BaseCommand, CommandError
 from core.models import Location, Route, Carrier, Sailing
 from core.constants import (
     DEFAULT_FERRY_DURATION_MINS,
@@ -132,6 +132,8 @@ class Command(BaseCommand):
 
         check_intervals = [0, 7, 14]
         start_date_base = today + timedelta(days=1)
+        saw_response = False
+        request_errors = 0
 
         for origin_code, dest_code in final_routes:
             logger.info(f"Checking Route: {origin_code} -> {dest_code}")
@@ -164,7 +166,9 @@ class Command(BaseCommand):
                     resp = session.get(BASE_URL, params=params, timeout=20)
                     resp.encoding = "utf-8"
                     if resp.status_code != 200:
+                        request_errors += 1
                         continue
+                    saw_response = True
                     soup = BeautifulSoup(resp.content, "html.parser")
 
                     valid_dates_in_week: list[tuple[date, str]] = []
@@ -210,7 +214,13 @@ class Command(BaseCommand):
                         time.sleep(1)
 
                 except Exception as e:
+                    request_errors += 1
                     logger.error(f"Scrape Error: {e}")
+
+        if request_errors > 0 and not saw_response:
+            raise CommandError(
+                f"All ferry schedule requests failed ({request_errors} errors)."
+            )
 
         # Atomic commit logic for safety
         # We use transaction.atomic() to ensure that clearing out old sailings 
@@ -234,6 +244,7 @@ class Command(BaseCommand):
                         f"❌ Database commit failed. Rolling back. Error: {e}"
                     )
                 )
+                raise CommandError(f"Database commit failed: {e}") from e
         else:
             self.stdout.write(
                 self.style.WARNING("⚠️ No sailings found. Database was left untouched.")

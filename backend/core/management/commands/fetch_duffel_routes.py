@@ -7,7 +7,7 @@ import requests
 from typing import Any
 from datetime import date, datetime, timedelta
 
-from django.core.management.base import BaseCommand
+from django.core.management.base import BaseCommand, CommandError
 from core.constants import (
     DEFAULT_CURRENCY,
     DUFFEL_DEFAULT_SEATS,
@@ -275,7 +275,7 @@ class Command(BaseCommand):
             self.stdout.write(
                 self.style.ERROR("❌ Missing DUFFEL_ACCESS_TOKEN in environment.")
             )
-            return
+            raise CommandError("Missing DUFFEL_ACCESS_TOKEN in environment.")
 
         today = datetime.now().date()
         deleted_flights, _ = FlightInstance.objects.filter(date__lt=today).delete()
