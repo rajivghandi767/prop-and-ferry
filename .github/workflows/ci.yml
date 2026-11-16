@@ -91,7 +91,31 @@ jobs:
       - name: Verify Production Backend Image & Gunicorn Config
         run: |
           docker build -t prop-ferry-backend:prod-test -f backend/Dockerfile.prod ./backend
-          docker run --rm -e DJANGO_SETTINGS_MODULE=config.settings.local prop-ferry-backend:prod-test \
+          DUMMY_GCS_CREDS=$(python3 -c '
+          import json, subprocess
+          pem = subprocess.check_output(["openssl", "genrsa", "2048"], stderr=subprocess.DEVNULL).decode()
+          print(json.dumps({
+              "type": "service_account",
+              "project_id": "ci-smoke",
+              "private_key_id": "ci-key",
+              "private_key": pem,
+              "client_email": "ci@ci-smoke.iam.gserviceaccount.com",
+              "token_uri": "https://oauth2.googleapis.com/token",
+          }))
+          ')
+          docker run --rm \
+            -e DJANGO_SETTINGS_MODULE=config.settings.production \
+            -e DJANGO_ENV=production \
+            -e DJANGO_SECRET_KEY=ci-smoke-secret-key \
+            -e ALLOWED_HOSTS=localhost \
+            -e REDIS_URL=redis://127.0.0.1:6379/0 \
+            -e POSTGRES_DB=ci \
+            -e POSTGRES_USER=ci \
+            -e POSTGRES_PASSWORD=ci \
+            -e POSTGRES_HOST=127.0.0.1 \
+            -e POSTGRES_PORT=5432 \
+            -e GCS_CREDENTIALS="$DUMMY_GCS_CREDS" \
+            prop-ferry-backend:prod-test \
             gunicorn --check-config \
             --workers 2 \
             --threads 2 \
