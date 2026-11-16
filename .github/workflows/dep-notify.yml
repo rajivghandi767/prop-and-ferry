@@ -3,18 +3,12 @@ name: Dependency Update Notifier
 on:
   pull_request_target:
     types: [opened]
-  pull_request_review:
-    types: [submitted]
-  push:
-    branches: [main]
-    paths:
-      - 'frontend/package.json'
-      - 'frontend/package-lock.json'
-      - 'backend/pyproject.toml'
-      - 'backend/uv.lock'
+  workflow_run:
+    workflows: ["CI/CD Pipeline"]
+    types: [completed]
 
 env:
-  APP_NAME: ""
+  APP_NAME: "Prop & Ferry"
   DISCORD_SUCCESS_COLOR: "3066993"   # Green
   DISCORD_WARN_COLOR: "16098851"     # Orange
   DISCORD_FAIL_COLOR: "15158332"     # Red
@@ -32,76 +26,188 @@ jobs:
         with:
           github-token: ${{ secrets.GITHUB_TOKEN }}
 
+      - name: Format Timestamps
+        id: ts
+        env:
+          PR_CREATED_ISO: ${{ github.event.pull_request.created_at }}
+        run: |
+          python3 - << 'PY'
+          import os
+          from datetime import datetime, timezone, timedelta
+
+          def fmt_et(dt_utc: datetime) -> str:
+              y = dt_utc.year
+              nxt = lambda d, w: d + timedelta(days=(w - d.weekday()) % 7)
+              dst_start = nxt(datetime(y, 3, 8, 7, 0, tzinfo=timezone.utc), 6)
+              dst_end = nxt(datetime(y, 11, 1, 6, 0, tzinfo=timezone.utc), 6)
+              offset, tz = (-4, "EDT") if dst_start <= dt_utc < dst_end else (-5, "EST")
+              return (dt_utc + timedelta(hours=offset)).strftime(f"%a, %d %b %Y at %H:%M:%S {tz}")
+
+          now_utc = datetime.now(timezone.utc)
+          started_et = fmt_et(now_utc)
+          started_iso = now_utc.strftime("%Y-%m-%dT%H:%M:%SZ")
+          pr_iso = os.environ.get("PR_CREATED_ISO") or started_iso
+          try:
+              pr_dt = datetime.fromisoformat(pr_iso.replace("Z", "+00:00"))
+              pr_et = fmt_et(pr_dt)
+          except Exception:
+              pr_et = started_et
+
+          with open(os.environ["GITHUB_OUTPUT"], "a", encoding="utf-8") as fh:
+              fh.write(f"pr_iso={pr_iso}\n")
+              fh.write(f"pr_et={pr_et}\n")
+              fh.write(f"started_et={started_et}\n")
+          PY
+
       - name: Notify — Patch/Minor PR Opened
         if: |
           steps.meta.outputs.update-type == 'version-update:semver-patch' ||
           steps.meta.outputs.update-type == 'version-update:semver-minor'
         run: |
-          TIMESTAMP=$(TZ='America/New_York' date +'%a, %d %b %Y at %H:%M %Z')
-          printf -v DESC ":package: **${{ env.APP_NAME }} — Dependency PR Opened**\n**:new: Updates Queued (Patch/Minor):**\n> ${{ github.event.pull_request.title }}\n\n:robot: **CI will run automatically. Will auto-merge once all checks pass.**\n:link: **PR:** [#${{ github.event.pull_request.number }}](${{ github.event.pull_request.html_url }})\n:clock4: **Time:** $TIMESTAMP"
+          printf -v DESC ":package: **${{ env.APP_NAME }} — Dependency PR Opened**\n**:new: Updates Queued (Patch/Minor):**\n> ${{ github.event.pull_request.title }}\n\n:robot: **CI will run automatically. Will auto-merge once all checks pass.**\n:link: **PR:** [#${{ github.event.pull_request.number }}](${{ github.event.pull_request.html_url }})\n:clock3: **PR Created:** ${{ steps.ts.outputs.pr_et }}\n:desktop: **GH Server Started:** ${{ steps.ts.outputs.started_et }}"
           PAYLOAD=$(jq -n --arg title "📦 Dependencies Ready for Review" \
                           --arg desc "$DESC" \
+                          --arg ts "${{ steps.ts.outputs.pr_iso }}" \
                           --argjson color ${{ env.DISCORD_SUCCESS_COLOR }} \
-                          '{embeds: [{title: $title, description: $desc, color: $color}]}')
+                          '{embeds: [{title: $title, description: $desc, color: $color, timestamp: $ts}]}')
           curl -s --max-time 10 -H "Content-Type: application/json" -X POST -d "$PAYLOAD" ${{ secrets.DISCORD_WEBHOOK_URL_GITHUB }} || true
 
       - name: Notify — Major Version PR Opened
         if: steps.meta.outputs.update-type == 'version-update:semver-major'
         run: |
-          TIMESTAMP=$(TZ='America/New_York' date +'%a, %d %b %Y at %H:%M %Z')
-          printf -v DESC ":rotating_light: **${{ env.APP_NAME }} — Major Version Update**\n**:warning: Manual review required before merging:**\n> ${{ github.event.pull_request.title }}\n\nMajor bumps may contain breaking changes. Check the changelog before approving.\n:link: **PR:** [#${{ github.event.pull_request.number }}](${{ github.event.pull_request.html_url }})\n:clock4: **Time:** $TIMESTAMP"
+          printf -v DESC ":rotating_light: **${{ env.APP_NAME }} — Major Version Update**\n**:warning: Manual review required before merging:**\n> ${{ github.event.pull_request.title }}\n\nMajor bumps may contain breaking changes. Check the changelog before approving.\n:link: **PR:** [#${{ github.event.pull_request.number }}](${{ github.event.pull_request.html_url }})\n:clock3: **PR Created:** ${{ steps.ts.outputs.pr_et }}\n:desktop: **GH Server Started:** ${{ steps.ts.outputs.started_et }}"
           PAYLOAD=$(jq -n --arg title "🚨 Major Dependency Update — Review Required" \
                           --arg desc "$DESC" \
+                          --arg ts "${{ steps.ts.outputs.pr_iso }}" \
                           --argjson color ${{ env.DISCORD_WARN_COLOR }} \
-                          '{embeds: [{title: $title, description: $desc, color: $color}]}')
+                          '{embeds: [{title: $title, description: $desc, color: $color, timestamp: $ts}]}')
           curl -s --max-time 10 -H "Content-Type: application/json" -X POST -d "$PAYLOAD" ${{ secrets.DISCORD_WEBHOOK_URL_GITHUB }} || true
 
-  # ── Fires when a Dependabot PR is approved and merged to main ───────────────
+  # ── Fires after CI/CD Pipeline completes on main for a Dependabot merge ────
   notify-merged:
     name: Notify Merge Success
     runs-on: ubuntu-24.04-arm
-    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    if: >
+      github.event_name == 'workflow_run' &&
+      github.event.workflow_run.event == 'push' &&
+      github.event.workflow_run.head_branch == 'main' &&
+      github.event.workflow_run.conclusion == 'success'
     steps:
-      - uses: actions/checkout@v4
-        with:
-          fetch-depth: 2
-
-      - name: Check if commit is a Dependabot merge
+      - name: Check Head Commit & Format Timestamps
         id: check
+        env:
+          COMMIT_MSG_RAW: ${{ github.event.workflow_run.head_commit.message }}
+          COMMIT_AUTHOR: ${{ github.event.workflow_run.head_commit.author.name }}
+          HEAD_SHA: ${{ github.event.workflow_run.head_sha }}
+          RUN_CREATED_ISO: ${{ github.event.workflow_run.created_at }}
+          RUN_STARTED_ISO: ${{ github.event.workflow_run.run_started_at }}
+          RUN_UPDATED_ISO: ${{ github.event.workflow_run.updated_at }}
         run: |
-          COMMIT_MSG=$(git log -1 --pretty=%s)
-          AUTHOR=$(git log -1 --pretty=%an)
-          if echo "$AUTHOR" | grep -qi "dependabot" || echo "$COMMIT_MSG" | grep -qi "^chore(deps)"; then
-            echo "is_dependabot=true" >> $GITHUB_OUTPUT
-            echo "commit_msg=$COMMIT_MSG" >> $GITHUB_OUTPUT
-          else
-            echo "is_dependabot=false" >> $GITHUB_OUTPUT
-          fi
+          python3 - << 'PY'
+          import os
+          from datetime import datetime, timezone, timedelta
 
-      - name: Notify — Dependabot Merge Landed
+          def fmt_et(dt_utc: datetime) -> str:
+              y = dt_utc.year
+              nxt = lambda d, w: d + timedelta(days=(w - d.weekday()) % 7)
+              dst_start = nxt(datetime(y, 3, 8, 7, 0, tzinfo=timezone.utc), 6)
+              dst_end = nxt(datetime(y, 11, 1, 6, 0, tzinfo=timezone.utc), 6)
+              offset, tz = (-4, "EDT") if dst_start <= dt_utc < dst_end else (-5, "EST")
+              return (dt_utc + timedelta(hours=offset)).strftime(f"%a, %d %b %Y at %H:%M:%S {tz}")
+
+          msg_first = (os.environ.get("COMMIT_MSG_RAW") or "").splitlines()[0].strip()
+          author = (os.environ.get("COMMIT_AUTHOR") or "").strip()
+          is_dep = ("dependabot" in author.lower()) or msg_first.lower().startswith("chore(deps)")
+
+          now_utc = datetime.now(timezone.utc)
+          c_iso = os.environ.get("RUN_CREATED_ISO") or now_utc.strftime("%Y-%m-%dT%H:%M:%SZ")
+          s_iso = os.environ.get("RUN_STARTED_ISO") or c_iso
+          u_iso = os.environ.get("RUN_UPDATED_ISO") or now_utc.strftime("%Y-%m-%dT%H:%M:%SZ")
+
+          c_dt = datetime.fromisoformat(c_iso.replace("Z", "+00:00"))
+          s_dt = datetime.fromisoformat(s_iso.replace("Z", "+00:00"))
+          u_dt = datetime.fromisoformat(u_iso.replace("Z", "+00:00"))
+          dur = max(0, int(u_dt.timestamp()) - int(s_dt.timestamp()))
+          dur_str = f"{dur // 60}m {dur % 60:02d}s" if dur >= 60 else f"{dur}s"
+          short_sha = (os.environ.get("HEAD_SHA") or "")[:7]
+
+          with open(os.environ["GITHUB_OUTPUT"], "a", encoding="utf-8") as fh:
+              fh.write(f"is_dependabot={'true' if is_dep else 'false'}\n")
+              fh.write(f"commit_msg={msg_first}\n")
+              fh.write(f"short_sha={short_sha}\n")
+              fh.write(f"started_iso={s_iso}\n")
+              fh.write(f"triggered_et={fmt_et(c_dt)}\n")
+              fh.write(f"started_et={fmt_et(s_dt)}\n")
+              fh.write(f"finished_et={fmt_et(u_dt)}\n")
+              fh.write(f"duration_str={dur_str}\n")
+          PY
+
+      - name: Notify — Dependabot Merge Landed & Verified
         if: steps.check.outputs.is_dependabot == 'true'
         run: |
-          TIMESTAMP=$(TZ='America/New_York' date +'%a, %d %b %Y at %H:%M %Z')
-          SHORT_SHA=$(git rev-parse --short HEAD)
-          printf -v DESC ":white_check_mark: **${{ env.APP_NAME }} — Dependencies Updated**\n**:new: Merged to main:**\n> ${{ steps.check.outputs.commit_msg }}\n\n:bar_chart: **Status:** CI Passed\n:label: **Commit:** \`$SHORT_SHA\`\n:clock4: **Time:** $TIMESTAMP"
+          printf -v DESC ":white_check_mark: **${{ env.APP_NAME }} — Dependencies Updated**\n**:new: Merged to main:**\n> ${{ steps.check.outputs.commit_msg }}\n\n:bar_chart: **Status:** CI & Image Build Passed\n:label: **Commit:** \`${{ steps.check.outputs.short_sha }}\`\n:clock3: **CI Triggered:** ${{ steps.check.outputs.triggered_et }}\n:desktop: **GH Server Started:** ${{ steps.check.outputs.started_et }}\n:checkered_flag: **Finished:** ${{ steps.check.outputs.finished_et }} (${{ steps.check.outputs.duration_str }})"
           PAYLOAD=$(jq -n --arg title "✅ Dependency Update Merged" \
                           --arg desc "$DESC" \
+                          --arg ts "${{ steps.check.outputs.started_iso }}" \
                           --argjson color ${{ env.DISCORD_SUCCESS_COLOR }} \
-                          '{embeds: [{title: $title, description: $desc, color: $color}]}')
+                          '{embeds: [{title: $title, description: $desc, color: $color, timestamp: $ts}]}')
           curl -s --max-time 10 -H "Content-Type: application/json" -X POST -d "$PAYLOAD" ${{ secrets.DISCORD_WEBHOOK_URL_GITHUB }} || true
 
-  # ── Fires when CI fails on a Dependabot PR ──────────────────────────────────
+  # ── Fires when CI/CD Pipeline fails on a Dependabot PR or branch ────────────
   notify-ci-failed:
     name: Notify CI Failure
     runs-on: ubuntu-24.04-arm
-    if: github.actor == 'dependabot[bot]' && github.event_name == 'pull_request_review' && github.event.review.state == 'changes_requested'
+    if: >
+      github.event_name == 'workflow_run' &&
+      github.event.workflow_run.conclusion == 'failure' &&
+      (github.event.workflow_run.actor.login == 'dependabot[bot]' || startsWith(github.event.workflow_run.head_branch, 'dependabot/'))
     steps:
-      - name: Notify — CI Failed on Dependabot PR
+      - name: Format Failure Details
+        id: fail_info
+        env:
+          COMMIT_MSG_RAW: ${{ github.event.workflow_run.head_commit.message }}
+          RUN_CREATED_ISO: ${{ github.event.workflow_run.created_at }}
+          RUN_STARTED_ISO: ${{ github.event.workflow_run.run_started_at }}
+          RUN_UPDATED_ISO: ${{ github.event.workflow_run.updated_at }}
         run: |
-          TIMESTAMP=$(TZ='America/New_York' date +'%a, %d %b %Y at %H:%M %Z')
-          printf -v DESC ":x: **${{ env.APP_NAME }} — Dependency Update Failed CI**\n**:warning: Tests or build failed after update:**\n> ${{ github.event.pull_request.title }}\n\n:wrench: **Action Required:** Review the logs before merging.\n:link: **Logs:** [View Run](${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }})\n:clock4: **Time:** $TIMESTAMP"
+          python3 - << 'PY'
+          import os
+          from datetime import datetime, timezone, timedelta
+
+          def fmt_et(dt_utc: datetime) -> str:
+              y = dt_utc.year
+              nxt = lambda d, w: d + timedelta(days=(w - d.weekday()) % 7)
+              dst_start = nxt(datetime(y, 3, 8, 7, 0, tzinfo=timezone.utc), 6)
+              dst_end = nxt(datetime(y, 11, 1, 6, 0, tzinfo=timezone.utc), 6)
+              offset, tz = (-4, "EDT") if dst_start <= dt_utc < dst_end else (-5, "EST")
+              return (dt_utc + timedelta(hours=offset)).strftime(f"%a, %d %b %Y at %H:%M:%S {tz}")
+
+          msg_first = (os.environ.get("COMMIT_MSG_RAW") or "Dependabot update").splitlines()[0].strip()
+          now_utc = datetime.now(timezone.utc)
+          c_iso = os.environ.get("RUN_CREATED_ISO") or now_utc.strftime("%Y-%m-%dT%H:%M:%SZ")
+          s_iso = os.environ.get("RUN_STARTED_ISO") or c_iso
+          u_iso = os.environ.get("RUN_UPDATED_ISO") or now_utc.strftime("%Y-%m-%dT%H:%M:%SZ")
+          c_dt = datetime.fromisoformat(c_iso.replace("Z", "+00:00"))
+          s_dt = datetime.fromisoformat(s_iso.replace("Z", "+00:00"))
+          u_dt = datetime.fromisoformat(u_iso.replace("Z", "+00:00"))
+          dur = max(0, int(u_dt.timestamp()) - int(s_dt.timestamp()))
+          dur_str = f"{dur // 60}m {dur % 60:02d}s" if dur >= 60 else f"{dur}s"
+
+          with open(os.environ["GITHUB_OUTPUT"], "a", encoding="utf-8") as fh:
+              fh.write(f"commit_msg={msg_first}\n")
+              fh.write(f"started_iso={s_iso}\n")
+              fh.write(f"triggered_et={fmt_et(c_dt)}\n")
+              fh.write(f"started_et={fmt_et(s_dt)}\n")
+              fh.write(f"failed_et={fmt_et(u_dt)}\n")
+              fh.write(f"duration_str={dur_str}\n")
+          PY
+
+      - name: Notify — CI Failed on Dependabot Update
+        run: |
+          printf -v DESC ":x: **${{ env.APP_NAME }} — Dependency Update Failed CI**\n**:warning: Tests or build failed after update:**\n> ${{ steps.fail_info.outputs.commit_msg }}\n\n:wrench: **Action Required:** Review the logs before merging.\n:link: **Logs:** [View Run](${{ github.event.workflow_run.html_url }})\n:clock3: **CI Triggered:** ${{ steps.fail_info.outputs.triggered_et }}\n:desktop: **GH Server Started:** ${{ steps.fail_info.outputs.started_et }}\n:checkered_flag: **Failed:** ${{ steps.fail_info.outputs.failed_et }} (${{ steps.fail_info.outputs.duration_str }})"
           PAYLOAD=$(jq -n --arg title "🚨 Dependency Update Failed CI" \
                           --arg desc "$DESC" \
+                          --arg ts "${{ steps.fail_info.outputs.started_iso }}" \
                           --argjson color ${{ env.DISCORD_FAIL_COLOR }} \
-                          '{embeds: [{title: $title, description: $desc, color: $color}]}')
+                          '{embeds: [{title: $title, description: $desc, color: $color, timestamp: $ts}]}')
           curl -s --max-time 10 -H "Content-Type: application/json" -X POST -d "$PAYLOAD" ${{ secrets.DISCORD_WEBHOOK_URL_GITHUB }} || true

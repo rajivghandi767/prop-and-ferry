@@ -206,12 +206,12 @@ _Note: The original Amadeus scraper (`fetch_routes.py`) has been removed from th
 > The legacy Groovy pipelines have been preserved for historical context in the [`archive/jenkins-pipeline`](https://github.com/rajivghandi767/prop-and-ferry/tree/archive/jenkins-pipeline) branch.
 
 Automated GitHub Actions pipelines handle the full lifecycle of the application:
-- **Deployment:** Commits to `main` trigger tests, build Docker images, and deploy seamlessly via zero-downtime rolling restarts. Nightly deployments run automatically at `03:00 AM` EST. HashiCorp Vault is dynamically queried to inject runtime secrets, maintaining strict configuration management.
+- **Event-Driven Deployment:** Commits to `main` trigger the full `Test Suite` (`python manage.py test`, `Dockerfile.prod` + `gunicorn --check-config`, `npm ci`, `eslint`, `tsc -b && vite build`, and `vitest`), build multi-stage Docker images on `ubuntu-24.04-arm`, and immediately deploy to the Raspberry Pi via host-serialized (`flock`) rolling restarts (`docker compose up -d --wait`) with automatic healthcheck rollback. HashiCorp Vault is dynamically queried to inject runtime secrets.
 - **Observability Stack:** Prometheus scrapes metrics across the containers, alerting Discord via Alertmanager if memory limits or service drops are detected.
 
-ETL pipelines manage data fetching directly within the production Docker containers via SSH:
-- **Flights:** Runs at `03:30 AM` every Sunday & Wednesday.
-- **Ferries:** Runs at `03:45 AM` every Sunday & Wednesday.
+ETL pipelines manage data fetching directly within the production Docker containers via SSH, dispatched at **`02:30 AM` (`America/New_York`) every Wednesday & Sunday** by a local Raspberry Pi cron (`dispatch_data_jobs.sh` $\rightarrow$ `deploy-orchestrator.yml`):
+- **Flights (`fetch_routes.yml`):** Populates the 3–4 day rolling Duffel flight window.
+- **Ferries (`scrape_ferries.yml`):** Scrapes and normalizes FRS Express / L'Express des Îles ferry schedules right after the flight window completes.
 - **Alerting:** If Duffel returns an unknown airport code or a new airline carrier, the backend triggers a Discord Webhook, alerting the developer to enrich the database topology manually.
 
 ---

@@ -25,17 +25,114 @@ jobs:
   test:
     name: Test Suite
     runs-on: ubuntu-24.04-arm
+    outputs:
+      started_epoch: ${{ steps.timing.outputs.started_epoch }}
+      started_iso: ${{ steps.timing.outputs.started_iso }}
+      started_et: ${{ steps.timing.outputs.started_et }}
+      triggered_et: ${{ steps.timing.outputs.triggered_et }}
+      queue_str: ${{ steps.timing.outputs.queue_str }}
     steps:
+      - name: Record Job Start
+        id: timing
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          python3 - << 'PY'
+          import json, os, urllib.request
+          from datetime import datetime, timezone, timedelta
+
+          def fmt_et(dt_utc: datetime) -> str:
+              y = dt_utc.year
+              nxt = lambda d, w: d + timedelta(days=(w - d.weekday()) % 7)
+              dst_start = nxt(datetime(y, 3, 8, 7, 0, tzinfo=timezone.utc), 6)
+              dst_end = nxt(datetime(y, 11, 1, 6, 0, tzinfo=timezone.utc), 6)
+              offset, tz = (-4, "EDT") if dst_start <= dt_utc < dst_end else (-5, "EST")
+              return (dt_utc + timedelta(hours=offset)).strftime(f"%a, %d %b %Y at %H:%M:%S {tz}")
+
+          now_utc = datetime.now(timezone.utc)
+          started_epoch = int(now_utc.timestamp())
+          started_iso = now_utc.strftime("%Y-%m-%dT%H:%M:%SZ")
+          started_et = fmt_et(now_utc)
+          triggered_et = started_et
+          queue_sec = 0
+
+          try:
+              url = f"{os.environ['GITHUB_API_URL']}/repos/{os.environ['GITHUB_REPOSITORY']}/actions/runs/{os.environ['GITHUB_RUN_ID']}"
+              req = urllib.request.Request(url, headers={
+                  "Authorization": f"Bearer {os.environ.get('GH_TOKEN', '')}",
+                  "Accept": "application/vnd.github+json",
+              })
+              with urllib.request.urlopen(req, timeout=5) as resp:
+                  data = json.loads(resp.read().decode("utf-8"))
+              created_str = data.get("created_at")
+              if created_str:
+                  created_utc = datetime.fromisoformat(created_str.replace("Z", "+00:00"))
+                  triggered_et = fmt_et(created_utc)
+                  queue_sec = max(0, started_epoch - int(created_utc.timestamp()))
+          except Exception:
+              pass
+
+          queue_str = f"+{queue_sec // 60}m {queue_sec % 60}s queue" if queue_sec >= 60 else f"+{queue_sec}s queue"
+          with open(os.environ["GITHUB_OUTPUT"], "a", encoding="utf-8") as fh:
+              fh.write(f"started_epoch={started_epoch}\n")
+              fh.write(f"started_iso={started_iso}\n")
+              fh.write(f"started_et={started_et}\n")
+              fh.write(f"triggered_et={triggered_et}\n")
+              fh.write(f"queue_str={queue_str}\n")
+          PY
+
       - uses: actions/checkout@v4
-      
+
       - name: Build & Test Backend (Python)
         run: |
           docker build -t prop-ferry-backend:test -f backend/Dockerfile ./backend
           docker run --rm prop-ferry-backend:test python manage.py test
 
-      - name: Build & Test Frontend (React)
+      - name: Verify Production Backend Image & Gunicorn Config
+        run: |
+          docker build -t prop-ferry-backend:prod-test -f backend/Dockerfile.prod ./backend
+          DUMMY_GCS_CREDS=$(python3 -c '
+          import json, subprocess
+          pem = subprocess.check_output(["openssl", "genrsa", "2048"], stderr=subprocess.DEVNULL).decode()
+          print(json.dumps({
+              "type": "service_account",
+              "project_id": "ci-smoke",
+              "private_key_id": "ci-key",
+              "private_key": pem,
+              "client_email": "ci@ci-smoke.iam.gserviceaccount.com",
+              "token_uri": "https://oauth2.googleapis.com/token",
+          }))
+          ')
+          docker run --rm \
+            -e DJANGO_SETTINGS_MODULE=config.settings.production \
+            -e DJANGO_ENV=production \
+            -e DJANGO_SECRET_KEY=ci-smoke-secret-key \
+            -e ALLOWED_HOSTS=localhost \
+            -e REDIS_URL=redis://127.0.0.1:6379/0 \
+            -e POSTGRES_DB=ci \
+            -e POSTGRES_USER=ci \
+            -e POSTGRES_PASSWORD=ci \
+            -e POSTGRES_HOST=127.0.0.1 \
+            -e POSTGRES_PORT=5432 \
+            -e GCS_CREDENTIALS="$DUMMY_GCS_CREDS" \
+            prop-ferry-backend:prod-test \
+            gunicorn --check-config \
+            --workers 2 \
+            --threads 2 \
+            --worker-class gthread \
+            --worker-connections 1000 \
+            --max-requests 1000 \
+            --max-requests-jitter 100 \
+            --bind 0.0.0.0:8000 \
+            --preload \
+            --timeout 30 \
+            config.wsgi:application
+
+      - name: Build, Lint, Type-Check & Test Frontend (React)
         run: |
           docker build -t prop-ferry-frontend:test -f frontend/Dockerfile ./frontend
+          docker run --rm prop-ferry-frontend:test npm run lint
+          docker run --rm -e VITE_API_URL=https://prop-ferry-api.rajivwallace.com prop-ferry-frontend:test npm run build
           docker run --rm prop-ferry-frontend:test npm run test
 
   build-and-push:
@@ -80,22 +177,53 @@ jobs:
     if: always()
     runs-on: ubuntu-24.04-arm
     steps:
-      - name: Notify Success
-        if: ${{ needs.test.result == 'success' && (needs.build-and-push.result == 'success' || needs.build-and-push.result == 'skipped') }}
+      - name: Compute Timing & Send Discord Notification
+        env:
+          STARTED_EPOCH: ${{ needs.test.outputs.started_epoch }}
+          STARTED_ISO: ${{ needs.test.outputs.started_iso }}
+          STARTED_ET: ${{ needs.test.outputs.started_et }}
+          TRIGGERED_ET: ${{ needs.test.outputs.triggered_et }}
+          QUEUE_STR: ${{ needs.test.outputs.queue_str }}
+          TEST_RESULT: ${{ needs.test.result }}
+          BUILD_RESULT: ${{ needs.build-and-push.result }}
         run: |
-          printf -v DESC "Build **#${{ github.run_number }}** completed successfully.\n[View GitHub Actions Logs](${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }})"
-          PAYLOAD=$(jq -n --arg title "✅ ${{ env.APP_NAME }} Build Success" \
-                          --arg desc "$DESC" \
-                          --argjson color ${{ env.DISCORD_SUCCESS_COLOR }} \
-                          '{embeds: [{title: $title, description: $desc, color: $color}]}')
+          IFS=$'\t' read -r FINISHED_ET DURATION_STR < <(python3 - "${STARTED_EPOCH:-0}" << 'PY'
+          import sys
+          from datetime import datetime, timezone, timedelta
+          started_epoch = int(sys.argv[1] or 0)
+          now_utc = datetime.now(timezone.utc)
+          y = now_utc.year
+          nxt = lambda d, w: d + timedelta(days=(w - d.weekday()) % 7)
+          dst_start = nxt(datetime(y, 3, 8, 7, 0, tzinfo=timezone.utc), 6)
+          dst_end = nxt(datetime(y, 11, 1, 6, 0, tzinfo=timezone.utc), 6)
+          offset, tz = (-4, "EDT") if dst_start <= now_utc < dst_end else (-5, "EST")
+          finished_et = (now_utc + timedelta(hours=offset)).strftime(f"%a, %d %b %Y at %H:%M:%S {tz}")
+          dur = max(0, int(now_utc.timestamp()) - started_epoch) if started_epoch else 0
+          dur_str = f"{dur // 60}m {dur % 60:02d}s" if dur >= 60 else f"{dur}s"
+          print(f"{finished_et}\t{dur_str}")
+          PY
+          )
+          TS_ISO="${STARTED_ISO:-$(date -u +"%Y-%m-%dT%H:%M:%SZ")}"
+          if [ "$TEST_RESULT" = "success" ] && { [ "$BUILD_RESULT" = "success" ] || [ "$BUILD_RESULT" = "skipped" ]; }; then
+            printf -v DESC "Build **#${{ github.run_number }}** completed successfully.\n[View GitHub Actions Logs](${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }})\n:clock3: **Triggered:** ${TRIGGERED_ET}\n:desktop: **GH Server Started:** ${STARTED_ET} (${QUEUE_STR})\n:checkered_flag: **Finished:** ${FINISHED_ET} (${DURATION_STR})"
+            PAYLOAD=$(jq -n --arg title "✅ ${{ env.APP_NAME }} Build Success" \
+                            --arg desc "$DESC" \
+                            --arg ts "$TS_ISO" \
+                            --argjson color ${{ env.DISCORD_SUCCESS_COLOR }} \
+                            '{embeds: [{title: $title, description: $desc, color: $color, timestamp: $ts}]}')
+          else
+            printf -v DESC "Check GitHub Actions logs for build **#${{ github.run_number }}**.\n[View GitHub Actions Logs](${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }})\n:clock3: **Triggered:** ${TRIGGERED_ET}\n:desktop: **GH Server Started:** ${STARTED_ET} (${QUEUE_STR})\n:checkered_flag: **Failed:** ${FINISHED_ET} (${DURATION_STR})"
+            PAYLOAD=$(jq -n --arg title "🚨 ${{ env.APP_NAME }} Build Failed" \
+                            --arg desc "$DESC" \
+                            --arg ts "$TS_ISO" \
+                            --argjson color ${{ env.DISCORD_FAIL_COLOR }} \
+                            '{embeds: [{title: $title, description: $desc, color: $color, timestamp: $ts}]}')
+          fi
           curl -s --max-time 10 -H "Content-Type: application/json" -X POST -d "$PAYLOAD" ${{ secrets.DISCORD_WEBHOOK_URL_GITHUB }} || true
-          
-      - name: Notify Failure
-        if: ${{ contains(needs.*.result, 'failure') }}
-        run: |
-          printf -v DESC "Check GitHub Actions logs for build **#${{ github.run_number }}**.\n[View GitHub Actions Logs](${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }})"
-          PAYLOAD=$(jq -n --arg title "🚨 ${{ env.APP_NAME }} Build Failed" \
-                          --arg desc "$DESC" \
-                          --argjson color ${{ env.DISCORD_FAIL_COLOR }} \
-                          '{embeds: [{title: $title, description: $desc, color: $color}]}')
-          curl -s --max-time 10 -H "Content-Type: application/json" -X POST -d "$PAYLOAD" ${{ secrets.DISCORD_WEBHOOK_URL_GITHUB }} || true
+
+  deploy:
+    name: Deploy to Raspberry Pi
+    needs: build-and-push
+    if: github.ref == 'refs/heads/main' && needs.build-and-push.result == 'success'
+    uses: ./.github/workflows/deploy.yml
+    secrets: inherit
